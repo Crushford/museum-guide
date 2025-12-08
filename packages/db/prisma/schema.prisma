@@ -5,9 +5,17 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
+  output   = "../../../node_modules/@prisma/client/.prisma/client"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model Museum {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
 }

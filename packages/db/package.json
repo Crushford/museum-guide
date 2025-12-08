@@ -7,8 +7,13 @@
     "prisma": "prisma"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.1.0",
     "@prisma/client": "^7.1.0",
     "dotenv": "^17.2.3",
+    "pg": "^8.16.3",
     "prisma": "^7.1.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.6"
   }
 }
