@@ -17,6 +17,8 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 
 // Create a Prisma Client using the adapter (required in Prisma 7)
-export const prisma = new PrismaClient({
+const client = new PrismaClient({
   adapter,
 });
+
+export const prisma = client;

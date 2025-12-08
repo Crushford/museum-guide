@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../../node_modules/@prisma/client/.prisma/client"
 }
 
 datasource db {
@@ -18,4 +17,14 @@ model Museum {
   name        String
   description String?
   createdAt   DateTime @default(now())
+  rooms       Room[]
+}
+
+model Room {
+  id        Int      @id @default(autoincrement())
+  name      String
+  museumId Int
+  createdAt DateTime @default(now())
+
+  museum   Museum  @relation(fields: [museumId], references: [id], onDelete: Cascade)
 }
