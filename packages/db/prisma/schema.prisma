@@ -18,6 +18,7 @@ model Museum {
   description String?
   createdAt   DateTime @default(now())
   rooms       Room[]
+  content     Content[]
 }
 
 model Room {
@@ -27,4 +28,26 @@ model Room {
   createdAt DateTime @default(now())
 
   museum   Museum  @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  content  Content[]
+}
+
+model Artifact {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  content   Content[]
+}
+
+model Content {
+  id          Int      @id @default(autoincrement())
+  text        String
+  type        String?
+  museumId    Int?
+  roomId      Int?
+  artifactId  Int?
+  createdAt   DateTime @default(now())
+
+  museum   Museum?  @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  room     Room?    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  artifact Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
 }
