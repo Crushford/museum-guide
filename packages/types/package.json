@@ -1,0 +1,7 @@
+{
+  "name": "@repo/types",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "packageManager": "yarn@4.9.2"
+}

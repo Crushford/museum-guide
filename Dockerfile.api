@@ -1,0 +1,13 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY . .
+
+RUN yarn install
+
+WORKDIR /app/apps/api
+
+CMD ["yarn", "dev"]
+
+
