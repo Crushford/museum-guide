@@ -12,6 +12,12 @@ datasource db {
   provider = "postgresql"
 }
 
+enum NodeType {
+  MUSEUM
+  ROOM
+  ARTIFACT
+}
+
 model Museum {
   id          Int      @id @default(autoincrement())
   name        String
@@ -50,4 +56,30 @@ model Content {
   museum   Museum?  @relation(fields: [museumId], references: [id], onDelete: Cascade)
   room     Room?    @relation(fields: [roomId], references: [id], onDelete: Cascade)
   artifact Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+}
+
+model Node {
+  id            Int       @id @default(autoincrement())
+  type          NodeType
+  name          String
+  parentId      Int?
+  knowledgeText String?
+  furtherReading String[] @default([])
+  createdAt     DateTime  @default(now())
+
+  parent   Node?  @relation("NodeParent", fields: [parentId], references: [id], onDelete: Cascade)
+  children Node[] @relation("NodeParent")
+
+  content  ContentItem[]
+}
+
+model ContentItem {
+  id          Int      @id @default(autoincrement())
+  nodeId      Int
+  type        String
+  title       String
+  body        String
+  createdAt   DateTime @default(now())
+
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 }
