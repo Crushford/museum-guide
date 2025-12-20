@@ -119,6 +119,59 @@ app.post('/nodes', async (req, res) => {
   res.json(node);
 });
 
+// PATCH /nodes/:id - Update a node
+app.patch('/nodes/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid node id' });
+  }
+
+  const { name, knowledgeText, furtherReading } = req.body;
+
+  // Build update data object
+  const updateData: {
+    name?: string;
+    knowledgeText?: string | null;
+    furtherReading?: string[];
+  } = {};
+
+  if (name !== undefined) {
+    updateData.name = name;
+  }
+
+  if (knowledgeText !== undefined) {
+    updateData.knowledgeText = knowledgeText || null;
+  }
+
+  if (furtherReading !== undefined) {
+    if (!Array.isArray(furtherReading)) {
+      return res.status(400).json({
+        error: 'furtherReading must be an array of strings',
+      });
+    }
+    // Validate all items are strings
+    if (!furtherReading.every((item) => typeof item === 'string')) {
+      return res.status(400).json({
+        error: 'furtherReading must be an array of strings',
+      });
+    }
+    updateData.furtherReading = furtherReading;
+  }
+
+  try {
+    const node = await prisma.node.update({
+      where: { id },
+      data: updateData,
+    });
+    res.json(node);
+  } catch (error) {
+    if ((error as any).code === 'P2025') {
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    throw error;
+  }
+});
+
 // 5E) Content endpoints now attach by nodeId
 app.post('/content-items', async (req, res) => {
   const { nodeId, type, title, body } = req.body;
