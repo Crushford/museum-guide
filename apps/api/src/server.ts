@@ -206,6 +206,274 @@ app.get('/nodes/:id/content-items', async (req, res) => {
   res.json(contentItems);
 });
 
+// GET /nodes/:id/playlist - Get node's placements grouped by role
+app.get('/nodes/:id/playlist', async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid node id' });
+  }
+
+  const node = await prisma.node.findUnique({
+    where: { id },
+  });
+
+  if (!node) {
+    return res.status(404).json({ error: 'Node not found' });
+  }
+
+  const placements = await prisma.nodeContent.findMany({
+    where: { nodeId: id },
+    include: { contentItem: true },
+    orderBy: [{ role: 'asc' }, { sortOrder: 'asc' }],
+  });
+
+  // Group by role
+  const roles: Record<string, any[]> = {};
+  for (const placement of placements) {
+    if (!roles[placement.role]) {
+      roles[placement.role] = [];
+    }
+    roles[placement.role].push({
+      id: placement.id,
+      sortOrder: placement.sortOrder,
+      contentItem: {
+        id: placement.contentItem.id,
+        title: placement.contentItem.title,
+        type: placement.contentItem.type,
+        body: placement.contentItem.body,
+        audioUrl: placement.contentItem.audioUrl,
+      },
+    });
+  }
+
+  res.json({
+    node: {
+      id: node.id,
+      type: node.type,
+      name: node.name,
+    },
+    roles,
+  });
+});
+
+// POST /nodes/:id/outline - Ingest outline JSON and materialize placements
+app.post('/nodes/:id/outline', async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid node id' });
+  }
+
+  const { outline } = req.body;
+
+  if (!outline || typeof outline !== 'object') {
+    return res.status(400).json({ error: 'outline must be an object' });
+  }
+
+  if (!outline.roles || typeof outline.roles !== 'object') {
+    return res.status(400).json({
+      error: 'outline must have a roles object',
+    });
+  }
+
+  // Validate outline structure
+  const roles = outline.roles;
+  const roleKeys = Object.keys(roles);
+  const allKeys: string[] = [];
+
+  for (const roleKey of roleKeys) {
+    if (!Array.isArray(roles[roleKey])) {
+      return res.status(400).json({
+        error: `roles.${roleKey} must be an array`,
+      });
+    }
+    for (const item of roles[roleKey]) {
+      if (!item.key || !item.title || !item.contentType) {
+        return res.status(400).json({
+          error: `Each outline item must have key, title, and contentType`,
+        });
+      }
+      // Validate keys are unique across all roles for this node
+      if (allKeys.includes(item.key)) {
+        return res.status(400).json({
+          error: `Duplicate key "${item.key}" found. Keys must be unique across all roles.`,
+        });
+      }
+      allKeys.push(item.key);
+    }
+  }
+
+  // Check node exists
+  const node = await prisma.node.findUnique({
+    where: { id },
+  });
+
+  if (!node) {
+    return res.status(404).json({ error: 'Node not found' });
+  }
+
+  // Update node with outline
+  await prisma.node.update({
+    where: { id },
+    data: {
+      outline: outline as any,
+      outlineUpdatedAt: new Date(),
+    },
+  });
+
+  let placementsCreated = 0;
+  let contentItemsCreated = 0;
+
+  // Materialize placements and content items
+  for (const roleKey of roleKeys) {
+    const items = roles[roleKey];
+    const contentItemIdsToKeep: number[] = [];
+
+    // First, delete any existing placements at sortOrders we'll be using
+    // This handles the unique constraint on [nodeId, role, sortOrder]
+    const sortOrdersToUse = items.map((_: any, index: number) => index);
+    await prisma.nodeContent.deleteMany({
+      where: {
+        nodeId: id,
+        role: roleKey,
+        sortOrder: {
+          in: sortOrdersToUse,
+        },
+      },
+    });
+
+    for (let sortOrder = 0; sortOrder < items.length; sortOrder++) {
+      const item = items[sortOrder];
+      const { key, title, contentType } = item;
+
+      // Find or create ContentItem (scoped by nodeId + outlineKey)
+      let contentItem = await prisma.contentItem.findFirst({
+        where: {
+          nodeId: id,
+          outlineKey: key,
+        },
+      });
+
+      if (!contentItem) {
+        contentItem = await prisma.contentItem.create({
+          data: {
+            nodeId: id,
+            type: contentType,
+            title,
+            body: '',
+            outlineKey: key,
+          },
+        });
+        contentItemsCreated++;
+      } else {
+        // Update title/type if changed
+        await prisma.contentItem.update({
+          where: { id: contentItem.id },
+          data: {
+            title,
+            type: contentType,
+          },
+        });
+      }
+
+      contentItemIdsToKeep.push(contentItem.id);
+
+      // Create NodeContent placement (we deleted conflicting ones above)
+      await prisma.nodeContent.create({
+        data: {
+          nodeId: id,
+          contentItemId: contentItem.id,
+          role: roleKey,
+          sortOrder,
+        },
+      });
+      placementsCreated++;
+    }
+
+    // Cleanup: remove placements for this role that aren't in the new outline
+    // This only deletes NodeContent rows, NOT ContentItems
+    await prisma.nodeContent.deleteMany({
+      where: {
+        nodeId: id,
+        role: roleKey,
+        contentItemId: {
+          notIn: contentItemIdsToKeep,
+        },
+      },
+    });
+  }
+
+  res.json({
+    success: true,
+    nodeId: id,
+    placementsCreated,
+    contentItemsCreated,
+  });
+});
+
+// GET /content-items/:id - Get single content item
+app.get('/content-items/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid content item id' });
+  }
+
+  const contentItem = await prisma.contentItem.findUnique({
+    where: { id },
+    include: {
+      nodeContents: {
+        include: {
+          node: {
+            select: {
+              id: true,
+              type: true,
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!contentItem) {
+    return res.status(404).json({ error: 'Content item not found' });
+  }
+
+  res.json(contentItem);
+});
+
+// PATCH /content-items/:id - Update content item
+app.patch('/content-items/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid content item id' });
+  }
+
+  const { body, audioUrl } = req.body;
+
+  const updateData: { body?: string; audioUrl?: string | null } = {};
+
+  if (body !== undefined) {
+    updateData.body = body;
+  }
+
+  if (audioUrl !== undefined) {
+    updateData.audioUrl = audioUrl || null;
+  }
+
+  try {
+    const contentItem = await prisma.contentItem.update({
+      where: { id },
+      data: updateData,
+    });
+    res.json(contentItem);
+  } catch (error) {
+    if ((error as any).code === 'P2025') {
+      return res.status(404).json({ error: 'Content item not found' });
+    }
+    throw error;
+  }
+});
+
 // ============================================================================
 // BACKWARDS COMPATIBILITY ENDPOINTS (using Node queries)
 // ============================================================================

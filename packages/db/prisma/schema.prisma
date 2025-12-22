@@ -59,27 +59,54 @@ model Content {
 }
 
 model Node {
-  id            Int       @id @default(autoincrement())
-  type          NodeType
-  name          String
-  parentId      Int?
-  knowledgeText String?
-  furtherReading String[] @default([])
-  createdAt     DateTime  @default(now())
+  id               Int       @id @default(autoincrement())
+  type             NodeType
+  name             String
+  parentId         Int?
+  knowledgeText    String?
+  furtherReading   String[]  @default([])
+  outline          Json?
+  outlineUpdatedAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   parent   Node?  @relation("NodeParent", fields: [parentId], references: [id], onDelete: Cascade)
   children Node[] @relation("NodeParent")
 
-  content  ContentItem[]
+  content      ContentItem[]
+  nodeContents NodeContent[]
 }
 
 model ContentItem {
   id          Int      @id @default(autoincrement())
-  nodeId      Int
+  nodeId      Int?
   type        String
   title       String
   body        String
+  audioUrl    String?
+  outlineKey  String?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  node         Node?         @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  nodeContents NodeContent[]
+
+  @@index([nodeId, outlineKey])
+}
+
+model NodeContent {
+  id            Int      @id @default(autoincrement())
+  nodeId        Int
+  contentItemId Int
+  role          String
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  node        Node        @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@index([nodeId, role, sortOrder])
+  @@unique([nodeId, role, sortOrder])
+  @@unique([nodeId, role, contentItemId])
 }
