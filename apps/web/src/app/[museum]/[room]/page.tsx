@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { api } from '../../../lib/api';
 import { notFound } from 'next/navigation';
 
@@ -8,6 +9,41 @@ type Node = {
   name: string;
   parentId: number | null;
 };
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ museum: string; room: string }>;
+}): Promise<Metadata> {
+  const { museum: museumId, room: roomId } = await params;
+  const museumNodeId = Number(museumId);
+  const roomNodeId = Number(roomId);
+
+  try {
+    const [roomNode, museumNode] = await Promise.all([
+      api<Node>(`/nodes/${roomNodeId}`),
+      api<Node>(`/nodes/${museumNodeId}`),
+    ]);
+
+    if (
+      roomNode &&
+      roomNode.type === 'ROOM' &&
+      museumNode &&
+      museumNode.type === 'MUSEUM' &&
+      roomNode.parentId === museumNodeId
+    ) {
+      return {
+        title: `${museumNode.name} - ${roomNode.name}`,
+      };
+    }
+  } catch {
+    // Fall through to default
+  }
+
+  return {
+    title: 'Room',
+  };
+}
 
 type PlaylistResponse = {
   node: { id: number; type: string; name: string };

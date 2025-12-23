@@ -1,5 +1,10 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { api } from '../lib/api';
+
+export const metadata: Metadata = {
+  title: 'Museums',
+};
 
 type Museum = {
   id: number;

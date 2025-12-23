@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { api } from '../../../../lib/api';
 import { updateNode } from './edit/actions';
 import { createChildNode } from './actions';
@@ -32,6 +33,44 @@ type PlaylistResponse = {
     }>
   >;
 };
+
+async function getNodeHierarchy(nodeId: number): Promise<string[]> {
+  const node = await api<Node>(`/nodes/${nodeId}`).catch(() => null);
+  if (!node) return [];
+
+  const hierarchy = [node.name];
+
+  if (node.parentId) {
+    const parentHierarchy = await getNodeHierarchy(node.parentId);
+    return [...parentHierarchy, ...hierarchy];
+  }
+
+  return hierarchy;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const nodeId = Number(id);
+
+  try {
+    const hierarchy = await getNodeHierarchy(nodeId);
+    if (hierarchy.length > 0) {
+      return {
+        title: hierarchy.join(' - '),
+      };
+    }
+  } catch {
+    // Fall through to default
+  }
+
+  return {
+    title: 'Node',
+  };
+}
 
 export default async function NodeDetailPage({
   params,

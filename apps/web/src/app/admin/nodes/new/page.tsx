@@ -1,7 +1,12 @@
+import type { Metadata } from 'next';
 import { AdminPageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { PromptTemplateBox } from '../../../../components/shared';
 import { JsonImportClient } from './JsonImportClient';
+
+export const metadata: Metadata = {
+  title: 'Create Node',
+};
 
 export default async function NewNodePage({
   searchParams,

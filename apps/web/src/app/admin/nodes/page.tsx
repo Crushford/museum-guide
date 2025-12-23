@@ -1,9 +1,14 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { api } from '../../../lib/api';
 import { AdminPageLayout } from '../../../components/shared';
 import { SectionCard } from '../../../components/shared';
 import { EmptyState } from '../../../components/shared';
 import { NodesListClient } from './NodesListClient';
+
+export const metadata: Metadata = {
+  title: 'Nodes',
+};
 
 type Node = {
   id: number;
