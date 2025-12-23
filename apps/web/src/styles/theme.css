@@ -1,0 +1,146 @@
+:root {
+  /* Background layers */
+  --bg: 220 14% 10%;
+  --bg-2: 220 14% 13%;
+  --panel: 220 14% 16%;
+
+  /* Text */
+  --fg: 40 20% 92%;
+  --muted: 40 10% 72%;
+  --subtle: 40 8% 60%;
+
+  /* Borders and dividers */
+  --border: 220 10% 26%;
+  --divider: 220 10% 22%;
+
+  /* Accent: museum-like restrained "bronze" */
+  --accent: 36 45% 58%;
+  --accent-2: 36 35% 48%;
+
+  /* Status */
+  --danger: 0 65% 55%;
+  --warning: 45 85% 55%;
+  --success: 140 45% 45%;
+
+  /* Effects */
+  --shadow: 0 0% 0%;
+  --ring: 36 45% 58%;
+
+  /* Radii and spacing */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+}
+
+@theme {
+  --color-bg: hsl(var(--bg));
+  --color-bg-2: hsl(var(--bg-2));
+  --color-panel: hsl(var(--panel));
+  --color-fg: hsl(var(--fg));
+  --color-muted: hsl(var(--muted));
+  --color-subtle: hsl(var(--subtle));
+  --color-border: hsl(var(--border));
+  --color-divider: hsl(var(--divider));
+  --color-accent: hsl(var(--accent));
+  --color-accent-2: hsl(var(--accent-2));
+  --color-danger: hsl(var(--danger));
+  --color-warning: hsl(var(--warning));
+  --color-success: hsl(var(--success));
+  --color-ring: hsl(var(--ring));
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+}
+
+/* Tailwind utility classes for theme colors using @layer utilities */
+@layer utilities {
+  .bg-bg {
+    background-color: hsl(var(--bg));
+  }
+
+  .bg-bg-2 {
+    background-color: hsl(var(--bg-2));
+  }
+
+  .bg-panel {
+    background-color: hsl(var(--panel));
+  }
+
+  .text-fg {
+    color: hsl(var(--fg));
+  }
+
+  .text-muted {
+    color: hsl(var(--muted));
+  }
+
+  .text-subtle {
+    color: hsl(var(--subtle));
+  }
+
+  .border-border {
+    border-color: hsl(var(--border));
+  }
+
+  .border-divider {
+    border-color: hsl(var(--divider));
+  }
+
+  .text-accent {
+    color: hsl(var(--accent));
+  }
+
+  .text-accent-2 {
+    color: hsl(var(--accent-2));
+  }
+
+  .bg-accent {
+    background-color: hsl(var(--accent));
+  }
+
+  .bg-accent-2 {
+    background-color: hsl(var(--accent-2));
+  }
+
+  .text-danger {
+    color: hsl(var(--danger));
+  }
+
+  .bg-danger\/20 {
+    background-color: hsl(var(--danger) / 0.2);
+  }
+
+  .border-danger\/30 {
+    border-color: hsl(var(--danger) / 0.3);
+  }
+
+  .text-warning {
+    color: hsl(var(--warning));
+  }
+
+  .bg-warning\/20 {
+    background-color: hsl(var(--warning) / 0.2);
+  }
+
+  .border-warning\/30 {
+    border-color: hsl(var(--warning) / 0.3);
+  }
+
+  .text-success {
+    color: hsl(var(--success));
+  }
+
+  .bg-success\/20 {
+    background-color: hsl(var(--success) / 0.2);
+  }
+
+  .border-success\/30 {
+    border-color: hsl(var(--success) / 0.3);
+  }
+
+  .ring-accent {
+    --tw-ring-color: hsl(var(--accent));
+  }
+}
+

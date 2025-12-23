@@ -10,6 +10,8 @@
     "dev:api": "yarn workspace api dev",
     "build:web": "yarn workspace web build",
     "build:api": "yarn workspace api build",
+    "storybook": "yarn workspace web storybook",
+    "build-storybook": "yarn workspace web build-storybook",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\""
   },
   "devDependencies": {
