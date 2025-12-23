@@ -22,12 +22,12 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
           {item.href ? (
             <Link
               href={item.href}
-              className="text-muted hover:text-accent transition-colors"
+              className="text-muted-foreground hover:text-primary transition-colors"
             >
               {item.label}
             </Link>
           ) : (
-            <span className="text-fg">{item.label}</span>
+            <span className="text-foreground">{item.label}</span>
           )}
         </div>
       ))}

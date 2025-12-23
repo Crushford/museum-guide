@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, useState } from 'react';
+import { Input } from '@/components/ui/input';
 import { TypePill } from '../TypePill';
 
 type EditableFieldRowProps = {
@@ -35,33 +36,33 @@ export function EditableFieldRow({
   };
 
   return (
-    <div className="flex gap-6 py-3 border-b border-divider">
+    <div className="flex gap-6 py-3 border-b border-border">
       <div className="w-48 flex-shrink-0">
         <div className="flex items-center gap-2 mb-1">
-          <label className="text-sm font-medium text-fg">{label}</label>
+          <label className="text-sm font-medium text-foreground">{label}</label>
           {typeBadge && <TypePill type={typeBadge} />}
         </div>
-        {hint && <p className="text-xs text-muted">{hint}</p>}
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </div>
       <div className="flex-1 flex items-center gap-3">
         {isEditing ? (
           editor || (
-            <input
+            <Input
               type="text"
               value={localValue}
               onChange={(e) => setLocalValue(e.target.value)}
-              className="flex-1 px-3 py-2 bg-bg-2 border border-border rounded-md text-fg focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+              className="flex-1"
               autoFocus
             />
           )
         ) : (
-          <span className="text-fg">{value}</span>
+          <span className="text-foreground">{value}</span>
         )}
         {rightSlot && <div className="flex-shrink-0">{rightSlot}</div>}
         {editable && !isEditing && (
           <button
             onClick={handleEdit}
-            className="text-sm text-muted hover:text-accent transition-colors"
+            className="text-sm text-muted-foreground hover:text-primary transition-colors"
           >
             Edit
           </button>

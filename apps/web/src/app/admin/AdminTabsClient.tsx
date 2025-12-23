@@ -252,7 +252,9 @@ export function AdminTabsClient({
         {/* Filters for Rooms tab */}
         {tab === 'rooms' && (
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-fg">Museum:</label>
+            <label className="text-sm font-medium text-foreground">
+              Museum:
+            </label>
             <select
               value={selectedMuseumId || ''}
               onChange={(e) =>
@@ -260,7 +262,7 @@ export function AdminTabsClient({
                   e.target.value ? Number(e.target.value) : null
                 )
               }
-              className="px-3 py-2 bg-bg-2 border border-border rounded-md text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+              className="px-3 py-2 bg-muted border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">All museums</option>
               {museums.map((m) => (
@@ -275,7 +277,9 @@ export function AdminTabsClient({
         {/* Filters for Artifacts tab */}
         {tab === 'artifacts' && (
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-fg">Museum:</label>
+            <label className="text-sm font-medium text-foreground">
+              Museum:
+            </label>
             <select
               value={selectedMuseumId || ''}
               onChange={(e) =>
@@ -283,7 +287,7 @@ export function AdminTabsClient({
                   e.target.value ? Number(e.target.value) : null
                 )
               }
-              className="px-3 py-2 bg-bg-2 border border-border rounded-md text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+              className="px-3 py-2 bg-muted border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">All museums</option>
               {museums.map((m) => (
@@ -293,14 +297,14 @@ export function AdminTabsClient({
               ))}
             </select>
 
-            <label className="text-sm font-medium text-fg">Room:</label>
+            <label className="text-sm font-medium text-foreground">Room:</label>
             <select
               value={selectedRoomId || ''}
               onChange={(e) =>
                 handleRoomChange(e.target.value ? Number(e.target.value) : null)
               }
               disabled={!selectedMuseumId}
-              className="px-3 py-2 bg-bg-2 border border-border rounded-md text-fg focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 bg-muted border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">All rooms</option>
               {availableRooms.map((r) => (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 type PromptTemplateBoxProps = {
   title: string;
@@ -30,20 +31,19 @@ export function PromptTemplateBox({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-fg">{title}</h3>
-        <button
-          onClick={handleCopy}
-          className="px-3 py-1 text-xs bg-accent text-white rounded-md hover:bg-accent-2 transition-colors"
-        >
+        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <Button onClick={handleCopy} size="sm" variant="outline">
           {copied ? 'Copied!' : copyLabel}
-        </button>
+        </Button>
       </div>
-      <div className="bg-bg-2 border border-border rounded-md p-4">
-        <pre className="text-sm text-fg font-mono whitespace-pre-wrap break-words">
+      <div className="bg-muted border border-border rounded-md p-4">
+        <pre className="text-sm text-foreground font-mono whitespace-pre-wrap break-words">
           {template}
         </pre>
       </div>
-      {helperText && <p className="text-xs text-muted">{helperText}</p>}
+      {helperText && (
+        <p className="text-xs text-muted-foreground">{helperText}</p>
+      )}
     </div>
   );
 }

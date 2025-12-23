@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type UrlListEditorProps = {
   value: string[];
@@ -53,16 +55,16 @@ export function UrlListEditor({
         return (
           <div
             key={index}
-            className="flex items-center gap-2 p-2 bg-bg-2 rounded-md border border-border"
+            className="flex items-center gap-2 p-2 bg-muted rounded-md border border-border"
           >
             <div className="flex-1 min-w-0">
               <span
-                className={`text-sm ${isValid ? 'text-fg' : 'text-warning'}`}
+                className={`text-sm ${isValid ? 'text-foreground' : 'text-warning'}`}
               >
                 {url}
               </span>
               {!isValid && (
-                <span className="text-xs text-muted ml-2">
+                <span className="text-xs text-muted-foreground ml-2">
                   (not a valid URL)
                 </span>
               )}
@@ -70,7 +72,7 @@ export function UrlListEditor({
             {editable && (
               <button
                 onClick={() => handleRemove(index)}
-                className="text-muted hover:text-danger transition-colors"
+                className="text-muted-foreground hover:text-destructive transition-colors"
                 aria-label="Remove URL"
               >
                 ×
@@ -81,20 +83,15 @@ export function UrlListEditor({
       })}
       {editable && (
         <div className="flex gap-2">
-          <input
+          <Input
             type="text"
             value={newUrl}
             onChange={(e) => setNewUrl(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="flex-1 px-3 py-2 bg-bg-2 border border-border rounded-md text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+            className="flex-1"
           />
-          <button
-            onClick={handleAdd}
-            className="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-2 transition-colors"
-          >
-            Add
-          </button>
+          <Button onClick={handleAdd}>Add</Button>
         </div>
       )}
     </div>

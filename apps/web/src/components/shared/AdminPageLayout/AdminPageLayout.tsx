@@ -20,7 +20,7 @@ export function AdminPageLayout({
   children,
 }: AdminPageLayoutProps) {
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-6 py-8">
         <header className="mb-8">
           {breadcrumbs && breadcrumbs.length > 0 && (
@@ -29,7 +29,7 @@ export function AdminPageLayout({
             </div>
           )}
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-fg">{title}</h1>
+            <h1 className="text-3xl font-bold text-foreground">{title}</h1>
             {actions && (
               <div className="flex items-center gap-2">{actions}</div>
             )}
