@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { api } from '../../../../lib/api';
 import { updateNode } from './edit/actions';
 import { createChildNode } from './actions';
+import { saveOutline } from './outline-actions';
 
 type Node = {
   id: number;
@@ -10,7 +12,65 @@ type Node = {
   parentId: number | null;
   knowledgeText: string | null;
   furtherReading: string[];
+  outline: any;
+  outlineUpdatedAt: string | null;
 };
+
+type PlaylistResponse = {
+  node: { id: number; type: string; name: string };
+  roles: Record<
+    string,
+    Array<{
+      id: number;
+      sortOrder: number;
+      contentItem: {
+        id: number;
+        title: string;
+        type: string;
+        body: string;
+        audioUrl: string | null;
+      };
+    }>
+  >;
+};
+
+async function getNodeHierarchy(nodeId: number): Promise<string[]> {
+  const node = await api<Node>(`/nodes/${nodeId}`).catch(() => null);
+  if (!node) return [];
+
+  const hierarchy = [node.name];
+
+  if (node.parentId) {
+    const parentHierarchy = await getNodeHierarchy(node.parentId);
+    return [...parentHierarchy, ...hierarchy];
+  }
+
+  return hierarchy;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const nodeId = Number(id);
+
+  try {
+    const hierarchy = await getNodeHierarchy(nodeId);
+    if (hierarchy.length > 0) {
+      return {
+        title: hierarchy.join(' - '),
+      };
+    }
+  } catch {
+    // Fall through to default
+  }
+
+  return {
+    title: 'Node',
+  };
+}
 
 export default async function NodeDetailPage({
   params,
@@ -20,9 +80,13 @@ export default async function NodeDetailPage({
   const { id } = await params;
   const nodeId = Number(id);
 
-  const [node, children] = await Promise.all([
+  const [node, children, playlist] = await Promise.all([
     api<Node>(`/nodes/${nodeId}`),
     api<Node[]>(`/nodes/${nodeId}/children`),
+    api<PlaylistResponse>(`/nodes/${nodeId}/playlist`).catch(() => ({
+      node: { id: nodeId, type: '', name: '' },
+      roles: {},
+    })),
   ]);
 
   const canAddChild = node.type === 'MUSEUM' || node.type === 'ROOM';
@@ -227,6 +291,105 @@ export default async function NodeDetailPage({
           <p className="text-gray-600">Artifacts have no children.</p>
         </section>
       )}
+
+      <section className="mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Outline</h2>
+        {node.outlineUpdatedAt && (
+          <p className="text-sm text-gray-600 mb-4">
+            Last updated: {new Date(node.outlineUpdatedAt).toLocaleString()}
+          </p>
+        )}
+        <form
+          action={async (formData: FormData) => {
+            'use server';
+            const outlineJson = formData.get('outline') as string;
+            return saveOutline(nodeId, outlineJson);
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label htmlFor="outline" className="block text-sm font-medium mb-1">
+              Paste Outline JSON
+            </label>
+            <textarea
+              id="outline"
+              name="outline"
+              rows={12}
+              defaultValue={
+                node.outline ? JSON.stringify(node.outline, null, 2) : ''
+              }
+              placeholder='{"roles": {"intro": [{"key": "museum-intro", "title": "Welcome", "contentType": "intro"}]}}'
+              className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+          >
+            Save Outline
+          </button>
+        </form>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Playlist Preview</h2>
+        {Object.keys(playlist.roles).length === 0 ? (
+          <p className="text-gray-600">
+            No placements yet. Add an outline above.
+          </p>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(playlist.roles).map(([role, placements]) => (
+              <div key={role}>
+                <h3 className="text-lg font-semibold mb-2 capitalize">
+                  {role} ({placements.length})
+                </h3>
+                <ul className="space-y-2 ml-4">
+                  {placements.map((placement) => (
+                    <li key={placement.id} className="text-sm">
+                      <div className="flex items-start gap-2">
+                        <span className="text-gray-500">
+                          {placement.sortOrder + 1}.
+                        </span>
+                        <div className="flex-1">
+                          <Link
+                            href={`/admin/content-items/${placement.contentItem.id}?returnTo=${nodeId}`}
+                            className="font-medium text-blue-600 underline hover:text-blue-800"
+                          >
+                            {placement.contentItem.title}
+                          </Link>
+                          <div className="text-gray-600 text-xs mt-1">
+                            Type: {placement.contentItem.type} | ID:{' '}
+                            {placement.contentItem.id}
+                            {placement.contentItem.body.trim() === '' ? (
+                              <span className="text-orange-600 ml-2 font-semibold">
+                                (needs text)
+                              </span>
+                            ) : (
+                              <span className="text-green-600 ml-2">
+                                (has text)
+                              </span>
+                            )}
+                            {placement.contentItem.audioUrl ? (
+                              <span className="text-green-600 ml-2">
+                                (has audio)
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 ml-2">
+                                (no audio)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   );
 }

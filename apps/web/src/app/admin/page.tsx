@@ -1,52 +1,76 @@
-import Link from 'next/link';
+import type { Metadata } from 'next';
 import { api } from '../../lib/api';
-import { createMuseum } from './nodes/new/actions';
-import { NodeForm } from './components/NodeForm';
+import { AdminPageLayout } from '../../components/shared';
+import { SectionCard } from '../../components/shared';
+import { AdminTabsClient } from './AdminTabsClient';
+
+export const metadata: Metadata = {
+  title: 'Admin',
+};
+
+type Museum = {
+  id: number;
+  name: string;
+};
+
+type Room = {
+  id: number;
+  name: string;
+  museumId: number | null;
+  museumName: string | null;
+};
+
+type Artifact = {
+  id: number;
+  name: string;
+  roomId: number | null;
+  roomName: string | null;
+  museumId: number | null;
+  museumName: string | null;
+};
 
 type Node = {
   id: number;
   type: 'MUSEUM' | 'ROOM' | 'ARTIFACT';
   name: string;
-  knowledgeText: string | null;
-  furtherReading: string[];
+  parentId: number | null;
 };
 
-export default async function AdminPage() {
+async function getAllNodes(): Promise<Node[]> {
   const museums = await api<Node[]>('/nodes/museums');
+  const allNodes: Node[] = [];
+
+  for (const museum of museums) {
+    allNodes.push(museum);
+    const rooms = await api<Node[]>(`/nodes/${museum.id}/children`);
+    for (const room of rooms) {
+      allNodes.push(room);
+      const artifacts = await api<Node[]>(`/nodes/${room.id}/children`);
+      allNodes.push(...artifacts);
+    }
+  }
+
+  return allNodes;
+}
+
+export default async function AdminPage() {
+  const [museums, rooms, artifacts, allNodes] = await Promise.all([
+    api<Museum[]>('/nodes/museums'),
+    api<Room[]>('/admin/nodes/rooms'),
+    api<Artifact[]>('/admin/nodes/artifacts'),
+    getAllNodes(),
+  ]);
 
   return (
-    <main className="p-6 max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">Admin - Museums</h1>
-        <Link href="/" className="text-blue-600 underline mb-4 inline-block">
-          ← Back to public site
-        </Link>
-      </div>
-
-      <section className="mb-8">
-        <h2 className="text-2xl font-semibold mb-4">Museums</h2>
-        {museums.length === 0 ? (
-          <p className="text-gray-600">No museums yet. Create one below.</p>
-        ) : (
-          <ul className="space-y-2">
-            {museums.map((museum) => (
-              <li key={museum.id}>
-                <Link
-                  href={`/admin/nodes/${museum.id}`}
-                  className="text-blue-600 underline hover:text-blue-800"
-                >
-                  {museum.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">Add Museum</h2>
-        <NodeForm submitLabel="Create Museum" action={createMuseum} />
-      </section>
-    </main>
+    <AdminPageLayout title="Admin">
+      <SectionCard title="">
+        <AdminTabsClient
+          museums={museums}
+          rooms={rooms}
+          artifacts={artifacts}
+          allNodes={allNodes}
+        />
+      </SectionCard>
+    </AdminPageLayout>
   );
 }

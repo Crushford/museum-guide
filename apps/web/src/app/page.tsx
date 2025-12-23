@@ -1,5 +1,10 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { api } from '../lib/api';
+
+export const metadata: Metadata = {
+  title: 'Museums',
+};
 
 type Museum = {
   id: number;
@@ -11,7 +16,15 @@ export default async function Home() {
 
   return (
     <main className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Museums</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Museums</h1>
+        <Link
+          href="/admin"
+          className="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-2 transition-colors"
+        >
+          Admin
+        </Link>
+      </div>
       <ul className="space-y-2">
         {museums.map((museum) => (
           <li key={museum.id}>
