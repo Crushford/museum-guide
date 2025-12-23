@@ -1,3 +1,8 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { JsonEditor } from 'json-edit-react';
+
 type JsonPasteBoxProps = {
   label: string;
   value: string;
@@ -6,15 +11,14 @@ type JsonPasteBoxProps = {
   placeholder?: string;
 };
 
-function isValidJson(str: string): boolean {
+function parseJsonSafely(str: string): { data: any; isValid: boolean } {
   if (!str.trim()) {
-    return true;
+    return { data: null, isValid: true };
   }
   try {
-    JSON.parse(str);
-    return true;
+    return { data: JSON.parse(str), isValid: true };
   } catch {
-    return false;
+    return { data: null, isValid: false };
   }
 }
 
@@ -25,20 +29,55 @@ export function JsonPasteBox({
   errors = [],
   placeholder = 'Paste JSON here...',
 }: JsonPasteBoxProps) {
-  const isValid = isValidJson(value);
+  const [jsonString, setJsonString] = useState(value);
+  const { data, isValid } = parseJsonSafely(jsonString);
+
+  useEffect(() => {
+    setJsonString(value);
+  }, [value]);
+
+  const handleDataChange = (newData: any) => {
+    const newJsonString = JSON.stringify(newData, null, 2);
+    setJsonString(newJsonString);
+    if (onChange) {
+      onChange(newJsonString);
+    }
+  };
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    setJsonString(newValue);
+    if (onChange) {
+      onChange(newValue);
+    }
+  };
+
   const hasErrors = errors.length > 0;
 
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-fg">{label}</label>
-      <textarea
-        value={value}
-        onChange={(e) => onChange?.(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 bg-bg-2 border border-border rounded-md text-fg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y min-h-[200px]"
-      />
+      {isValid && data !== null ? (
+        <div className="border border-border rounded-md overflow-hidden bg-bg-2">
+          <JsonEditor
+            data={data}
+            setData={handleDataChange}
+            theme="dark"
+            restrictAdd={false}
+            restrictDelete={false}
+            restrictEdit={false}
+          />
+        </div>
+      ) : (
+        <textarea
+          value={jsonString}
+          onChange={handleTextChange}
+          placeholder={placeholder}
+          className="w-full px-3 py-2 bg-bg-2 border border-border rounded-md text-fg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y min-h-[200px]"
+        />
+      )}
       <div className="space-y-1">
-        {!hasErrors && isValid && value.trim() && (
+        {!hasErrors && isValid && jsonString.trim() && (
           <p className="text-xs text-success">Valid JSON</p>
         )}
         {hasErrors && (
@@ -50,8 +89,10 @@ export function JsonPasteBox({
             ))}
           </div>
         )}
-        {!hasErrors && !isValid && value.trim() && (
-          <p className="text-xs text-danger">Invalid JSON</p>
+        {!hasErrors && !isValid && jsonString.trim() && (
+          <p className="text-xs text-danger">
+            Invalid JSON - fix errors to use visual editor
+          </p>
         )}
       </div>
     </div>

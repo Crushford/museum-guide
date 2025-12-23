@@ -1,3 +1,5 @@
+'use client';
+
 type SaveBarProps = {
   isDirty: boolean;
   onSave?: () => void;

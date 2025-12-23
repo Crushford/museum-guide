@@ -1,14 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { AdminShell } from './AdminShell';
+import { AdminPageLayout } from './AdminPageLayout';
 
 const meta = {
-  title: 'Shared/AdminShell',
-  component: AdminShell,
+  title: 'Shared/AdminPageLayout',
+  component: AdminPageLayout,
   parameters: {
     layout: 'fullscreen',
   },
-  tags: ['autodocs'],
-} satisfies Meta<typeof AdminShell>;
+} satisfies Meta<typeof AdminPageLayout>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

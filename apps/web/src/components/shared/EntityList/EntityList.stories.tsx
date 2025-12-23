@@ -9,7 +9,6 @@ const meta = {
   parameters: {
     layout: 'padded',
   },
-  tags: ['autodocs'],
 } satisfies Meta<typeof EntityList>;
 
 export default meta;
@@ -32,7 +31,6 @@ export const WithItems: Story = {
         subtitle: 'New York, USA',
         href: '/admin/museums/2',
         typePill: 'MUSEUM',
-        status: 'draft',
       },
       {
         id: 3,
@@ -40,7 +38,7 @@ export const WithItems: Story = {
         subtitle: 'Paris, France',
         href: '/admin/museums/3',
         typePill: 'MUSEUM',
-        status: 'dirty',
+        hasUnsavedChanges: true,
       },
     ],
     primaryAction: {
@@ -60,14 +58,14 @@ export const WithEmptyState: Story = {
         message="Create your first room to get started."
         action={{
           label: 'Add Room',
-          onClick: fn(),
+          href: '/admin/nodes/new?type=ROOM&parentId=1',
         }}
       />
     ),
   },
 };
 
-export const WithMixedStatuses: Story = {
+export const WithUnsavedChanges: Story = {
   args: {
     title: 'Content Items',
     items: [
@@ -76,21 +74,19 @@ export const WithMixedStatuses: Story = {
         name: 'Introduction',
         subtitle: 'Main introduction text',
         typePill: 'ARTIFACT',
-        status: 'none',
       },
       {
         id: 2,
         name: 'Gallery Overview',
-        subtitle: 'Draft content',
+        subtitle: 'Saved content',
         typePill: 'ROOM',
-        status: 'draft',
       },
       {
         id: 3,
         name: 'Artifact Details',
         subtitle: 'Has unsaved changes',
         typePill: 'ARTIFACT',
-        status: 'dirty',
+        hasUnsavedChanges: true,
       },
     ],
   },

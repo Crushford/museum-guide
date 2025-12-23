@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 
 type EditableTextareaRowProps = {
@@ -53,16 +55,27 @@ export function EditableTextareaRow({
             className="w-full px-3 py-2 bg-bg-2 border border-border rounded-md text-fg focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y"
             autoFocus
           />
-        ) : (
-          <p className="text-fg whitespace-pre-wrap">{value || '(empty)'}</p>
-        )}
-        {editable && !isEditing && (
+        ) : value ? (
+          <>
+            <p className="text-fg whitespace-pre-wrap">{value}</p>
+            {editable && (
+              <button
+                onClick={handleEdit}
+                className="text-sm text-muted hover:text-accent transition-colors self-start"
+              >
+                Edit
+              </button>
+            )}
+          </>
+        ) : editable ? (
           <button
             onClick={handleEdit}
-            className="text-sm text-muted hover:text-accent transition-colors self-start"
+            className="px-4 py-2 bg-panel border border-border rounded-md text-fg hover:bg-bg-2 transition-colors text-left"
           >
-            Edit
+            <span className="text-muted">No content, click to add</span>
           </button>
+        ) : (
+          <p className="text-muted">(empty)</p>
         )}
       </div>
     </div>

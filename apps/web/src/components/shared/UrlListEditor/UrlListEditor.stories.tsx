@@ -9,7 +9,6 @@ const meta = {
   parameters: {
     layout: 'padded',
   },
-  tags: ['autodocs'],
 } satisfies Meta<typeof UrlListEditor>;
 
 export default meta;

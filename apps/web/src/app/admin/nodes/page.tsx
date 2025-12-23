@@ -1,9 +1,9 @@
 import Link from 'next/link';
-import { api } from '../../lib/api';
-import { AdminPageLayout } from '../../components/shared';
-import { SectionCard } from '../../components/shared';
-import { EmptyState } from '../../components/shared';
-import { NodesListClient } from './nodes/NodesListClient';
+import { api } from '../../../lib/api';
+import { AdminPageLayout } from '../../../components/shared';
+import { SectionCard } from '../../../components/shared';
+import { EmptyState } from '../../../components/shared';
+import { NodesListClient } from './NodesListClient';
 
 type Node = {
   id: number;
@@ -30,7 +30,7 @@ async function getAllNodes(): Promise<Node[]> {
   return allNodes;
 }
 
-export default async function AdminPage() {
+export default async function NodesListPage() {
   const allNodes = await getAllNodes();
 
   const items = allNodes.map((node) => {
@@ -47,7 +47,8 @@ export default async function AdminPage() {
 
   return (
     <AdminPageLayout
-      title="Admin"
+      title="Nodes"
+      breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Nodes' }]}
       actions={
         <Link
           href="/admin/nodes/new"

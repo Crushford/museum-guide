@@ -8,7 +8,6 @@ const meta = {
   parameters: {
     layout: 'centered',
   },
-  tags: ['autodocs'],
 } satisfies Meta<typeof EmptyState>;
 
 export default meta;
@@ -27,7 +26,7 @@ export const WithAction: Story = {
     message: 'Create your first museum to get started.',
     action: {
       label: 'Create Museum',
-      onClick: fn(),
+      href: '/admin/nodes/new',
     },
   },
 };

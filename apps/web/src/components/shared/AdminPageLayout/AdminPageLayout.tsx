@@ -6,19 +6,19 @@ type BreadcrumbItem = {
   href?: string;
 };
 
-type AdminShellProps = {
+type AdminPageLayoutProps = {
   title: string;
   breadcrumbs?: BreadcrumbItem[];
   actions?: ReactNode;
   children: ReactNode;
 };
 
-export function AdminShell({
+export function AdminPageLayout({
   title,
   breadcrumbs,
   actions,
   children,
-}: AdminShellProps) {
+}: AdminPageLayoutProps) {
   return (
     <div className="min-h-screen bg-bg">
       <div className="max-w-6xl mx-auto px-6 py-8">

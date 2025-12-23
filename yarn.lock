@@ -5859,6 +5859,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"json-edit-react@npm:^1.29.0":
+  version: 1.29.0
+  resolution: "json-edit-react@npm:1.29.0"
+  dependencies:
+    object-property-assigner: "npm:^1.3.5"
+    object-property-extractor: "npm:^1.0.13"
+  peerDependencies:
+    react: ">=16.0.0"
+  checksum: 10c0/c2f0ce4435cc9bf78504592b9cbfab36e6d41020c47632ea757bf999e4924cc67dee429ddfebcd3a1212a7386feeddab6145b0f5285138e2cdbbe5e46301403c
+  languageName: node
+  linkType: hard
+
 "json-rpc-2.0@npm:^1.7.1":
   version: 1.7.1
   resolution: "json-rpc-2.0@npm:1.7.1"
@@ -6631,6 +6643,20 @@ __metadata:
   version: 1.1.1
   resolution: "object-keys@npm:1.1.1"
   checksum: 10c0/b11f7ccdbc6d406d1f186cdadb9d54738e347b2692a14439ca5ac70c225fa6db46db809711b78589866d47b25fc3e8dee0b4c722ac751e11180f9380e3d8601d
+  languageName: node
+  linkType: hard
+
+"object-property-assigner@npm:^1.3.5":
+  version: 1.3.5
+  resolution: "object-property-assigner@npm:1.3.5"
+  checksum: 10c0/144ecbc656c1ea25aac074a41ee32b1aa2935dcbb126750a0f7dc4d454af835e19c43931ed230b966f624b846cf92e4e524719d87eecc9deadb7602b1168906b
+  languageName: node
+  linkType: hard
+
+"object-property-extractor@npm:^1.0.13":
+  version: 1.0.13
+  resolution: "object-property-extractor@npm:1.0.13"
+  checksum: 10c0/53c1de766f313dbdb0f169b04b641add3397a32dec71e780794bbc6dadd0235e6e194e9e829b78c497a3229079e66f8fc1737ec4e1da85fa1a79f0400991965b
   languageName: node
   linkType: hard
 
@@ -8974,6 +9000,7 @@ __metadata:
     eslint: "npm:^9"
     eslint-config-next: "npm:16.0.7"
     eslint-plugin-storybook: "npm:^10.1.10"
+    json-edit-react: "npm:^1.29.0"
     next: "npm:16.0.7"
     playwright: "npm:^1.57.0"
     react: "npm:19.2.0"

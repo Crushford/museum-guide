@@ -1,14 +1,23 @@
+'use client';
+
 import Link from 'next/link';
 import { ReactNode } from 'react';
-import { DraftStatusBadge } from '../DraftStatusBadge';
+import { HasUnsavedChanges } from '../HasUnsavedChanges';
 import { TypePill } from '../TypePill';
+
+type ChildWithChanges = {
+  id: number;
+  name: string;
+  href: string;
+};
 
 type EntityItem = {
   id: string | number;
   name: string;
   subtitle?: string;
   href?: string;
-  status?: 'draft' | 'dirty' | 'none';
+  hasUnsavedChanges?: boolean;
+  childrenWithChanges?: ChildWithChanges[];
   typePill?: string;
 };
 
@@ -65,14 +74,9 @@ export function EntityList({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-fg font-medium">{item.name}</span>
-                    {item.status && item.status !== 'none' && (
-                      <DraftStatusBadge
-                        status={item.status}
-                        tooltip={
-                          item.status === 'draft'
-                            ? 'Draft'
-                            : 'Has unsaved changes'
-                        }
+                    {item.hasUnsavedChanges && (
+                      <HasUnsavedChanges
+                        childrenWithChanges={item.childrenWithChanges}
                       />
                     )}
                     {item.typePill && <TypePill type={item.typePill} />}

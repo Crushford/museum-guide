@@ -8,7 +8,6 @@ const meta = {
   parameters: {
     layout: 'fullscreen',
   },
-  tags: ['autodocs'],
 } satisfies Meta<typeof SaveBar>;
 
 export default meta;
