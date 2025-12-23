@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { EntityList } from '../../../components/shared';
 
+import { ReactNode } from 'react';
+
 type Item = {
   id: number;
   name: string;
@@ -51,7 +53,21 @@ function findChildrenWithChanges(
   return childrenWithChanges;
 }
 
-export function NodesListClient({ items }: { items: Item[] }) {
+type NodesListClientProps = {
+  items: Item[];
+  primaryAction?: {
+    label: string;
+    href?: string;
+    onClick?: () => void;
+  };
+  emptyState?: ReactNode;
+};
+
+export function NodesListClient({
+  items,
+  primaryAction,
+  emptyState,
+}: NodesListClientProps) {
   const [itemsWithStatus, setItemsWithStatus] = useState<
     Array<
       Item & {
@@ -89,6 +105,8 @@ export function NodesListClient({ items }: { items: Item[] }) {
         hasUnsavedChanges: item.hasUnsavedChanges,
         childrenWithChanges: item.childrenWithChanges,
       }))}
+      primaryAction={primaryAction}
+      emptyState={emptyState}
     />
   );
 }

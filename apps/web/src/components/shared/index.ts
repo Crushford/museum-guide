@@ -11,5 +11,6 @@ export * from './LeavePageGuard';
 export * from './PromptTemplateBox';
 export * from './SaveBar';
 export * from './SectionCard';
+export * from './Tabs';
 export * from './TypePill';
 export * from './UrlListEditor';

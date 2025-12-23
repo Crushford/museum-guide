@@ -24,6 +24,135 @@ app.get('/nodes/museums', async (_req, res) => {
   res.json(museums);
 });
 
+// Admin endpoints with parent names included
+app.get('/admin/nodes/rooms', async (req, res) => {
+  try {
+    const museumId = req.query.museumId
+      ? Number(req.query.museumId)
+      : undefined;
+
+    const where: any = {
+      type: 'ROOM',
+    };
+
+    if (museumId && !Number.isNaN(museumId)) {
+      where.parentId = museumId;
+    }
+
+    const rooms = await prisma.node.findMany({
+      where,
+      include: {
+        parent: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    });
+
+    res.json(
+      rooms.map((room) => ({
+        id: room.id,
+        name: room.name,
+        type: room.type,
+        parentId: room.parentId,
+        museumId: room.parentId,
+        museumName: room.parent?.name || null,
+        updatedAt: room.updatedAt,
+      }))
+    );
+  } catch (error) {
+    console.error('Error fetching rooms:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch rooms';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.get('/admin/nodes/artifacts', async (req, res) => {
+  try {
+    const museumId = req.query.museumId
+      ? Number(req.query.museumId)
+      : undefined;
+    const roomId = req.query.roomId ? Number(req.query.roomId) : undefined;
+
+    const where: any = {
+      type: 'ARTIFACT',
+    };
+
+    if (roomId && !Number.isNaN(roomId)) {
+      where.parentId = roomId;
+    } else if (museumId && !Number.isNaN(museumId)) {
+      // Get all rooms for this museum, then get their artifacts
+      const rooms = await prisma.node.findMany({
+        where: {
+          type: 'ROOM',
+          parentId: museumId,
+        },
+        select: { id: true },
+      });
+      const roomIds = rooms.map((r) => r.id);
+      // If no rooms, return empty array instead of querying with empty 'in'
+      if (roomIds.length === 0) {
+        return res.json([]);
+      }
+      where.parentId = {
+        in: roomIds,
+      };
+    }
+
+    const artifacts = await prisma.node.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        parentId: true,
+        updatedAt: true,
+        parent: {
+          select: {
+            id: true,
+            name: true,
+            parentId: true,
+            parent: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    });
+
+    res.json(
+      artifacts.map((artifact) => ({
+        id: artifact.id,
+        name: artifact.name,
+        type: artifact.type,
+        parentId: artifact.parentId,
+        roomId: artifact.parentId,
+        roomName: artifact.parent?.name || null,
+        museumId: artifact.parent?.parentId || null,
+        museumName: artifact.parent?.parent?.name || null,
+        updatedAt: artifact.updatedAt,
+      }))
+    );
+  } catch (error) {
+    console.error('Error fetching artifacts:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch artifacts';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 // 5B) Get one node
 app.get('/nodes/:id', async (req, res) => {
   const id = Number(req.params.id);
