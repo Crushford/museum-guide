@@ -11,11 +11,18 @@ export const metadata: Metadata = {
 export default async function NewNodePage({
   searchParams,
 }: {
-  searchParams: Promise<{ parentId?: string; type?: string }>;
+  searchParams: Promise<{
+    parentId?: string;
+    type?: string;
+    museumId?: string;
+    roomId?: string;
+  }>;
 }) {
   const params = await searchParams;
   const parentId = params.parentId ? parseInt(params.parentId, 10) : undefined;
   const nodeType = params.type as 'MUSEUM' | 'ROOM' | 'ARTIFACT' | undefined;
+  const museumId = params.museumId ? parseInt(params.museumId, 10) : undefined;
+  const roomId = params.roomId ? parseInt(params.roomId, 10) : undefined;
   return (
     <AdminPageLayout
       title="Create Node"
@@ -83,7 +90,12 @@ export default async function NewNodePage({
           </div>
         </SectionCard>
 
-        <JsonImportClient parentId={parentId} nodeType={nodeType} />
+        <JsonImportClient
+          parentId={parentId}
+          nodeType={nodeType}
+          museumId={museumId}
+          roomId={roomId}
+        />
       </div>
     </AdminPageLayout>
   );

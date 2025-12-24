@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Tabs } from '../../components/shared';
 import { EmptyState } from '../../components/shared';
 import { NodesListClient } from './nodes/NodesListClient';
+import { nodeEditHref } from './shared/nodeRoutes';
 
 type Museum = {
   id: number;
@@ -120,7 +121,7 @@ export function AdminTabsClient({
     displayItems = museums.map((m) => ({
       id: m.id,
       name: m.name,
-      href: `/admin/nodes/${m.id}`,
+      href: nodeEditHref('MUSEUM', m.id),
       typePill: 'MUSEUM',
       parentId: null,
     }));
@@ -136,7 +137,7 @@ export function AdminTabsClient({
           ? `${r.museumName} - ${r.name}`
           : r.name,
       subtitle: r.museumName ? `Museum: ${r.museumName}` : undefined,
-      href: `/admin/nodes/${r.id}`,
+      href: nodeEditHref('ROOM', r.id),
       typePill: 'ROOM',
       parentId: r.museumId,
     }));
@@ -176,7 +177,7 @@ export function AdminTabsClient({
         id: a.id,
         name,
         subtitle,
-        href: `/admin/nodes/${a.id}`,
+        href: nodeEditHref('ARTIFACT', a.id),
         typePill: 'ARTIFACT',
         parentId: a.roomId,
       };
@@ -202,7 +203,7 @@ export function AdminTabsClient({
         id: node.id,
         name: node.name,
         subtitle,
-        href: `/admin/nodes/${node.id}`,
+        href: nodeEditHref(node.type, node.id),
         typePill: node.type,
         parentId: node.parentId,
       };
@@ -216,16 +217,19 @@ export function AdminTabsClient({
       const params = new URLSearchParams();
       params.set('type', 'ROOM');
       if (selectedMuseumId) {
-        params.set('parentId', selectedMuseumId.toString());
+        params.set('museumId', selectedMuseumId.toString());
       }
       return `/admin/nodes/new?${params.toString()}`;
     } else if (tab === 'artifacts') {
       const params = new URLSearchParams();
       params.set('type', 'ARTIFACT');
       if (selectedRoomId) {
-        params.set('parentId', selectedRoomId.toString());
+        params.set('roomId', selectedRoomId.toString());
+        if (selectedMuseumId) {
+          params.set('museumId', selectedMuseumId.toString());
+        }
       } else if (selectedMuseumId) {
-        params.set('parentId', selectedMuseumId.toString());
+        params.set('museumId', selectedMuseumId.toString());
       }
       return `/admin/nodes/new?${params.toString()}`;
     }

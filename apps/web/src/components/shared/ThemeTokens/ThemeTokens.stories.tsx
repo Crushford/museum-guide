@@ -12,33 +12,77 @@ export const AllTokens = () => {
     {
       category: 'Backgrounds',
       tokens: [
-        { name: 'background', class: 'bg-background', description: 'Page background' },
-        { name: 'card', class: 'bg-card', description: 'Card/panel backgrounds' },
+        {
+          name: 'background',
+          class: 'bg-background',
+          description: 'Page background',
+        },
+        {
+          name: 'card',
+          class: 'bg-card',
+          description: 'Card/panel backgrounds',
+        },
         { name: 'muted', class: 'bg-muted', description: 'Muted backgrounds' },
-        { name: 'secondary', class: 'bg-secondary', description: 'Secondary backgrounds' },
+        {
+          name: 'secondary',
+          class: 'bg-secondary',
+          description: 'Secondary backgrounds',
+        },
       ],
     },
     {
       category: 'Text',
       tokens: [
-        { name: 'foreground', class: 'text-foreground', description: 'Primary text' },
-        { name: 'muted-foreground', class: 'text-muted-foreground', description: 'Secondary text' },
-        { name: 'card-foreground', class: 'text-card-foreground', description: 'Text on cards' },
+        {
+          name: 'foreground',
+          class: 'text-foreground',
+          description: 'Primary text',
+        },
+        {
+          name: 'muted-foreground',
+          class: 'text-muted-foreground',
+          description: 'Secondary text',
+        },
+        {
+          name: 'card-foreground',
+          class: 'text-card-foreground',
+          description: 'Text on cards',
+        },
       ],
     },
     {
       category: 'Actions',
       tokens: [
-        { name: 'primary', class: 'bg-primary text-primary-foreground', description: 'Primary actions' },
-        { name: 'secondary', class: 'bg-secondary text-secondary-foreground', description: 'Secondary actions' },
-        { name: 'destructive', class: 'bg-destructive text-destructive-foreground', description: 'Destructive actions' },
+        {
+          name: 'primary',
+          class: 'bg-primary text-primary-foreground',
+          description: 'Primary actions',
+        },
+        {
+          name: 'secondary',
+          class: 'bg-secondary text-secondary-foreground',
+          description: 'Secondary actions',
+        },
+        {
+          name: 'destructive',
+          class: 'bg-destructive text-destructive-foreground',
+          description: 'Destructive actions',
+        },
       ],
     },
     {
       category: 'Borders',
       tokens: [
-        { name: 'border', class: 'border border-border', description: 'Standard borders' },
-        { name: 'input', class: 'border border-input', description: 'Input borders' },
+        {
+          name: 'border',
+          class: 'border border-border',
+          description: 'Standard borders',
+        },
+        {
+          name: 'input',
+          class: 'border border-input',
+          description: 'Input borders',
+        },
       ],
     },
     {
@@ -53,9 +97,12 @@ export const AllTokens = () => {
     <div className="p-8 bg-background min-h-screen">
       <div className="max-w-6xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Theme Tokens</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Theme Tokens
+          </h1>
           <p className="text-muted-foreground">
-            Reference for all shadcn/ui semantic color tokens used in this project.
+            Reference for all shadcn/ui semantic color tokens used in this
+            project.
           </p>
         </div>
 
@@ -83,7 +130,9 @@ export const AllTokens = () => {
                       <code className="text-xs font-mono text-muted-foreground block">
                         .{token.class}
                       </code>
-                      <p className="text-sm text-muted-foreground">{token.description}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {token.description}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -95,4 +144,3 @@ export const AllTokens = () => {
     </div>
   );
 };
-

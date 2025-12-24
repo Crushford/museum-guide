@@ -18,6 +18,9 @@ export const metadata: Metadata = {
     default: 'Museum Guide',
   },
   description: 'Explore museums, rooms, and artifacts',
+  icons: {
+    icon: [{ url: '/favicon.png', type: 'image/png' }],
+  },
 };
 
 export default function RootLayout({

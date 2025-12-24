@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { nodeEditHref } from '../../shared/nodeRoutes';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
@@ -34,5 +35,7 @@ export async function updateNode(id: number, formData: FormData) {
     throw new Error(error.error || 'Failed to update node');
   }
 
-  redirect(`/admin/nodes/${id}`);
+  // API response includes node type, use it directly
+  const node = await response.json();
+  redirect(nodeEditHref(node.type, node.id));
 }

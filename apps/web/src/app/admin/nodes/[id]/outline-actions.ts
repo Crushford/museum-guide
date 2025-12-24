@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { nodeEditHref } from '../../shared/nodeRoutes';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
@@ -25,5 +26,14 @@ export async function saveOutline(nodeId: number, outlineJson: string) {
     throw new Error(error.error || 'Failed to save outline');
   }
 
-  redirect(`/admin/nodes/${nodeId}`);
+  // API response includes node type, use it directly
+  const nodeResponse = await fetch(`${API_URL}/nodes/${nodeId}`, {
+    cache: 'no-store',
+  });
+  if (nodeResponse.ok) {
+    const node = await nodeResponse.json();
+    redirect(nodeEditHref(node.type, nodeId));
+  } else {
+    redirect('/admin');
+  }
 }

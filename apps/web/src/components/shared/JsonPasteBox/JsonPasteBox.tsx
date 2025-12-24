@@ -65,18 +65,17 @@ export function JsonPasteBox({
           <JsonEditor
             data={data}
             setData={handleDataChange}
-            theme="dark"
             restrictAdd={false}
             restrictDelete={false}
             restrictEdit={false}
           />
         </div>
       ) : (
-        <textarea
+        <Textarea
           value={jsonString}
           onChange={handleTextChange}
           placeholder={placeholder}
-          className="w-full px-3 py-2 bg-muted border border-border rounded-md text-foreground font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent resize-y min-h-[200px]"
+          className="w-full font-mono text-sm resize-y min-h-[200px]"
         />
       )}
       <div className="space-y-1">

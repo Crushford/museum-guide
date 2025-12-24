@@ -136,14 +136,54 @@ function validateJson(jsonString: string): {
 type JsonImportClientProps = {
   parentId?: number;
   nodeType?: 'MUSEUM' | 'ROOM' | 'ARTIFACT';
+  museumId?: number;
+  roomId?: number;
 };
 
 export function JsonImportClient({
   parentId,
   nodeType,
+  museumId,
+  roomId,
 }: JsonImportClientProps) {
-  // Prefill JSON if parentId is provided
+  // Prefill JSON if params are provided
   const getInitialJson = () => {
+    if (nodeType === 'ROOM' && museumId) {
+      return JSON.stringify(
+        {
+          type: 'ROOM',
+          name: '',
+          parentId: museumId,
+        },
+        null,
+        2
+      );
+    }
+    if (nodeType === 'ARTIFACT') {
+      if (roomId) {
+        return JSON.stringify(
+          {
+            type: 'ARTIFACT',
+            name: '',
+            parentId: roomId,
+          },
+          null,
+          2
+        );
+      } else if (museumId) {
+        // Can't prefill roomId, but can show museumId in template
+        return JSON.stringify(
+          {
+            type: 'ARTIFACT',
+            name: '',
+            parentId: null,
+            // Note: You'll need to select a room from this museum
+          },
+          null,
+          2
+        );
+      }
+    }
     if (parentId && nodeType) {
       return JSON.stringify(
         {
