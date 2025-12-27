@@ -6,6 +6,8 @@ export * from './EditableTextareaRow';
 export * from './EmptyState';
 export * from './EntityList';
 export * from './ImportPreviewTable';
+export * from './InlineEditableField';
+export * from './InlineEditableUrlList';
 export * from './JsonPasteBox';
 export * from './LeavePageGuard';
 export * from './PromptTemplateBox';

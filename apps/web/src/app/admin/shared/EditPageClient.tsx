@@ -3,17 +3,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { SaveBar } from '@/components/shared/SaveBar';
-import { useLeavePageGuard } from '@/components/shared/LeavePageGuard';
 import { SectionCard } from '@/components/shared/SectionCard';
-import { UrlListEditor } from '@/components/shared/UrlListEditor';
+import { InlineEditableField } from '@/components/shared/InlineEditableField';
+import { InlineEditableUrlList } from '@/components/shared/InlineEditableUrlList';
 import { TypePill } from '@/components/shared/TypePill';
 import { EntityList } from '@/components/shared/EntityList';
 import { nodeEditHref } from './nodeRoutes';
+import { updateNodeField } from './actions';
 import Link from 'next/link';
 
 type Node = {
@@ -53,85 +50,6 @@ type EditPageClientProps = {
   }) => Promise<void>;
 };
 
-const DRAFT_KEY_PREFIX = 'admin:draft';
-
-function getDraftKey(type: string, id: number): string {
-  return `${DRAFT_KEY_PREFIX}:${type}:${id}`;
-}
-
-function loadDraft(type: string, id: number, baseData: Node): Node | null {
-  if (typeof window === 'undefined') return null;
-
-  const key = getDraftKey(type, id);
-  const stored = localStorage.getItem(key);
-  if (!stored) return null;
-
-  try {
-    const draft = JSON.parse(stored);
-    // Check if draft differs from base
-    const draftStr = JSON.stringify({
-      name: draft.data.name,
-      parentId: draft.data.parentId,
-      knowledgeText: draft.data.knowledgeText || null,
-      furtherReading: draft.data.furtherReading || [],
-    });
-    const baseStr = JSON.stringify({
-      name: baseData.name,
-      parentId: baseData.parentId,
-      knowledgeText: baseData.knowledgeText || null,
-      furtherReading: baseData.furtherReading || [],
-    });
-
-    if (draftStr === baseStr) {
-      // Draft matches API, clear it
-      localStorage.removeItem(key);
-      return null;
-    }
-
-    return draft.data;
-  } catch {
-    return null;
-  }
-}
-
-function saveDraft(type: string, id: number, data: Node, baseData: Node): void {
-  if (typeof window === 'undefined') return;
-
-  const key = getDraftKey(type, id);
-  const draftStr = JSON.stringify({
-    name: data.name,
-    parentId: data.parentId,
-    knowledgeText: data.knowledgeText || null,
-    furtherReading: data.furtherReading || [],
-  });
-  const baseStr = JSON.stringify({
-    name: baseData.name,
-    parentId: baseData.parentId,
-    knowledgeText: baseData.knowledgeText || null,
-    furtherReading: baseData.furtherReading || [],
-  });
-
-  if (draftStr === baseStr) {
-    // Matches API, clear draft
-    localStorage.removeItem(key);
-    return;
-  }
-
-  localStorage.setItem(
-    key,
-    JSON.stringify({
-      data,
-      updatedAt: new Date().toISOString(),
-      baseSnapshot: baseData,
-    })
-  );
-}
-
-function clearDraft(type: string, id: number): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(getDraftKey(type, id));
-}
-
 export function EditPageClient({
   node: initialNode,
   parent: initialParent,
@@ -143,68 +61,43 @@ export function EditPageClient({
 }: EditPageClientProps) {
   const router = useRouter();
   const [node, setNode] = useState<Node>(initialNode);
-  const [baseNode, setBaseNode] = useState<Node>(initialNode);
   const [parent, setParent] = useState<Parent | undefined>(initialParent);
   const [parentParent, setParentParent] = useState<Parent | undefined>(
     initialParentParent
   );
-  const [isSaving, setIsSaving] = useState(false);
 
-  // Load draft on mount
+  // Update node when initialNode changes (after save)
   useEffect(() => {
-    const draft = loadDraft(node.type.toLowerCase(), node.id, baseNode);
-    if (draft) {
-      setNode(draft);
-    }
-  }, []); // Only on mount
+    setNode(initialNode);
+  }, [initialNode]);
 
-  // Save draft on change
-  useEffect(() => {
-    saveDraft(node.type.toLowerCase(), node.id, node, baseNode);
-  }, [node, baseNode]);
-
-  const isDirty =
-    JSON.stringify({
-      name: node.name,
-      parentId: node.parentId,
-      knowledgeText: node.knowledgeText || null,
-      furtherReading: node.furtherReading || [],
-    }) !==
-    JSON.stringify({
-      name: baseNode.name,
-      parentId: baseNode.parentId,
-      knowledgeText: baseNode.knowledgeText || null,
-      furtherReading: baseNode.furtherReading || [],
-    });
-
-  useLeavePageGuard(isDirty);
-
-  const handleSave = useCallback(async () => {
-    setIsSaving(true);
-    try {
-      await onSave({
-        name: node.name,
-        parentId: node.parentId,
-        knowledgeText: node.knowledgeText || null,
-        furtherReading: node.furtherReading || [],
-      });
-      // Update base node to match saved state
-      setBaseNode(node);
-      clearDraft(node.type.toLowerCase(), node.id);
-      // Refetch will happen via router refresh
+  // Individual field save handlers
+  const handleSaveName = useCallback(
+    async (value: string) => {
+      await updateNodeField(node.id, 'name', value);
+      setNode({ ...node, name: value });
       router.refresh();
-    } catch (error) {
-      console.error('Failed to save:', error);
-      alert('Failed to save changes. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [node, onSave, router]);
+    },
+    [node, router]
+  );
 
-  const handleDiscard = useCallback(() => {
-    setNode(baseNode);
-    clearDraft(node.type.toLowerCase(), node.id);
-  }, [baseNode, node.type, node.id]);
+  const handleSaveKnowledgeText = useCallback(
+    async (value: string) => {
+      await updateNodeField(node.id, 'knowledgeText', value || null);
+      setNode({ ...node, knowledgeText: value || null });
+      router.refresh();
+    },
+    [node, router]
+  );
+
+  const handleSaveFurtherReading = useCallback(
+    async (value: string[]) => {
+      await updateNodeField(node.id, 'furtherReading', value);
+      setNode({ ...node, furtherReading: value });
+      router.refresh();
+    },
+    [node, router]
+  );
 
   const typeLabel =
     node.type === 'MUSEUM'
@@ -224,32 +117,38 @@ export function EditPageClient({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main column */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Details */}
+          {/* Combined Details, Content, and Further Reading */}
           <SectionCard title="Details">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={node.name}
-                  onChange={(e) => setNode({ ...node, name: e.target.value })}
-                />
-              </div>
+            <div className="space-y-6">
+              {/* Name */}
+              <InlineEditableField
+                label="Name"
+                value={node.name}
+                onSave={handleSaveName}
+                type="text"
+              />
 
+              {/* Parent selection (for Rooms and Artifacts) */}
               {node.type === 'ROOM' && (
                 <div className="space-y-2">
                   <Label htmlFor="parentId">Museum</Label>
                   <select
                     id="parentId"
                     value={node.parentId || ''}
-                    onChange={(e) =>
-                      setNode({
-                        ...node,
-                        parentId: e.target.value
-                          ? Number(e.target.value)
-                          : null,
-                      })
-                    }
+                    onChange={async (e) => {
+                      const parentId = e.target.value
+                        ? Number(e.target.value)
+                        : null;
+                      setNode({ ...node, parentId });
+                      // Save immediately
+                      try {
+                        await updateNodeField(node.id, 'parentId', parentId);
+                        router.refresh();
+                      } catch (error) {
+                        console.error('Failed to update parent:', error);
+                        alert('Failed to update museum. Please try again.');
+                      }
+                    }}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <option value="">Select a museum</option>
@@ -269,7 +168,7 @@ export function EditPageClient({
                     <select
                       id="museumId"
                       value={parentParent?.id || ''}
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const museumId = e.target.value
                           ? Number(e.target.value)
                           : null;
@@ -292,6 +191,18 @@ export function EditPageClient({
                         if (!newParentId) {
                           setParent(undefined);
                         }
+                        // Save immediately
+                        try {
+                          await updateNodeField(
+                            node.id,
+                            'parentId',
+                            newParentId
+                          );
+                          router.refresh();
+                        } catch (error) {
+                          console.error('Failed to update parent:', error);
+                          alert('Failed to update museum. Please try again.');
+                        }
                       }}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
@@ -308,7 +219,7 @@ export function EditPageClient({
                     <select
                       id="parentId"
                       value={node.parentId || ''}
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const roomId = e.target.value
                           ? Number(e.target.value)
                           : null;
@@ -317,6 +228,14 @@ export function EditPageClient({
                           : undefined;
                         setNode({ ...node, parentId: roomId });
                         setParent(selectedRoom);
+                        // Save immediately
+                        try {
+                          await updateNodeField(node.id, 'parentId', roomId);
+                          router.refresh();
+                        } catch (error) {
+                          console.error('Failed to update parent:', error);
+                          alert('Failed to update room. Please try again.');
+                        }
                       }}
                       disabled={!parentParent}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -335,33 +254,24 @@ export function EditPageClient({
                   </div>
                 </>
               )}
-            </div>
-          </SectionCard>
 
-          {/* Content */}
-          <SectionCard title="Content">
-            <div className="space-y-2">
-              <Label htmlFor="knowledgeText">Knowledge Text</Label>
-              <Textarea
-                id="knowledgeText"
+              {/* Knowledge Text */}
+              <InlineEditableField
+                label="Knowledge Text"
                 value={node.knowledgeText || ''}
-                onChange={(e) =>
-                  setNode({ ...node, knowledgeText: e.target.value || null })
-                }
+                onSave={handleSaveKnowledgeText}
+                type="textarea"
                 rows={8}
-                className="resize-y"
                 placeholder="Enter knowledge text about this entity..."
               />
-            </div>
-          </SectionCard>
 
-          {/* Further Reading */}
-          <SectionCard title="Further Reading">
-            <UrlListEditor
-              value={node.furtherReading || []}
-              editable
-              onChange={(urls) => setNode({ ...node, furtherReading: urls })}
-            />
+              {/* Further Reading */}
+              <InlineEditableUrlList
+                label="Further Reading"
+                value={node.furtherReading || []}
+                onSave={handleSaveFurtherReading}
+              />
+            </div>
           </SectionCard>
         </div>
 
@@ -459,12 +369,6 @@ export function EditPageClient({
           )}
         </div>
       </div>
-
-      <SaveBar
-        isDirty={isDirty}
-        onSave={handleSave}
-        onDiscard={handleDiscard}
-      />
     </>
   );
 }
