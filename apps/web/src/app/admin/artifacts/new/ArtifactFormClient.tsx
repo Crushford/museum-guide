@@ -370,12 +370,15 @@ export function ArtifactFormClient({
     isHydratedRef.current = true;
 
     // Load from localStorage
+    // This is a valid pattern for loading persisted state after hydration
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as FormData;
-        // eslint-disable-next-line react-compiler/react-compiler
-        setFormData(parsed);
+        // Using setTimeout to defer state update and avoid hydration mismatch
+        setTimeout(() => {
+          setFormData(parsed);
+        }, 0);
       }
     } catch {
       // Failed to load from localStorage, ignore
@@ -505,25 +508,37 @@ export function ArtifactFormClient({
       return;
     }
 
+    // Ensure museumId is a valid number
+    const formMuseumId = formData.museumId.trim()
+      ? parseInt(formData.museumId.trim(), 10)
+      : null;
+    const validMuseumId =
+      formMuseumId && !isNaN(formMuseumId) ? formMuseumId : museumId;
+
     const artifactData: ArtifactData = {
       type: 'ARTIFACT',
       name: formData.name.trim(),
       parentName: formData.parentName.trim(),
-      museumId: formData.museumId.trim()
-        ? parseInt(formData.museumId.trim(), 10)
-        : museumId,
+      museumId: validMuseumId,
       knowledgeText: formData.knowledgeText.trim() || undefined,
       furtherReading: formData.furtherReading.filter((url) => url.trim()),
     };
 
-    const finalMuseumId = artifactData.museumId || museumId;
+    // Ensure museumId is provided when creating a new room
+    if (!artifactData.museumId && !artifactData.parentId) {
+      setErrorMessage(
+        'Museum ID is required when creating a new room. A room must have a museum as its parent.'
+      );
+      setSaveStatus('error');
+      return;
+    }
 
     setSaveStatus('loading');
     setErrorMessage('');
 
     startTransition(async () => {
       try {
-        await createArtifactWithRoom(artifactData, finalMuseumId);
+        await createArtifactWithRoom(artifactData);
         // Clear localStorage on successful save
         if (typeof window !== 'undefined') {
           localStorage.removeItem(STORAGE_KEY);

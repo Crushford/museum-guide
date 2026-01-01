@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { SectionCard } from '@/components/shared/SectionCard';
 import { InlineEditableField } from '@/components/shared/InlineEditableField';
 import { InlineEditableUrlList } from '@/components/shared/InlineEditableUrlList';
-import { TypePill } from '@/components/shared/TypePill';
+import { InlineEditableMuseumRoom } from '@/components/shared/InlineEditableMuseumRoom';
 import { EntityList } from '@/components/shared/EntityList';
 import { nodeEditHref } from './nodeRoutes';
 import { updateNodeField } from './actions';
@@ -64,14 +64,54 @@ export function EditPageClient({
   const router = useRouter();
   const [node, setNode] = useState<Node>(initialNode);
   const [parent, setParent] = useState<Parent | undefined>(initialParent);
-  const [parentParent, setParentParent] = useState<Parent | undefined>(
-    initialParentParent
-  );
+  const [parentParent, setParentParent] = useState<Parent | undefined>(() => {
+    // Derive museum from room's parent if not already set
+    if (initialParentParent) return initialParentParent;
+    if (initialParent?.parentId) {
+      return museums.find((m) => m.id === initialParent.parentId);
+    }
+    return undefined;
+  });
 
   // Update node when initialNode changes (after save)
   useEffect(() => {
     setNode(initialNode);
   }, [initialNode]);
+
+  // Update parentParent when initialParentParent or initialParent changes (derive museum from room)
+  useEffect(() => {
+    // Prioritize initialParentParent if provided
+    if (initialParentParent) {
+      setParentParent(initialParentParent);
+      return;
+    }
+
+    // Otherwise, derive from initialParent's parentId
+    if (initialParent?.parentId && museums.length > 0) {
+      const roomMuseum = museums.find((m) => m.id === initialParent.parentId);
+      if (roomMuseum) {
+        setParentParent(roomMuseum);
+        return;
+      }
+    }
+
+    // If no parent, clear museum
+    if (!initialParent) {
+      setParentParent(undefined);
+    }
+  }, [initialParentParent, initialParent, museums]);
+
+  // Update parentParent when parent changes (derive museum from room)
+  useEffect(() => {
+    if (parent?.parentId && museums.length > 0) {
+      const roomMuseum = museums.find((m) => m.id === parent.parentId);
+      if (roomMuseum) {
+        setParentParent(roomMuseum);
+      }
+    } else if (!parent) {
+      setParentParent(undefined);
+    }
+  }, [parent, museums]);
 
   // Individual field save handlers
   const handleSaveName = useCallback(
@@ -101,6 +141,43 @@ export function EditPageClient({
     [node, router]
   );
 
+  const handleSaveMuseumRoom = useCallback(
+    async (museumId: number | null, roomId: number | null) => {
+      // Artifacts only have a parentId (room), not a museum ID
+      // The museum is derived from the room's parent
+      if (!roomId) {
+        throw new Error('Room is required');
+      }
+
+      const selectedRoom = rooms.find((r) => r.id === roomId);
+      if (!selectedRoom) {
+        throw new Error('Selected room not found');
+      }
+
+      // Verify room belongs to the selected museum (if museum was provided)
+      if (museumId && selectedRoom.parentId !== museumId) {
+        throw new Error('Selected room does not belong to the selected museum');
+      }
+
+      // Update the artifact's parentId (room)
+      setNode({ ...node, parentId: roomId });
+      setParent(selectedRoom);
+
+      // Derive museum from room's parent
+      if (selectedRoom.parentId) {
+        const roomMuseum = museums.find((m) => m.id === selectedRoom.parentId);
+        if (roomMuseum) {
+          setParentParent(roomMuseum);
+        }
+      }
+
+      // Save the room change (parentId)
+      await updateNodeField(node.id, 'parentId', roomId);
+      router.refresh();
+    },
+    [node, museums, rooms, router]
+  );
+
   const newChildRoute =
     node.type === 'MUSEUM'
       ? `/admin/rooms/new?museumId=${node.id}`
@@ -112,304 +189,176 @@ export function EditPageClient({
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main column */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Combined Details, Content, and Further Reading */}
-          <SectionCard title="Details">
-            <div className="space-y-6">
-              {/* Name */}
-              <InlineEditableField
-                label="Name"
-                value={node.name}
-                onSave={handleSaveName}
-                type="text"
-              />
+      <div className="space-y-6">
+        {/* Combined Details, Content, and Further Reading */}
+        <SectionCard title="Details">
+          <div className="space-y-6">
+            {/* Name */}
+            <InlineEditableField
+              label="Name"
+              value={node.name}
+              onSave={handleSaveName}
+              type="text"
+            />
 
-              {/* Parent selection (for Rooms and Artifacts) */}
-              {node.type === 'ROOM' && (
-                <div className="space-y-2">
-                  <Label htmlFor="parentId">Museum</Label>
-                  <select
-                    id="parentId"
-                    value={node.parentId || ''}
-                    onChange={async (e) => {
-                      const parentId = e.target.value
-                        ? Number(e.target.value)
-                        : null;
-                      setNode({ ...node, parentId });
-                      // Save immediately
-                      try {
-                        await updateNodeField(node.id, 'parentId', parentId);
-                        router.refresh();
-                      } catch (error) {
-                        console.error('Failed to update parent:', error);
-                        alert('Failed to update museum. Please try again.');
-                      }
-                    }}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    <option value="">Select a museum</option>
-                    {museums.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {node.type === 'ARTIFACT' && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="museumId">Museum</Label>
-                    <select
-                      id="museumId"
-                      value={parentParent?.id || ''}
-                      onChange={async (e) => {
-                        const museumId = e.target.value
-                          ? Number(e.target.value)
-                          : null;
-                        const selectedMuseum = museumId
-                          ? museums.find((m) => m.id === museumId)
-                          : undefined;
-                        setParentParent(selectedMuseum);
-                        // If current room doesn't belong to selected museum, clear it
-                        const filteredRooms = museumId
-                          ? rooms.filter((r) => r.parentId === museumId)
-                          : [];
-                        const newParentId =
-                          museumId && node.parentId
-                            ? filteredRooms.find((r) => r.id === node.parentId)
-                              ? node.parentId
-                              : null
-                            : node.parentId;
-                        setNode({ ...node, parentId: newParentId });
-                        // Update parent if room was cleared
-                        if (!newParentId) {
-                          setParent(undefined);
-                        }
-                        // Save immediately
-                        try {
-                          await updateNodeField(
-                            node.id,
-                            'parentId',
-                            newParentId
-                          );
-                          router.refresh();
-                        } catch (error) {
-                          console.error('Failed to update parent:', error);
-                          alert('Failed to update museum. Please try again.');
-                        }
-                      }}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      <option value="">Select a museum</option>
-                      {museums.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="parentId">Room</Label>
-                    <select
-                      id="parentId"
-                      value={node.parentId || ''}
-                      onChange={async (e) => {
-                        const roomId = e.target.value
-                          ? Number(e.target.value)
-                          : null;
-                        const selectedRoom = roomId
-                          ? rooms.find((r) => r.id === roomId)
-                          : undefined;
-                        setNode({ ...node, parentId: roomId });
-                        setParent(selectedRoom);
-                        // Save immediately
-                        try {
-                          await updateNodeField(node.id, 'parentId', roomId);
-                          router.refresh();
-                        } catch (error) {
-                          console.error('Failed to update parent:', error);
-                          alert('Failed to update room. Please try again.');
-                        }
-                      }}
-                      disabled={!parentParent}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="">Select a room</option>
-                      {rooms
-                        .filter(
-                          (r) => !parentParent || r.parentId === parentParent.id
-                        )
-                        .map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </>
-              )}
-
-              {/* Knowledge Text */}
-              <InlineEditableField
-                label="Knowledge Text"
-                value={node.knowledgeText || ''}
-                onSave={handleSaveKnowledgeText}
-                type="textarea"
-                rows={8}
-                placeholder="Enter knowledge text about this entity..."
-              />
-
-              {/* Further Reading */}
-              <InlineEditableUrlList
-                label="Further Reading"
-                value={node.furtherReading || []}
-                onSave={handleSaveFurtherReading}
-              />
-            </div>
-          </SectionCard>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Info */}
-          <SectionCard title="Info">
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Type</Label>
-                <div className="mt-1">
-                  <TypePill type={node.type} />
-                </div>
+            {/* Parent selection (for Rooms and Artifacts) */}
+            {node.type === 'ROOM' && (
+              <div className="space-y-2">
+                <Label htmlFor="parentId">Museum</Label>
+                <select
+                  id="parentId"
+                  value={node.parentId || ''}
+                  onChange={async (e) => {
+                    const parentId = e.target.value
+                      ? Number(e.target.value)
+                      : null;
+                    setNode({ ...node, parentId });
+                    // Save immediately
+                    try {
+                      await updateNodeField(node.id, 'parentId', parentId);
+                      router.refresh();
+                    } catch (error) {
+                      console.error('Failed to update parent:', error);
+                      alert('Failed to update museum. Please try again.');
+                    }
+                  }}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value="">Select a museum</option>
+                  {museums.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">ID</Label>
-                <p className="mt-1 text-sm font-mono text-muted-foreground">
-                  {node.id}
-                </p>
-              </div>
-              {parent && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    {parent.type === 'MUSEUM' ? 'Museum' : 'Room'}
-                  </Label>
-                  <div className="mt-1">
-                    <Link
-                      href={nodeEditHref(parent.type, parent.id)}
-                      className="text-sm text-accent hover:underline"
-                    >
-                      {parent.name}
-                    </Link>
-                  </div>
-                </div>
-              )}
-              {parentParent && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    Museum
-                  </Label>
-                  <div className="mt-1">
-                    <Link
-                      href={nodeEditHref('MUSEUM', parentParent.id)}
-                      className="text-sm text-accent hover:underline"
-                    >
-                      {parentParent.name}
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
-          </SectionCard>
+            )}
 
-          {/* Children */}
-          {childNodes.length > 0 && (
-            <SectionCard
-              title={node.type === 'MUSEUM' ? 'Rooms' : 'Artifacts'}
-              actions={
-                newChildRoute ? (
-                  <Button asChild size="sm">
-                    <Link href={newChildRoute}>
-                      Add {node.type === 'MUSEUM' ? 'Room' : 'Artifact'}
-                    </Link>
-                  </Button>
-                ) : undefined
-              }
-            >
-              <EntityList
-                title=""
-                items={childNodes.map((child) => ({
-                  id: child.id,
-                  name: child.name,
-                  href: nodeEditHref(child.type, child.id),
-                  typePill: child.type,
+            {node.type === 'ARTIFACT' && (
+              <InlineEditableMuseumRoom
+                museumLabel="Museum"
+                roomLabel="Room"
+                museumValue={parentParent?.id}
+                roomValue={node.parentId}
+                museums={museums.map((m) => ({ id: m.id, name: m.name }))}
+                rooms={rooms.map((r) => ({
+                  id: r.id,
+                  name: r.name,
+                  parentId: r.parentId,
                 }))}
-                emptyState={null}
+                onSave={handleSaveMuseumRoom}
+                museumPlaceholder="Select a museum"
+                roomPlaceholder="Select a room"
+                getMuseumHref={(id) => nodeEditHref('MUSEUM', id)}
+                getRoomHref={(id) => nodeEditHref('ROOM', id)}
               />
-            </SectionCard>
-          )}
-          {childNodes.length === 0 && newChildRoute && (
-            <SectionCard
-              title={node.type === 'MUSEUM' ? 'Rooms' : 'Artifacts'}
-              actions={
+            )}
+
+            {/* Knowledge Text */}
+            <InlineEditableField
+              label="Knowledge Text"
+              value={node.knowledgeText || ''}
+              onSave={handleSaveKnowledgeText}
+              type="textarea"
+              rows={8}
+              placeholder="Enter knowledge text about this entity..."
+            />
+
+            {/* Further Reading */}
+            <InlineEditableUrlList
+              label="Further Reading"
+              value={node.furtherReading || []}
+              onSave={handleSaveFurtherReading}
+            />
+          </div>
+        </SectionCard>
+
+        {/* Children */}
+        {childNodes.length > 0 && (
+          <SectionCard
+            title={node.type === 'MUSEUM' ? 'Rooms' : 'Artifacts'}
+            actions={
+              newChildRoute ? (
                 <Button asChild size="sm">
                   <Link href={newChildRoute}>
                     Add {node.type === 'MUSEUM' ? 'Room' : 'Artifact'}
                   </Link>
                 </Button>
-              }
-            >
-              <p className="text-sm text-muted-foreground">
-                No {node.type === 'MUSEUM' ? 'rooms' : 'artifacts'} yet.
-              </p>
-            </SectionCard>
-          )}
+              ) : undefined
+            }
+          >
+            <EntityList
+              title=""
+              items={childNodes.map((child) => ({
+                id: child.id,
+                name: child.name,
+                href: nodeEditHref(child.type, child.id),
+                typePill: child.type,
+              }))}
+              emptyState={null}
+            />
+          </SectionCard>
+        )}
+        {childNodes.length === 0 && newChildRoute && (
+          <SectionCard
+            title={node.type === 'MUSEUM' ? 'Rooms' : 'Artifacts'}
+            actions={
+              <Button asChild size="sm">
+                <Link href={newChildRoute}>
+                  Add {node.type === 'MUSEUM' ? 'Room' : 'Artifact'}
+                </Link>
+              </Button>
+            }
+          >
+            <p className="text-sm text-muted-foreground">
+              No {node.type === 'MUSEUM' ? 'rooms' : 'artifacts'} yet.
+            </p>
+          </SectionCard>
+        )}
 
-          {/* Artifacts section for museums */}
-          {node.type === 'MUSEUM' && (
-            <>
-              {museumArtifacts && museumArtifacts.length > 0 ? (
+        {/* Artifacts section for museums */}
+        {node.type === 'MUSEUM' && (
+          <>
+            {museumArtifacts && museumArtifacts.length > 0 ? (
+              <SectionCard
+                title="Artifacts"
+                actions={
+                  newArtifactRoute ? (
+                    <Button asChild size="sm">
+                      <Link href={newArtifactRoute}>Add Artifact</Link>
+                    </Button>
+                  ) : undefined
+                }
+              >
+                <EntityList
+                  title=""
+                  items={museumArtifacts.map((artifact) => ({
+                    id: artifact.id,
+                    name: artifact.name,
+                    href: nodeEditHref(artifact.type, artifact.id),
+                    typePill: artifact.type,
+                  }))}
+                  emptyState={null}
+                />
+              </SectionCard>
+            ) : (
+              newArtifactRoute && (
                 <SectionCard
                   title="Artifacts"
                   actions={
-                    newArtifactRoute ? (
-                      <Button asChild size="sm">
-                        <Link href={newArtifactRoute}>Add Artifact</Link>
-                      </Button>
-                    ) : undefined
+                    <Button asChild size="sm">
+                      <Link href={newArtifactRoute}>Add Artifact</Link>
+                    </Button>
                   }
                 >
-                  <EntityList
-                    title=""
-                    items={museumArtifacts.map((artifact) => ({
-                      id: artifact.id,
-                      name: artifact.name,
-                      href: nodeEditHref(artifact.type, artifact.id),
-                      typePill: artifact.type,
-                    }))}
-                    emptyState={null}
-                  />
+                  <p className="text-sm text-muted-foreground">
+                    No artifacts yet.
+                  </p>
                 </SectionCard>
-              ) : (
-                newArtifactRoute && (
-                  <SectionCard
-                    title="Artifacts"
-                    actions={
-                      <Button asChild size="sm">
-                        <Link href={newArtifactRoute}>Add Artifact</Link>
-                      </Button>
-                    }
-                  >
-                    <p className="text-sm text-muted-foreground">
-                      No artifacts yet.
-                    </p>
-                  </SectionCard>
-                )
-              )}
-            </>
-          )}
-        </div>
+              )
+            )}
+          </>
+        )}
       </div>
     </>
   );

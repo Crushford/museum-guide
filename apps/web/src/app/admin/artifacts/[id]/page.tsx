@@ -81,7 +81,7 @@ export default async function ArtifactEditPage({
 
   const [node, museums, rooms] = await Promise.all([
     api<Node>(`/nodes/${nodeId}`),
-    api<Node[]>(`/admin/nodes/museums`).catch(() => []),
+    api<Node[]>(`/nodes/museums`).catch(() => []),
     api<Node[]>(`/admin/nodes/rooms`).catch(() => []),
   ]);
 

@@ -188,7 +188,21 @@ export function ArtifactJsonImportClient({
 
     startTransition(async () => {
       try {
-        await createArtifactWithRoom(validation.data!, museumId);
+        // Ensure museumId is included in the data when creating a new room
+        const artifactData = {
+          ...validation.data!,
+          museumId: validation.data!.museumId || museumId,
+        };
+
+        // Validate that museumId is provided when creating a new room
+        if (!artifactData.parentId && !artifactData.museumId) {
+          alert(
+            'Museum ID is required when creating a new room. A room must have a museum as its parent.'
+          );
+          return;
+        }
+
+        await createArtifactWithRoom(artifactData);
       } catch (error) {
         console.error('Failed to create artifact:', error);
         alert(

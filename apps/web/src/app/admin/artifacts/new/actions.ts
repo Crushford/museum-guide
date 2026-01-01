@@ -16,10 +16,7 @@ type ArtifactData = {
   furtherReading?: string[];
 };
 
-export async function createArtifactWithRoom(
-  data: ArtifactData,
-  defaultMuseumId: number
-) {
+export async function createArtifactWithRoom(data: ArtifactData) {
   let roomId: number | null = null;
 
   // If parentId is provided, use it directly
@@ -27,13 +24,13 @@ export async function createArtifactWithRoom(
     roomId = data.parentId;
   } else if (data.parentName) {
     // Need to find or create the room
-    const museumId = data.museumId || defaultMuseumId;
-
-    if (!museumId) {
+    // museumId is REQUIRED when creating a new room (a room must have a museum as parent)
+    if (!data.museumId || typeof data.museumId !== 'number') {
       throw new Error(
-        'museumId is required when using parentName for room creation'
+        'museumId is required when creating a new room. A room must have a museum as its parent.'
       );
     }
+    const museumId = data.museumId;
 
     // First, try to find existing room by name within the museum
     try {
@@ -55,18 +52,20 @@ export async function createArtifactWithRoom(
       console.error('Error fetching rooms:', error);
     }
 
-    // If room doesn't exist, create it
+    // If room doesn't exist, create it with the museumId as parentId
     if (!roomId) {
+      const roomPayload = {
+        type: 'ROOM' as const,
+        name: data.parentName,
+        parentId: museumId,
+      };
+
       const createRoomResponse = await fetch(`${API_URL}/nodes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          type: 'ROOM',
-          name: data.parentName,
-          parentId: museumId,
-        }),
+        body: JSON.stringify(roomPayload),
       });
 
       if (!createRoomResponse.ok) {
@@ -78,6 +77,13 @@ export async function createArtifactWithRoom(
 
       const newRoom = await createRoomResponse.json();
       roomId = newRoom.id;
+
+      // Verify the room was created with the correct parentId
+      if (newRoom.parentId !== museumId) {
+        console.warn(
+          `Room created with parentId ${newRoom.parentId}, expected ${museumId}`
+        );
+      }
     }
   } else {
     throw new Error('Either parentId or parentName must be provided');

@@ -1,0 +1,1 @@
+export { InlineEditableMuseumRoom } from './InlineEditableMuseumRoom';

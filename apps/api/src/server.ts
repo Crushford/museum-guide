@@ -255,13 +255,23 @@ app.patch('/nodes/:id', async (req, res) => {
     return res.status(400).json({ error: 'Invalid node id' });
   }
 
-  const { name, knowledgeText, furtherReading } = req.body;
+  // Get current node to check its type
+  const currentNode = await prisma.node.findUnique({
+    where: { id },
+  });
+
+  if (!currentNode) {
+    return res.status(404).json({ error: 'Node not found' });
+  }
+
+  const { name, knowledgeText, furtherReading, parentId } = req.body;
 
   // Build update data object
   const updateData: {
     name?: string;
     knowledgeText?: string | null;
     furtherReading?: string[];
+    parentId?: number | null;
   } = {};
 
   if (name !== undefined) {
@@ -285,6 +295,50 @@ app.patch('/nodes/:id', async (req, res) => {
       });
     }
     updateData.furtherReading = furtherReading;
+  }
+
+  if (parentId !== undefined) {
+    // Validate parentId based on node type
+    if (currentNode.type === 'MUSEUM') {
+      if (parentId !== null && parentId !== undefined) {
+        return res.status(400).json({
+          error: 'MUSEUM nodes must have parentId null',
+        });
+      }
+      updateData.parentId = null;
+    } else if (currentNode.type === 'ROOM') {
+      if (!parentId) {
+        return res.status(400).json({
+          error: 'ROOM nodes require parentId',
+        });
+      }
+      // Validate parent is MUSEUM
+      const parent = await prisma.node.findUnique({
+        where: { id: parentId },
+      });
+      if (!parent || parent.type !== 'MUSEUM') {
+        return res.status(400).json({
+          error: 'ROOM parent must be a MUSEUM node',
+        });
+      }
+      updateData.parentId = parentId;
+    } else if (currentNode.type === 'ARTIFACT') {
+      if (!parentId) {
+        return res.status(400).json({
+          error: 'ARTIFACT nodes require parentId',
+        });
+      }
+      // Validate parent is ROOM
+      const parent = await prisma.node.findUnique({
+        where: { id: parentId },
+      });
+      if (!parent || parent.type !== 'ROOM') {
+        return res.status(400).json({
+          error: 'ARTIFACT parent must be a ROOM node',
+        });
+      }
+      updateData.parentId = parentId;
+    }
   }
 
   try {

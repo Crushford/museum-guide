@@ -7,6 +7,8 @@ export * from './EmptyState';
 export * from './EntityList';
 export * from './ImportPreviewTable';
 export * from './InlineEditableField';
+export * from './InlineEditableSelect';
+export * from './InlineEditableMuseumRoom';
 export * from './InlineEditableUrlList';
 export * from './JsonPasteBox';
 export * from './LeavePageGuard';
