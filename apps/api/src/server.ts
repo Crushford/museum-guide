@@ -187,7 +187,7 @@ app.get('/nodes/:id/children', async (req, res) => {
 
 // 5D) Create a node
 app.post('/nodes', async (req, res) => {
-  const { type, name, parentId } = req.body;
+  const { type, name, parentId, knowledgeText, furtherReading } = req.body;
 
   if (!type || !name) {
     return res.status(400).json({ error: 'type and name are required' });
@@ -240,8 +240,8 @@ app.post('/nodes', async (req, res) => {
       type,
       name,
       parentId: type === 'MUSEUM' ? null : parentId,
-      knowledgeText: null,
-      furtherReading: [],
+      knowledgeText: knowledgeText || null,
+      furtherReading: furtherReading || [],
     },
   });
 

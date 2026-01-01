@@ -8,6 +8,7 @@ type PromptTemplateBoxProps = {
   template: string;
   helperText?: string;
   copyLabel?: string;
+  instructions?: string;
 };
 
 export function PromptTemplateBox({
@@ -15,18 +16,28 @@ export function PromptTemplateBox({
   template,
   helperText,
   copyLabel = 'Copy',
+  instructions,
 }: PromptTemplateBoxProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(template);
+      let textToCopy = template;
+      if (instructions) {
+        // Replace {{JSON}} placeholder with the actual template
+        textToCopy = instructions.replace('{{JSON}}', template);
+      }
+      await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
     }
   };
+
+  const displayContent = instructions
+    ? instructions.replace('{{JSON}}', template)
+    : template;
 
   return (
     <div className="space-y-2">
@@ -38,7 +49,7 @@ export function PromptTemplateBox({
       </div>
       <div className="bg-muted border border-border rounded-md p-4">
         <pre className="text-sm text-primary font-mono whitespace-pre-wrap break-words">
-          {template}
+          {displayContent}
         </pre>
       </div>
       {helperText && (

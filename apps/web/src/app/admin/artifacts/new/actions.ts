@@ -43,8 +43,9 @@ export async function createArtifactWithRoom(
       if (roomsResponse.ok) {
         const rooms = await roomsResponse.json();
         const existingRoom = rooms.find(
-          (r: { name: string }) =>
-            r.name.toLowerCase() === data.parentName!.toLowerCase()
+          (r: { name: string; parentId: number | null }) =>
+            r.name.toLowerCase() === data.parentName!.toLowerCase() &&
+            r.parentId === museumId
         );
         if (existingRoom) {
           roomId = existingRoom.id;
