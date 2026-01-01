@@ -59,7 +59,7 @@ export function UrlListEditor({
           >
             <div className="flex-1 min-w-0">
               <span
-                className={`text-sm ${isValid ? 'text-foreground' : 'text-warning'}`}
+                className={`text-sm ${isValid ? 'text-primary' : 'text-warning'}`}
               >
                 {url}
               </span>

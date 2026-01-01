@@ -31,13 +31,13 @@ export function PromptTemplateBox({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
-        <Button onClick={handleCopy} size="sm" >
+        <h3 className="text-sm font-medium text-primary">{title}</h3>
+        <Button onClick={handleCopy} size="sm">
           {copied ? 'Copied!' : copyLabel}
         </Button>
       </div>
       <div className="bg-muted border border-border rounded-md p-4">
-        <pre className="text-sm text-foreground font-mono whitespace-pre-wrap break-words">
+        <pre className="text-sm text-primary font-mono whitespace-pre-wrap break-words">
           {template}
         </pre>
       </div>

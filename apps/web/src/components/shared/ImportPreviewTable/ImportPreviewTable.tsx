@@ -31,19 +31,19 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
       <table className="w-full">
         <thead className="bg-muted border-b border-border">
           <tr>
-            <th className="px-4 py-2 text-left text-sm font-medium text-foreground">
+            <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Status
             </th>
-            <th className="px-4 py-2 text-left text-sm font-medium text-foreground">
+            <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Type
             </th>
-            <th className="px-4 py-2 text-left text-sm font-medium text-foreground">
+            <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Name
             </th>
-            <th className="px-4 py-2 text-left text-sm font-medium text-foreground">
+            <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Parent
             </th>
-            <th className="px-4 py-2 text-left text-sm font-medium text-foreground">
+            <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Message
             </th>
           </tr>
@@ -63,10 +63,8 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
                     {config.label}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-sm text-foreground">
-                  {row.type}
-                </td>
-                <td className="px-4 py-2 text-sm text-foreground font-medium">
+                <td className="px-4 py-2 text-sm text-primary">{row.type}</td>
+                <td className="px-4 py-2 text-sm text-primary font-medium">
                   {row.name}
                 </td>
                 <td className="px-4 py-2 text-sm text-muted-foreground">

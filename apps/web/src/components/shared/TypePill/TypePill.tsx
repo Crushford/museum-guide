@@ -6,8 +6,8 @@ type TypePillProps = {
 };
 
 const typeColors: Record<string, string> = {
-  MUSEUM: 'border-primary text-primary',
-  ROOM: 'border-accent-2 text-accent-2',
+  MUSEUM: 'border-accent text-primary',
+  ROOM: 'border-accent-2 text-primary',
   ARTIFACT: 'border-muted-foreground text-muted-foreground',
 };
 

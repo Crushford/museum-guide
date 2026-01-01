@@ -97,7 +97,7 @@ export function InlineEditableUrlList({
             value.map((url, index) => (
               <div
                 key={index}
-                className="text-sm text-foreground p-2 bg-muted rounded-md border border-border"
+                className="text-sm text-primary p-2 bg-muted rounded-md border border-border"
               >
                 {url}
               </div>

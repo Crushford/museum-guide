@@ -67,7 +67,7 @@ export function HasUnsavedChanges({
           className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-md shadow-lg min-w-[200px] max-w-[300px]"
         >
           <div className="p-3 border-b border-border">
-            <p className="text-sm font-medium text-foreground">
+            <p className="text-sm font-medium text-primary">
               Children with unsaved changes
             </p>
           </div>
@@ -77,7 +77,7 @@ export function HasUnsavedChanges({
                 <li key={child.id}>
                   <a
                     href={child.href}
-                    className="block px-2 py-1.5 text-sm text-foreground hover:bg-secondary rounded transition-colors"
+                    className="block px-2 py-1.5 text-sm text-primary hover:bg-secondary rounded transition-colors"
                   >
                     {child.name}
                   </a>

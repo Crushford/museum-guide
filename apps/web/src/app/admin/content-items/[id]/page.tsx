@@ -63,14 +63,14 @@ export default async function ContentItemPage({
                   )
                 : `/admin/nodes/${returnTo}`
             }
-            className="text-primary hover:underline mb-4 inline-block"
+            className="text-accent hover:underline mb-4 inline-block"
           >
             ← Back to node admin
           </Link>
         ) : (
           <Link
             href="/admin"
-            className="text-primary hover:underline mb-4 inline-block"
+            className="text-accent hover:underline mb-4 inline-block"
           >
             ← Back to admin home
           </Link>
@@ -88,7 +88,7 @@ export default async function ContentItemPage({
                 href={contentItem.audioUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline"
+                className="text-accent hover:underline"
               >
                 {contentItem.audioUrl}
               </a>
@@ -108,7 +108,7 @@ export default async function ContentItemPage({
                     nc.node.type as 'MUSEUM' | 'ROOM' | 'ARTIFACT',
                     nc.node.id
                   )}
-                  className="text-primary hover:underline"
+                  className="text-accent hover:underline"
                 >
                   {nc.node.type} - {nc.node.name}
                 </Link>

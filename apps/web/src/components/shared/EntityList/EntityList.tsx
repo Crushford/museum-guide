@@ -42,7 +42,7 @@ export function EntityList({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        <h2 className="text-lg font-semibold text-primary">{title}</h2>
         {primaryAction && (
           <>
             {primaryAction.href ? (
@@ -68,7 +68,7 @@ export function EntityList({
               <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-md hover:bg-secondary transition-colors">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-foreground font-medium">
+                    <span className="text-primary font-medium">
                       {item.name}
                     </span>
                     {item.hasUnsavedChanges && (

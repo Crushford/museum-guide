@@ -35,7 +35,7 @@ export const AllTokens = () => {
       tokens: [
         {
           name: 'foreground',
-          class: 'text-foreground',
+          class: 'text-primary',
           description: 'Primary text',
         },
         {
@@ -54,9 +54,9 @@ export const AllTokens = () => {
       category: 'Actions',
       tokens: [
         {
-          name: 'primary',
-          class: 'bg-primary text-primary-foreground',
-          description: 'Primary actions',
+          name: 'accent',
+          class: 'bg-accent text-accent-foreground',
+          description: 'Accent actions',
         },
         {
           name: 'secondary',
@@ -97,9 +97,7 @@ export const AllTokens = () => {
     <div className="p-8 bg-background min-h-screen">
       <div className="max-w-6xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Theme Tokens
-          </h1>
+          <h1 className="text-3xl font-bold text-primary mb-2">Theme Tokens</h1>
           <p className="text-muted-foreground">
             Reference for all shadcn/ui semantic color tokens used in this
             project.
@@ -120,7 +118,7 @@ export const AllTokens = () => {
                   >
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <code className="text-xs font-mono text-foreground">
+                        <code className="text-xs font-mono text-primary">
                           {token.name}
                         </code>
                         {token.class.includes('bg-') && (

@@ -43,7 +43,7 @@ export function EditableTextareaRow({
   return (
     <div className="flex gap-6 py-3 border-b border-border">
       <div className="w-48 flex-shrink-0">
-        <label className="text-sm font-medium text-foreground block mb-1">
+        <label className="text-sm font-medium text-primary block mb-1">
           {label}
         </label>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
@@ -59,22 +59,18 @@ export function EditableTextareaRow({
           />
         ) : value ? (
           <>
-            <p className="text-foreground whitespace-pre-wrap">{value}</p>
+            <p className="text-primary whitespace-pre-wrap">{value}</p>
             {editable && (
               <button
                 onClick={handleEdit}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors self-start"
+                className="text-sm text-muted-foreground hover:text-accent transition-colors self-start"
               >
                 Edit
               </button>
             )}
           </>
         ) : editable ? (
-          <Button
-            onClick={handleEdit}
-            
-            className="text-left justify-start"
-          >
+          <Button onClick={handleEdit} className="text-left justify-start">
             <span className="text-muted-foreground">
               No content, click to add
             </span>

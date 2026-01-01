@@ -31,13 +31,13 @@ This project uses [shadcn/ui](https://ui.shadcn.com/) as the component library. 
 
 - `bg-background` - Page background
 - `bg-card` - Card/panel backgrounds
-- `bg-primary` - Primary actions
+- `bg-accent` - Accent/primary actions
 - `bg-secondary` - Secondary backgrounds
 - `bg-muted` - Muted backgrounds
 - `bg-destructive` - Error/danger states
-- `text-foreground` - Primary text
+- `text-primary` - Primary text
 - `text-card-foreground` - Text on cards
-- `text-primary-foreground` - Text on primary buttons
+- `text-accent-foreground` - Text on accent buttons
 - `text-muted-foreground` - Secondary/muted text
 - `text-destructive-foreground` - Text on destructive actions
 - `border-border` - Standard borders
@@ -70,7 +70,8 @@ This project uses [shadcn/ui](https://ui.shadcn.com/) as the component library. 
   /* shadcn canonical tokens */
   --background: hsl(var(--bm-bg));
   --foreground: hsl(var(--bm-fg));
-  --primary: hsl(var(--bm-accent));
+  --primary: hsl(var(--bm-fg)); /* Primary text color */
+  --accent: hsl(var(--bm-accent)); /* Accent color for actions */
   /* ... */
 }
 ```
@@ -121,7 +122,7 @@ import { Button } from '@/components/ui/button';
 
 ```tsx
 <div className="bg-card border border-border">
-  <h2 className="text-foreground">Title</h2>
+  <h2 className="text-primary">Title</h2>
   <p className="text-muted-foreground">Description</p>
 </div>
 ```

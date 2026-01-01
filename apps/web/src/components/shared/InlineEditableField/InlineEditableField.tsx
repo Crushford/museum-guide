@@ -111,7 +111,7 @@ export function InlineEditableField({
     <div className={`space-y-2 ${className}`}>
       <Label>{label}</Label>
       <div className="flex items-start gap-2">
-        <span className="flex-1 text-sm text-foreground min-h-[1.5rem] whitespace-pre-wrap">
+        <span className="flex-1 text-sm text-primary min-h-[1.5rem] whitespace-pre-wrap">
           {value || (
             <span className="text-muted-foreground italic">Not set</span>
           )}

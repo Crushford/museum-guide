@@ -36,12 +36,11 @@
   /* shadcn/ui canonical tokens (dark-only theme) */
   /* These are the single source of truth for component styling */
   --background: hsl(var(--bm-bg));
-  --foreground: hsl(var(--bm-fg));
   --card: hsl(var(--bm-panel));
   --card-foreground: hsl(var(--bm-fg));
   --popover: hsl(var(--bm-panel));
   --popover-foreground: hsl(var(--bm-fg));
-  --primary: hsl(var(--bm-accent));
+  --primary: hsl(var(--bm-fg));
   --primary-foreground: hsl(var(--bm-accent-fg));
   --secondary: hsl(var(--bm-bg-2));
   --secondary-foreground: hsl(var(--bm-fg));
@@ -59,7 +58,7 @@
 @theme {
   /* shadcn/ui tokens exposed to Tailwind v4 */
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-foreground: var(--primary);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);

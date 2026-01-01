@@ -43,7 +43,7 @@ export function Tabs({ tabs, defaultTab, children }: TabsProps) {
           <TabsTrigger
             key={tab.id}
             value={tab.id}
-            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none border-b-2 border-transparent"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none border-b-2 border-transparent"
           >
             {tab.label}
           </TabsTrigger>

@@ -57,9 +57,7 @@ export function JsonPasteBox({
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-foreground">
-        {label}
-      </label>
+      <label className="block text-sm font-medium text-primary">{label}</label>
       {isValid && data !== null ? (
         <div className="border border-border rounded-md overflow-hidden bg-muted">
           <JsonEditor

@@ -298,7 +298,7 @@ export function EditPageClient({
                   <div className="mt-1">
                     <Link
                       href={nodeEditHref(parent.type, parent.id)}
-                      className="text-sm text-primary hover:underline"
+                      className="text-sm text-accent hover:underline"
                     >
                       {parent.name}
                     </Link>
@@ -313,7 +313,7 @@ export function EditPageClient({
                   <div className="mt-1">
                     <Link
                       href={nodeEditHref('MUSEUM', parentParent.id)}
-                      className="text-sm text-primary hover:underline"
+                      className="text-sm text-accent hover:underline"
                     >
                       {parentParent.name}
                     </Link>

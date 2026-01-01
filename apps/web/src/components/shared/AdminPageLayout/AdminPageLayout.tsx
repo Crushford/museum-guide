@@ -29,7 +29,7 @@ export function AdminPageLayout({
             </div>
           )}
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-foreground">{title}</h1>
+            <h1 className="text-3xl font-bold text-primary">{title}</h1>
             {actions && (
               <div className="flex items-center gap-2">{actions}</div>
             )}
