@@ -23,6 +23,7 @@ export async function updateContentItemBody(
   }
 
   if (returnTo) {
+    // Redirect to typed route - the /admin/nodes/[id] route will handle the redirect
     redirect(`/admin/nodes/${returnTo}`);
   } else {
     redirect(`/admin/content-items/${id}`);

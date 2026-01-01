@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { JsonEditor } from 'json-edit-react';
+import { Textarea } from '@/components/ui/textarea';
 
 type JsonPasteBoxProps = {
   label: string;
@@ -56,24 +57,23 @@ export function JsonPasteBox({
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-fg">{label}</label>
+      <label className="block text-sm font-medium text-primary">{label}</label>
       {isValid && data !== null ? (
-        <div className="border border-border rounded-md overflow-hidden bg-bg-2">
+        <div className="border border-border rounded-md overflow-hidden bg-muted">
           <JsonEditor
             data={data}
             setData={handleDataChange}
-            theme="dark"
             restrictAdd={false}
             restrictDelete={false}
             restrictEdit={false}
           />
         </div>
       ) : (
-        <textarea
+        <Textarea
           value={jsonString}
           onChange={handleTextChange}
           placeholder={placeholder}
-          className="w-full px-3 py-2 bg-bg-2 border border-border rounded-md text-fg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y min-h-[200px]"
+          className="w-full font-mono text-sm resize-y min-h-[200px]"
         />
       )}
       <div className="space-y-1">

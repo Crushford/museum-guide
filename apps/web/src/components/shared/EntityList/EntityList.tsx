@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
 import { HasUnsavedChanges } from '../HasUnsavedChanges';
 import { TypePill } from '../TypePill';
 
@@ -41,23 +42,17 @@ export function EntityList({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-fg">{title}</h2>
+        <h2 className="text-lg font-semibold text-primary">{title}</h2>
         {primaryAction && (
           <>
             {primaryAction.href ? (
-              <Link
-                href={primaryAction.href}
-                className="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-2 transition-colors text-sm"
-              >
-                {primaryAction.label}
-              </Link>
+              <Button asChild size="sm">
+                <Link href={primaryAction.href}>{primaryAction.label}</Link>
+              </Button>
             ) : (
-              <button
-                onClick={primaryAction.onClick}
-                className="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-2 transition-colors text-sm"
-              >
+              <Button onClick={primaryAction.onClick} size="sm">
                 {primaryAction.label}
-              </button>
+              </Button>
             )}
           </>
         )}
@@ -65,15 +60,17 @@ export function EntityList({
       {items.length === 0 && emptyState ? (
         emptyState
       ) : items.length === 0 ? (
-        <p className="text-muted text-sm">No items found.</p>
+        <p className="text-muted-foreground text-sm">No items found.</p>
       ) : (
         <div className="space-y-2">
           {items.map((item) => {
             const content = (
-              <div className="flex items-center gap-3 p-3 bg-panel border border-border rounded-md hover:bg-bg-2 transition-colors">
+              <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-md hover:bg-secondary transition-colors">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-fg font-medium">{item.name}</span>
+                    <span className="text-primary font-medium">
+                      {item.name}
+                    </span>
                     {item.hasUnsavedChanges && (
                       <HasUnsavedChanges
                         childrenWithChanges={item.childrenWithChanges}
@@ -82,7 +79,9 @@ export function EntityList({
                     {item.typePill && <TypePill type={item.typePill} />}
                   </div>
                   {item.subtitle && (
-                    <p className="text-sm text-muted">{item.subtitle}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.subtitle}
+                    </p>
                   )}
                 </div>
               </div>

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Tabs } from '../../components/shared';
 import { EmptyState } from '../../components/shared';
 import { NodesListClient } from './nodes/NodesListClient';
+import { nodeEditHref } from './shared/nodeRoutes';
 
 type Museum = {
   id: number;
@@ -120,7 +121,7 @@ export function AdminTabsClient({
     displayItems = museums.map((m) => ({
       id: m.id,
       name: m.name,
-      href: `/admin/nodes/${m.id}`,
+      href: nodeEditHref('MUSEUM', m.id),
       typePill: 'MUSEUM',
       parentId: null,
     }));
@@ -136,7 +137,7 @@ export function AdminTabsClient({
           ? `${r.museumName} - ${r.name}`
           : r.name,
       subtitle: r.museumName ? `Museum: ${r.museumName}` : undefined,
-      href: `/admin/nodes/${r.id}`,
+      href: nodeEditHref('ROOM', r.id),
       typePill: 'ROOM',
       parentId: r.museumId,
     }));
@@ -176,7 +177,7 @@ export function AdminTabsClient({
         id: a.id,
         name,
         subtitle,
-        href: `/admin/nodes/${a.id}`,
+        href: nodeEditHref('ARTIFACT', a.id),
         typePill: 'ARTIFACT',
         parentId: a.roomId,
       };
@@ -202,7 +203,7 @@ export function AdminTabsClient({
         id: node.id,
         name: node.name,
         subtitle,
-        href: `/admin/nodes/${node.id}`,
+        href: nodeEditHref(node.type, node.id),
         typePill: node.type,
         parentId: node.parentId,
       };
@@ -216,18 +217,19 @@ export function AdminTabsClient({
       const params = new URLSearchParams();
       params.set('type', 'ROOM');
       if (selectedMuseumId) {
-        params.set('parentId', selectedMuseumId.toString());
+        params.set('museumId', selectedMuseumId.toString());
       }
       return `/admin/nodes/new?${params.toString()}`;
     } else if (tab === 'artifacts') {
-      const params = new URLSearchParams();
-      params.set('type', 'ARTIFACT');
-      if (selectedRoomId) {
-        params.set('parentId', selectedRoomId.toString());
-      } else if (selectedMuseumId) {
-        params.set('parentId', selectedMuseumId.toString());
+      if (!selectedMuseumId) {
+        return '/admin/nodes/new?type=ARTIFACT';
       }
-      return `/admin/nodes/new?${params.toString()}`;
+      const params = new URLSearchParams();
+      params.set('museumId', selectedMuseumId.toString());
+      if (selectedRoomId) {
+        params.set('roomId', selectedRoomId.toString());
+      }
+      return `/admin/artifacts/new?${params.toString()}`;
     }
     return '/admin/nodes/new';
   };
@@ -252,7 +254,7 @@ export function AdminTabsClient({
         {/* Filters for Rooms tab */}
         {tab === 'rooms' && (
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-fg">Museum:</label>
+            <label className="text-sm font-medium text-primary">Museum:</label>
             <select
               value={selectedMuseumId || ''}
               onChange={(e) =>
@@ -260,7 +262,7 @@ export function AdminTabsClient({
                   e.target.value ? Number(e.target.value) : null
                 )
               }
-              className="px-3 py-2 bg-bg-2 border border-border rounded-md text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+              className="px-3 py-2 bg-muted border border-border rounded-md text-primary focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">All museums</option>
               {museums.map((m) => (
@@ -275,7 +277,7 @@ export function AdminTabsClient({
         {/* Filters for Artifacts tab */}
         {tab === 'artifacts' && (
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-fg">Museum:</label>
+            <label className="text-sm font-medium text-primary">Museum:</label>
             <select
               value={selectedMuseumId || ''}
               onChange={(e) =>
@@ -283,7 +285,7 @@ export function AdminTabsClient({
                   e.target.value ? Number(e.target.value) : null
                 )
               }
-              className="px-3 py-2 bg-bg-2 border border-border rounded-md text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+              className="px-3 py-2 bg-muted border border-border rounded-md text-primary focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">All museums</option>
               {museums.map((m) => (
@@ -293,14 +295,14 @@ export function AdminTabsClient({
               ))}
             </select>
 
-            <label className="text-sm font-medium text-fg">Room:</label>
+            <label className="text-sm font-medium text-primary">Room:</label>
             <select
               value={selectedRoomId || ''}
               onChange={(e) =>
                 handleRoomChange(e.target.value ? Number(e.target.value) : null)
               }
               disabled={!selectedMuseumId}
-              className="px-3 py-2 bg-bg-2 border border-border rounded-md text-fg focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 bg-muted border border-border rounded-md text-primary focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">All rooms</option>
               {availableRooms.map((r) => (

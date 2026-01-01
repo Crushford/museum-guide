@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 import { api } from '../lib/api';
 
 export const metadata: Metadata = {
@@ -18,12 +19,9 @@ export default async function Home() {
     <main className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Museums</h1>
-        <Link
-          href="/admin"
-          className="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-2 transition-colors"
-        >
-          Admin
-        </Link>
+        <Button asChild>
+          <Link href="/admin">Admin</Link>
+        </Button>
       </div>
       <ul className="space-y-2">
         {museums.map((museum) => (

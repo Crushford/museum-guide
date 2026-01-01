@@ -29,21 +29,21 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
   return (
     <div className="border border-border rounded-md overflow-hidden">
       <table className="w-full">
-        <thead className="bg-bg-2 border-b border-border">
+        <thead className="bg-muted border-b border-border">
           <tr>
-            <th className="px-4 py-2 text-left text-sm font-medium text-fg">
+            <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Status
             </th>
-            <th className="px-4 py-2 text-left text-sm font-medium text-fg">
+            <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Type
             </th>
-            <th className="px-4 py-2 text-left text-sm font-medium text-fg">
+            <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Name
             </th>
-            <th className="px-4 py-2 text-left text-sm font-medium text-fg">
+            <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Parent
             </th>
-            <th className="px-4 py-2 text-left text-sm font-medium text-fg">
+            <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Message
             </th>
           </tr>
@@ -54,7 +54,7 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
             return (
               <tr
                 key={index}
-                className="border-b border-divider last:border-b-0 hover:bg-bg-2/50 transition-colors"
+                className="border-b border-border last:border-b-0 hover:bg-muted/50 transition-colors"
               >
                 <td className="px-4 py-2">
                   <span
@@ -63,14 +63,14 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
                     {config.label}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-sm text-fg">{row.type}</td>
-                <td className="px-4 py-2 text-sm text-fg font-medium">
+                <td className="px-4 py-2 text-sm text-primary">{row.type}</td>
+                <td className="px-4 py-2 text-sm text-primary font-medium">
                   {row.name}
                 </td>
-                <td className="px-4 py-2 text-sm text-muted">
+                <td className="px-4 py-2 text-sm text-muted-foreground">
                   {row.parent || '-'}
                 </td>
-                <td className="px-4 py-2 text-sm text-muted">
+                <td className="px-4 py-2 text-sm text-muted-foreground">
                   {row.message || '-'}
                 </td>
               </tr>

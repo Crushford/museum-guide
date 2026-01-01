@@ -1,4 +1,11 @@
 import { ReactNode } from 'react';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
 
 type SectionCardProps = {
   title: string;
@@ -14,17 +21,17 @@ export function SectionCard({
   children,
 }: SectionCardProps) {
   return (
-    <div className="bg-panel border border-border rounded-lg p-6">
-      <div className="flex items-start justify-between mb-4">
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
         <div>
-          <h2 className="text-xl font-semibold text-fg tracking-tight mb-1">
-            {title}
-          </h2>
-          {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
+          <CardTitle className="text-xl tracking-tight">{title}</CardTitle>
+          {subtitle && (
+            <CardDescription className="mt-1">{subtitle}</CardDescription>
+          )}
         </div>
         {actions && <div className="flex items-center gap-2">{actions}</div>}
-      </div>
-      <div>{children}</div>
-    </div>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   );
 }

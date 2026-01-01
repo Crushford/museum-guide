@@ -1,146 +1,173 @@
 :root {
+  /* British Museum theme palette (namespaced to avoid collisions) */
   /* Background layers */
-  --bg: 220 14% 10%;
-  --bg-2: 220 14% 13%;
-  --panel: 220 14% 16%;
+  --bm-bg: 220 14% 10%;
+  --bm-bg-2: 220 14% 13%;
+  --bm-panel: 220 14% 16%;
 
   /* Text */
-  --fg: 40 20% 92%;
-  --muted: 40 10% 72%;
-  --subtle: 40 8% 60%;
+  --bm-fg: 40 20% 92%;
+  --bm-muted: 40 10% 72%;
+  --bm-subtle: 40 8% 60%;
 
   /* Borders and dividers */
-  --border: 220 10% 26%;
-  --divider: 220 10% 22%;
+  --bm-border: 220 10% 26%;
+  --bm-divider: 220 10% 22%;
 
   /* Accent: museum-like restrained "bronze" */
-  --accent: 36 45% 58%;
-  --accent-2: 36 35% 48%;
+  --bm-accent: 36 45% 58%;
+  --bm-accent-2: 36 35% 48%;
+  --bm-accent-fg: 40 20% 92%; /* Readable text on accent background */
 
   /* Status */
-  --danger: 0 65% 55%;
-  --warning: 45 85% 55%;
-  --success: 140 45% 45%;
+  --bm-danger: 0 65% 55%;
+  --bm-warning: 45 85% 55%;
+  --bm-success: 140 45% 45%;
 
   /* Effects */
-  --shadow: 0 0% 0%;
-  --ring: 36 45% 58%;
+  --bm-shadow: 0 0% 0%;
+  --bm-ring: 36 45% 58%;
 
   /* Radii and spacing */
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 18px;
+
+  /* shadcn/ui canonical tokens (dark-only theme) */
+  /* These are the single source of truth for component styling */
+  --background: hsl(var(--bm-bg));
+  --card: hsl(var(--bm-panel));
+  --card-foreground: hsl(var(--bm-fg));
+  --popover: hsl(var(--bm-panel));
+  --popover-foreground: hsl(var(--bm-fg));
+  --primary: hsl(var(--bm-fg));
+  --primary-foreground: hsl(var(--bm-accent-fg));
+  --secondary: hsl(var(--bm-bg-2));
+  --secondary-foreground: hsl(var(--bm-fg));
+  --muted: hsl(var(--bm-bg-2));
+  --muted-foreground: hsl(var(--bm-muted));
+  --accent: hsl(var(--bm-accent));
+  --accent-foreground: hsl(var(--bm-accent-fg));
+  --border: hsl(var(--bm-border));
+  --input: hsl(var(--bm-border));
+  --ring: hsl(var(--bm-ring));
+  --destructive: hsl(var(--bm-danger));
+  --destructive-foreground: hsl(var(--bm-fg));
 }
 
 @theme {
-  --color-bg: hsl(var(--bg));
-  --color-bg-2: hsl(var(--bg-2));
-  --color-panel: hsl(var(--panel));
-  --color-fg: hsl(var(--fg));
-  --color-muted: hsl(var(--muted));
-  --color-subtle: hsl(var(--subtle));
-  --color-border: hsl(var(--border));
-  --color-divider: hsl(var(--divider));
-  --color-accent: hsl(var(--accent));
-  --color-accent-2: hsl(var(--accent-2));
-  --color-danger: hsl(var(--danger));
-  --color-warning: hsl(var(--warning));
-  --color-success: hsl(var(--success));
-  --color-ring: hsl(var(--ring));
+  /* shadcn/ui tokens exposed to Tailwind v4 */
+  --color-background: var(--background);
+  --color-foreground: var(--primary);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  /* Legacy BM tokens (deprecated - use shadcn tokens above) */
+  --color-bg: hsl(var(--bm-bg));
+  --color-bg-2: hsl(var(--bm-bg-2));
+  --color-panel: hsl(var(--bm-panel));
+  --color-fg: hsl(var(--bm-fg));
+  --color-muted-legacy: hsl(var(--bm-muted));
+  --color-subtle: hsl(var(--bm-subtle));
+  --color-divider: hsl(var(--bm-divider));
+  --color-accent-2: hsl(var(--bm-accent-2));
+  --color-danger: hsl(var(--bm-danger));
+  --color-warning: hsl(var(--bm-warning));
+  --color-success: hsl(var(--bm-success));
 
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
 }
 
-/* Tailwind utility classes for theme colors using @layer utilities */
+/* Legacy BM utility classes (deprecated - use shadcn classes instead) */
+/* These are kept temporarily for backward compatibility during migration */
 @layer utilities {
+  /* Legacy BM utilities - DO NOT USE IN NEW CODE */
   .bg-bg {
-    background-color: hsl(var(--bg));
+    background-color: hsl(var(--bm-bg));
   }
 
   .bg-bg-2 {
-    background-color: hsl(var(--bg-2));
+    background-color: hsl(var(--bm-bg-2));
   }
 
   .bg-panel {
-    background-color: hsl(var(--panel));
+    background-color: hsl(var(--bm-panel));
   }
 
   .text-fg {
-    color: hsl(var(--fg));
+    color: hsl(var(--bm-fg));
   }
 
   .text-muted {
-    color: hsl(var(--muted));
+    color: hsl(var(--bm-muted));
   }
 
   .text-subtle {
-    color: hsl(var(--subtle));
-  }
-
-  .border-border {
-    border-color: hsl(var(--border));
+    color: hsl(var(--bm-subtle));
   }
 
   .border-divider {
-    border-color: hsl(var(--divider));
-  }
-
-  .text-accent {
-    color: hsl(var(--accent));
+    border-color: hsl(var(--bm-divider));
   }
 
   .text-accent-2 {
-    color: hsl(var(--accent-2));
-  }
-
-  .bg-accent {
-    background-color: hsl(var(--accent));
+    color: hsl(var(--bm-accent-2));
   }
 
   .bg-accent-2 {
-    background-color: hsl(var(--accent-2));
+    background-color: hsl(var(--bm-accent-2));
   }
 
   .text-danger {
-    color: hsl(var(--danger));
+    color: hsl(var(--bm-danger));
   }
 
   .bg-danger\/20 {
-    background-color: hsl(var(--danger) / 0.2);
+    background-color: hsl(var(--bm-danger) / 0.2);
   }
 
   .border-danger\/30 {
-    border-color: hsl(var(--danger) / 0.3);
+    border-color: hsl(var(--bm-danger) / 0.3);
   }
 
   .text-warning {
-    color: hsl(var(--warning));
+    color: hsl(var(--bm-warning));
   }
 
   .bg-warning\/20 {
-    background-color: hsl(var(--warning) / 0.2);
+    background-color: hsl(var(--bm-warning) / 0.2);
   }
 
   .border-warning\/30 {
-    border-color: hsl(var(--warning) / 0.3);
+    border-color: hsl(var(--bm-warning) / 0.3);
   }
 
   .text-success {
-    color: hsl(var(--success));
+    color: hsl(var(--bm-success));
   }
 
   .bg-success\/20 {
-    background-color: hsl(var(--success) / 0.2);
+    background-color: hsl(var(--bm-success) / 0.2);
   }
 
   .border-success\/30 {
-    border-color: hsl(var(--success) / 0.3);
-  }
-
-  .ring-accent {
-    --tw-ring-color: hsl(var(--accent));
+    border-color: hsl(var(--bm-success) / 0.3);
   }
 }
-
