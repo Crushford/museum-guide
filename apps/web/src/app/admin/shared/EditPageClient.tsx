@@ -39,9 +39,10 @@ type EditPageClientProps = {
   node: Node;
   parent?: Parent;
   parentParent?: Parent; // For artifacts: room's parent (museum)
-  children: Child[];
+  childNodes: Child[];
   museums: Parent[]; // For parent selection
   rooms: Parent[]; // For artifact parent selection (with parentId)
+  artifacts?: Child[]; // For museums: all artifacts in the museum
   onSave: (data: {
     name: string;
     parentId: number | null;
@@ -54,9 +55,10 @@ export function EditPageClient({
   node: initialNode,
   parent: initialParent,
   parentParent: initialParentParent,
-  children,
+  childNodes,
   museums,
   rooms,
+  artifacts: museumArtifacts,
   onSave,
 }: EditPageClientProps) {
   const router = useRouter();
@@ -99,18 +101,14 @@ export function EditPageClient({
     [node, router]
   );
 
-  const typeLabel =
-    node.type === 'MUSEUM'
-      ? 'Museum'
-      : node.type === 'ROOM'
-        ? 'Room'
-        : 'Artifact';
   const newChildRoute =
     node.type === 'MUSEUM'
       ? `/admin/rooms/new?museumId=${node.id}`
       : node.type === 'ROOM'
         ? `/admin/artifacts/new?museumId=${parent?.id || ''}&roomId=${node.id}`
         : null;
+  const newArtifactRoute =
+    node.type === 'MUSEUM' ? `/admin/artifacts/new?museumId=${node.id}` : null;
 
   return (
     <>
@@ -326,7 +324,7 @@ export function EditPageClient({
           </SectionCard>
 
           {/* Children */}
-          {children.length > 0 && (
+          {childNodes.length > 0 && (
             <SectionCard
               title={node.type === 'MUSEUM' ? 'Rooms' : 'Artifacts'}
               actions={
@@ -341,7 +339,7 @@ export function EditPageClient({
             >
               <EntityList
                 title=""
-                items={children.map((child) => ({
+                items={childNodes.map((child) => ({
                   id: child.id,
                   name: child.name,
                   href: nodeEditHref(child.type, child.id),
@@ -351,7 +349,7 @@ export function EditPageClient({
               />
             </SectionCard>
           )}
-          {children.length === 0 && newChildRoute && (
+          {childNodes.length === 0 && newChildRoute && (
             <SectionCard
               title={node.type === 'MUSEUM' ? 'Rooms' : 'Artifacts'}
               actions={
@@ -366,6 +364,50 @@ export function EditPageClient({
                 No {node.type === 'MUSEUM' ? 'rooms' : 'artifacts'} yet.
               </p>
             </SectionCard>
+          )}
+
+          {/* Artifacts section for museums */}
+          {node.type === 'MUSEUM' && (
+            <>
+              {museumArtifacts && museumArtifacts.length > 0 ? (
+                <SectionCard
+                  title="Artifacts"
+                  actions={
+                    newArtifactRoute ? (
+                      <Button asChild size="sm">
+                        <Link href={newArtifactRoute}>Add Artifact</Link>
+                      </Button>
+                    ) : undefined
+                  }
+                >
+                  <EntityList
+                    title=""
+                    items={museumArtifacts.map((artifact) => ({
+                      id: artifact.id,
+                      name: artifact.name,
+                      href: nodeEditHref(artifact.type, artifact.id),
+                      typePill: artifact.type,
+                    }))}
+                    emptyState={null}
+                  />
+                </SectionCard>
+              ) : (
+                newArtifactRoute && (
+                  <SectionCard
+                    title="Artifacts"
+                    actions={
+                      <Button asChild size="sm">
+                        <Link href={newArtifactRoute}>Add Artifact</Link>
+                      </Button>
+                    }
+                  >
+                    <p className="text-sm text-muted-foreground">
+                      No artifacts yet.
+                    </p>
+                  </SectionCard>
+                )
+              )}
+            </>
           )}
         </div>
       </div>

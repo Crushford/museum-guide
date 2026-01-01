@@ -66,7 +66,18 @@ export default async function ArtifactEditPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // Redirect "new" to the proper new node page
+  if (id === 'new') {
+    redirect('/admin/nodes/new?type=ARTIFACT');
+  }
+
   const nodeId = Number(id);
+
+  // Check if nodeId is valid
+  if (Number.isNaN(nodeId)) {
+    redirect('/admin');
+  }
 
   const [node, museums, rooms] = await Promise.all([
     api<Node>(`/nodes/${nodeId}`),
@@ -121,7 +132,7 @@ export default async function ArtifactEditPage({
         { label: node.name },
       ]}
       actions={
-        <Button asChild variant="outline" size="sm">
+        <Button asChild size="sm">
           <Link href="/admin">Back to Admin</Link>
         </Button>
       }
@@ -130,14 +141,16 @@ export default async function ArtifactEditPage({
         node={node}
         parent={parent}
         parentParent={parentParent}
-        children={[]}
-        museums={museums}
-        rooms={rooms.map((r) => ({
-          id: r.id,
-          name: r.name,
-          type: r.type as 'ROOM',
-          parentId: r.parentId,
-        }))}
+        childNodes={[]}
+        museums={museums.filter((m) => m.type === 'MUSEUM') as Parent[]}
+        rooms={rooms
+          .filter((r) => r.type === 'ROOM')
+          .map((r) => ({
+            id: r.id,
+            name: r.name,
+            type: r.type as 'ROOM',
+            parentId: r.parentId,
+          }))}
         onSave={handleSave}
       />
     </AdminPageLayout>

@@ -93,12 +93,7 @@ export function InlineEditableField({
             >
               {isSaving ? 'Saving...' : 'Save'}
             </Button>
-            <Button
-              onClick={handleCancel}
-              variant="outline"
-              size="sm"
-              disabled={isSaving}
-            >
+            <Button onClick={handleCancel} size="sm" disabled={isSaving}>
               Cancel
             </Button>
             {hasUnsavedChanges && (
@@ -121,12 +116,7 @@ export function InlineEditableField({
             <span className="text-muted-foreground italic">Not set</span>
           )}
         </span>
-        <Button
-          onClick={handleEdit}
-          variant="outline"
-          size="sm"
-          className="border-white"
-        >
+        <Button onClick={handleEdit} size="sm" className="border-white">
           Edit
         </Button>
       </div>

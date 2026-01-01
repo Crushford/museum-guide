@@ -32,7 +32,7 @@ export function PromptTemplateBox({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-foreground">{title}</h3>
-        <Button onClick={handleCopy} size="sm" variant="outline">
+        <Button onClick={handleCopy} size="sm" >
           {copied ? 'Copied!' : copyLabel}
         </Button>
       </div>

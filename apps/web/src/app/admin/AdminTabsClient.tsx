@@ -221,17 +221,15 @@ export function AdminTabsClient({
       }
       return `/admin/nodes/new?${params.toString()}`;
     } else if (tab === 'artifacts') {
+      if (!selectedMuseumId) {
+        return '/admin/nodes/new?type=ARTIFACT';
+      }
       const params = new URLSearchParams();
-      params.set('type', 'ARTIFACT');
+      params.set('museumId', selectedMuseumId.toString());
       if (selectedRoomId) {
         params.set('roomId', selectedRoomId.toString());
-        if (selectedMuseumId) {
-          params.set('museumId', selectedMuseumId.toString());
-        }
-      } else if (selectedMuseumId) {
-        params.set('museumId', selectedMuseumId.toString());
       }
-      return `/admin/nodes/new?${params.toString()}`;
+      return `/admin/artifacts/new?${params.toString()}`;
     }
     return '/admin/nodes/new';
   };

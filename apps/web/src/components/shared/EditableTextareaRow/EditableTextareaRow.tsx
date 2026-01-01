@@ -72,7 +72,7 @@ export function EditableTextareaRow({
         ) : editable ? (
           <Button
             onClick={handleEdit}
-            variant="outline"
+            
             className="text-left justify-start"
           >
             <span className="text-muted-foreground">

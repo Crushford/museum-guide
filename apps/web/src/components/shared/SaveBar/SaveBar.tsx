@@ -34,7 +34,7 @@ export function SaveBar({
         </div>
         <div className="flex items-center gap-2">
           {onDiscard && (
-            <Button onClick={onDiscard} variant="outline" size="sm">
+            <Button onClick={onDiscard} size="sm">
               Discard
             </Button>
           )}

@@ -71,7 +71,18 @@ export default async function RoomEditPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // Redirect "new" to the proper new node page
+  if (id === 'new') {
+    redirect('/admin/nodes/new?type=ROOM');
+  }
+
   const nodeId = Number(id);
+
+  // Check if nodeId is valid
+  if (Number.isNaN(nodeId)) {
+    redirect('/admin');
+  }
 
   const [node, children, museums] = await Promise.all([
     api<Node>(`/nodes/${nodeId}`),
@@ -110,7 +121,7 @@ export default async function RoomEditPage({
         { label: node.name },
       ]}
       actions={
-        <Button asChild variant="outline" size="sm">
+        <Button asChild size="sm">
           <Link href="/admin">Back to Admin</Link>
         </Button>
       }
@@ -118,8 +129,8 @@ export default async function RoomEditPage({
       <EditPageClient
         node={node}
         parent={parent}
-        children={children}
-        museums={museums}
+        childNodes={children}
+        museums={museums.filter((m) => m.type === 'MUSEUM') as Parent[]}
         rooms={[]}
         onSave={handleSave}
       />

@@ -15,8 +15,6 @@ export function TypePill({ type }: TypePillProps) {
   const colorClass = typeColors[type] || 'border-subtle text-subtle';
 
   return (
-    <Badge variant="outline" className={cn('text-xs font-medium', colorClass)}>
-      {type}
-    </Badge>
+    <Badge className={cn('text-xs font-medium', colorClass)}>{type}</Badge>
   );
 }

@@ -4,6 +4,7 @@ import { api } from '../../../../lib/api';
 import { AdminPageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
 import { updateNode } from '../../shared/actions';
+import { nodeEditHref } from '../../shared/nodeRoutes';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -20,6 +21,12 @@ type Child = {
   id: number;
   name: string;
   type: 'ROOM' | 'ARTIFACT';
+};
+
+type Parent = {
+  id: number;
+  name: string;
+  type: 'MUSEUM' | 'ROOM';
 };
 
 async function getNodeHierarchy(nodeId: number): Promise<string[]> {
@@ -64,12 +71,27 @@ export default async function MuseumEditPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // Redirect "new" to the proper new node page
+  if (id === 'new') {
+    redirect('/admin/nodes/new?type=MUSEUM');
+  }
+
   const nodeId = Number(id);
 
-  const [node, children] = await Promise.all([
+  // Check if nodeId is valid
+  if (Number.isNaN(nodeId)) {
+    redirect('/admin');
+  }
+
+  const [node, children, allArtifacts] = await Promise.all([
     api<Node>(`/nodes/${nodeId}`),
     api<Child[]>(`/nodes/${nodeId}/children`).catch(() => []),
+    api<Child[]>(`/admin/nodes/artifacts?museumId=${nodeId}`).catch(() => []),
   ]);
+
+  // Filter to only artifacts (children are rooms)
+  const artifacts = allArtifacts.filter((a) => a.type === 'ARTIFACT');
 
   if (node.type !== 'MUSEUM') {
     // Redirect to correct type
@@ -98,16 +120,17 @@ export default async function MuseumEditPage({
         { label: node.name },
       ]}
       actions={
-        <Button asChild variant="outline" size="sm">
+        <Button asChild size="sm">
           <Link href="/admin">Back to Admin</Link>
         </Button>
       }
     >
       <EditPageClient
         node={node}
-        children={children}
-        museums={museums}
+        childNodes={children}
+        museums={museums.filter((m) => m.type === 'MUSEUM') as Parent[]}
         rooms={[]}
+        artifacts={artifacts}
         onSave={handleSave}
       />
     </AdminPageLayout>
