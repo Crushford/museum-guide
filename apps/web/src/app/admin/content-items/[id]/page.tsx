@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
 import { updateContentItemBody } from './actions';
-import { nodeEditHref } from '../../shared/nodeRoutes';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 
@@ -50,6 +49,13 @@ export default async function ContentItemPage({
         ?.node
     : null;
 
+  const getEntityEditHref = (type: string, id: number): string => {
+    if (type === 'MUSEUM') return `/admin/museums/${id}`;
+    if (type === 'ROOM') return `/admin/rooms/${id}`;
+    if (type === 'ARTIFACT') return `/admin/artifacts/${id}`;
+    return `/admin`;
+  };
+
   return (
     <main className="p-6 max-w-4xl mx-auto">
       <div className="mb-8">
@@ -57,15 +63,12 @@ export default async function ContentItemPage({
           <Link
             href={
               returnToNode
-                ? nodeEditHref(
-                    returnToNode.type as 'MUSEUM' | 'ROOM' | 'ARTIFACT',
-                    returnToNode.id
-                  )
-                : `/admin/nodes/${returnTo}`
+                ? getEntityEditHref(returnToNode.type, returnToNode.id)
+                : `/admin`
             }
             className="text-accent hover:underline mb-4 inline-block"
           >
-            ← Back to node admin
+            ← Back to admin
           </Link>
         ) : (
           <Link
@@ -104,10 +107,7 @@ export default async function ContentItemPage({
             {contentItem.nodeContents.map((nc) => (
               <li key={nc.id}>
                 <Link
-                  href={nodeEditHref(
-                    nc.node.type as 'MUSEUM' | 'ROOM' | 'ARTIFACT',
-                    nc.node.id
-                  )}
+                  href={getEntityEditHref(nc.node.type, nc.node.id)}
                   className="text-accent hover:underline"
                 >
                   {nc.node.type} - {nc.node.name}

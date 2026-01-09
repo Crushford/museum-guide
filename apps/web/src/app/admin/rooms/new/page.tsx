@@ -4,8 +4,6 @@ import { api } from '../../../../lib/api';
 import { AdminPageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { PromptTemplateBox } from '../../../../components/shared';
-import { JsonImportClient } from '../../nodes/new/JsonImportClient';
-import { nodeEditHref } from '../../shared/nodeRoutes';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -28,7 +26,7 @@ export default async function NewRoomPage({
   const museumId = params.museumId ? parseInt(params.museumId, 10) : undefined;
 
   if (!museumId) {
-    redirect('/admin/nodes/new?type=ROOM');
+    redirect('/admin');
   }
 
   // Fetch museum information
@@ -36,11 +34,11 @@ export default async function NewRoomPage({
   try {
     const museumData = await api<Museum>(`/nodes/${museumId}`);
     if (museumData.type !== 'MUSEUM') {
-      redirect('/admin/nodes/new?type=ROOM');
+      redirect('/admin');
     }
     museum = museumData;
   } catch {
-    redirect('/admin/nodes/new?type=ROOM');
+    redirect('/admin');
   }
 
   // Create prompt template with museum information
@@ -66,7 +64,7 @@ export default async function NewRoomPage({
       ]}
       actions={
         <Button asChild size="sm">
-          <Link href={nodeEditHref('MUSEUM', museum.id)}>
+          <Link href={`/admin/museums/${museum.id}`}>
             Back to {museum.name}
           </Link>
         </Button>
@@ -106,9 +104,6 @@ export default async function NewRoomPage({
             helperText={`Include parentId (${museum.id}) or parentName ("${museum.name}"). Describe the thematic focus and key artifacts on display. The museum context is already included.`}
           />
         </SectionCard>
-
-        {/* JSON Import */}
-        <JsonImportClient nodeType="ROOM" museumId={museumId} />
       </div>
     </AdminPageLayout>
   );

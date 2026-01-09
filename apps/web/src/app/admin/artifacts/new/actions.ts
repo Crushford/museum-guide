@@ -1,7 +1,6 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { nodeEditHref } from '../../shared/nodeRoutes';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
@@ -114,5 +113,5 @@ export async function createArtifactWithRoom(data: ArtifactData) {
   }
 
   const artifact = await response.json();
-  redirect(nodeEditHref('ARTIFACT', artifact.id));
+  redirect(`/admin/artifacts/${artifact.id}`);
 }

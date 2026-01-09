@@ -1,13 +1,11 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { nodeEditHref, type NodeType } from './nodeRoutes';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
-export async function updateNode(
+export async function updateMuseum(
   id: number,
-  type: NodeType,
   data: {
     name: string;
     parentId: number | null;
@@ -30,11 +28,70 @@ export async function updateNode(
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || 'Failed to update node');
+    throw new Error(error.error || 'Failed to update museum');
   }
 
-  // Use the type we already have - no need to fetch again
-  redirect(nodeEditHref(type, id));
+  redirect(`/admin/museums/${id}`);
+}
+
+export async function updateRoom(
+  id: number,
+  data: {
+    name: string;
+    parentId: number | null;
+    knowledgeText: string | null;
+    furtherReading: string[];
+  }
+) {
+  const response = await fetch(`${API_URL}/nodes/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: data.name,
+      parentId: data.parentId,
+      knowledgeText: data.knowledgeText,
+      furtherReading: data.furtherReading,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to update room');
+  }
+
+  redirect(`/admin/rooms/${id}`);
+}
+
+export async function updateArtifact(
+  id: number,
+  data: {
+    name: string;
+    parentId: number | null;
+    knowledgeText: string | null;
+    furtherReading: string[];
+  }
+) {
+  const response = await fetch(`${API_URL}/nodes/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: data.name,
+      parentId: data.parentId,
+      knowledgeText: data.knowledgeText,
+      furtherReading: data.furtherReading,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to update artifact');
+  }
+
+  redirect(`/admin/artifacts/${id}`);
 }
 
 // Individual field update functions (no redirect, for inline editing)

@@ -3,42 +3,32 @@ import { redirect } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { AdminPageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
-import { updateNode } from '../../shared/actions';
-import { nodeEditHref } from '../../shared/nodeRoutes';
+import { updateRoom } from '../../shared/actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-type Node = {
+type Room = {
   id: number;
-  type: 'MUSEUM' | 'ROOM' | 'ARTIFACT';
   name: string;
-  parentId: number | null;
+  museumId: number | null;
   knowledgeText: string | null;
   furtherReading: string[];
 };
 
-type Child = {
+type Museum = {
   id: number;
   name: string;
-  type: 'ROOM' | 'ARTIFACT';
 };
 
-type Parent = {
+type Artifact = {
   id: number;
   name: string;
-  type: 'MUSEUM' | 'ROOM';
 };
 
-async function getNodeHierarchy(nodeId: number): Promise<string[]> {
-  const node = await api<Node>(`/nodes/${nodeId}`).catch(() => null);
-  if (!node) return [];
-
-  const hierarchy = [node.name];
-  if (node.parentId) {
-    const parentHierarchy = await getNodeHierarchy(node.parentId);
-    return [...parentHierarchy, ...hierarchy];
-  }
-  return hierarchy;
+async function getRoomHierarchy(roomId: number): Promise<string[]> {
+  const room = await api<Room>(`/nodes/${roomId}`).catch(() => null);
+  if (!room) return [];
+  return [room.name];
 }
 
 export async function generateMetadata({
@@ -50,7 +40,7 @@ export async function generateMetadata({
   const nodeId = Number(id);
 
   try {
-    const hierarchy = await getNodeHierarchy(nodeId);
+    const hierarchy = await getRoomHierarchy(nodeId);
     if (hierarchy.length > 0) {
       return {
         title: `Museum Guide - Room: ${hierarchy[0]}`,
@@ -72,9 +62,9 @@ export default async function RoomEditPage({
 }) {
   const { id } = await params;
 
-  // Redirect "new" to the proper new node page
+  // Redirect "new" to admin (rooms require a museumId)
   if (id === 'new') {
-    redirect('/admin/nodes/new?type=ROOM');
+    redirect('/admin');
   }
 
   const nodeId = Number(id);
@@ -84,23 +74,16 @@ export default async function RoomEditPage({
     redirect('/admin');
   }
 
-  const [node, children, museums] = await Promise.all([
-    api<Node>(`/nodes/${nodeId}`),
-    api<Child[]>(`/nodes/${nodeId}/children`).catch(() => []),
-    api<Node[]>(`/admin/nodes/museums`).catch(() => []),
+  const [room, artifacts, museums] = await Promise.all([
+    api<Room>(`/nodes/${nodeId}`),
+    api<Artifact[]>(`/rooms/${nodeId}/artifacts`).catch(() => []),
+    api<Museum[]>(`/museums`).catch(() => []),
   ]);
 
-  if (node.type !== 'ROOM') {
-    // Redirect to correct type
-    redirect(nodeEditHref(node.type, nodeId));
-  }
-
   // Get parent museum
-  const parent: Parent | undefined = node.parentId
-    ? await api<Node>(`/nodes/${node.parentId}`)
-        .then((n) => ({ id: n.id, name: n.name, type: n.type as 'MUSEUM' }))
-        .catch(() => undefined)
-    : undefined;
+  const parentMuseum: Museum | null = room.museumId
+    ? await api<Museum>(`/museums/${room.museumId}`).catch(() => null)
+    : null;
 
   const handleSave = async (data: {
     name: string;
@@ -109,16 +92,16 @@ export default async function RoomEditPage({
     furtherReading: string[];
   }) => {
     'use server';
-    await updateNode(nodeId, 'ROOM', data);
+    await updateRoom(nodeId, data);
   };
 
   return (
     <AdminPageLayout
-      title={`Room: ${node.name}`}
+      title={`Room: ${room.name}`}
       breadcrumbs={[
         { label: 'Admin', href: '/admin' },
         { label: 'Rooms', href: '/admin?tab=rooms' },
-        { label: node.name },
+        { label: room.name },
       ]}
       actions={
         <Button asChild size="sm">
@@ -127,11 +110,17 @@ export default async function RoomEditPage({
       }
     >
       <EditPageClient
-        node={node}
-        parent={parent}
-        childNodes={children}
-        museums={museums.filter((m) => m.type === 'MUSEUM') as Parent[]}
-        rooms={[]}
+        entity={{
+          id: room.id,
+          name: room.name,
+          knowledgeText: room.knowledgeText,
+          furtherReading: room.furtherReading,
+          type: 'room',
+          parentId: room.museumId,
+        }}
+        parentMuseum={parentMuseum}
+        childArtifacts={artifacts}
+        museums={museums}
         onSave={handleSave}
       />
     </AdminPageLayout>

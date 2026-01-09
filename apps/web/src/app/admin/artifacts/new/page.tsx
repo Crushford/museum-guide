@@ -5,7 +5,6 @@ import { AdminPageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { PromptTemplateBox } from '../../../../components/shared';
 import { ArtifactFormClient } from './ArtifactFormClient';
-import { nodeEditHref } from '../../shared/nodeRoutes';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -36,7 +35,7 @@ export default async function NewArtifactPage({
   const roomId = params.roomId ? parseInt(params.roomId, 10) : undefined;
 
   if (!museumId) {
-    redirect('/admin/nodes/new?type=ARTIFACT');
+    redirect('/admin');
   }
 
   // Fetch museum information
@@ -44,11 +43,11 @@ export default async function NewArtifactPage({
   try {
     const museumData = await api<Museum>(`/nodes/${museumId}`);
     if (museumData.type !== 'MUSEUM') {
-      redirect('/admin/nodes/new?type=ARTIFACT');
+      redirect('/admin');
     }
     museum = museumData;
   } catch {
-    redirect('/admin/nodes/new?type=ARTIFACT');
+    redirect('/admin');
   }
 
   // Fetch rooms for this museum
@@ -108,7 +107,7 @@ export default async function NewArtifactPage({
       ]}
       actions={
         <Button asChild size="sm">
-          <Link href={nodeEditHref('MUSEUM', museum.id)}>
+          <Link href={`/admin/museums/${museum.id}`}>
             Back to {museum.name}
           </Link>
         </Button>
