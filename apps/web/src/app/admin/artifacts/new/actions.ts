@@ -13,6 +13,8 @@ type ArtifactData = {
   museumName?: string;
   knowledgeText?: string;
   furtherReading?: string[];
+  newRoomParentType?: 'museum' | 'room';
+  newRoomParentRoomId?: number;
 };
 
 export async function createArtifactWithRoom(data: ArtifactData) {
@@ -33,15 +35,13 @@ export async function createArtifactWithRoom(data: ArtifactData) {
 
     // First, try to find existing room by name within the museum
     try {
-      const roomsResponse = await fetch(
-        `${API_URL}/admin/nodes/rooms?museumId=${museumId}`
-      );
+      const roomsResponse = await fetch(`${API_URL}/museums/${museumId}/rooms`);
       if (roomsResponse.ok) {
         const rooms = await roomsResponse.json();
         const existingRoom = rooms.find(
-          (r: { name: string; parentId: number | null }) =>
+          (r: { name: string; museumId: number | null }) =>
             r.name.toLowerCase() === data.parentName!.toLowerCase() &&
-            r.parentId === museumId
+            r.museumId === museumId
         );
         if (existingRoom) {
           roomId = existingRoom.id;
@@ -51,15 +51,26 @@ export async function createArtifactWithRoom(data: ArtifactData) {
       console.error('Error fetching rooms:', error);
     }
 
-    // If room doesn't exist, create it with the museumId as parentId
+    // If room doesn't exist, create it
     if (!roomId) {
-      const roomPayload = {
-        type: 'ROOM' as const,
+      // Determine parent type for the new room
+      const roomParentType = data.newRoomParentType || 'museum';
+      const roomPayload: Record<string, unknown> = {
         name: data.parentName,
-        parentId: museumId,
+        knowledgeText: null,
+        furtherReading: [],
       };
 
-      const createRoomResponse = await fetch(`${API_URL}/nodes`, {
+      if (roomParentType === 'museum') {
+        roomPayload.museumId = museumId;
+      } else if (roomParentType === 'room' && data.newRoomParentRoomId) {
+        roomPayload.parentRoomId = data.newRoomParentRoomId;
+      } else {
+        // Default to museum if no parent room specified
+        roomPayload.museumId = museumId;
+      }
+
+      const createRoomResponse = await fetch(`${API_URL}/rooms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -93,15 +104,14 @@ export async function createArtifactWithRoom(data: ArtifactData) {
   }
 
   // Now create the artifact
-  const response = await fetch(`${API_URL}/nodes`, {
+  const response = await fetch(`${API_URL}/artifacts`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      type: 'ARTIFACT',
       name: data.name,
-      parentId: roomId,
+      roomId: roomId,
       knowledgeText: data.knowledgeText || null,
       furtherReading: data.furtherReading || [],
     }),

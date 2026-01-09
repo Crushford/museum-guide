@@ -166,10 +166,12 @@ export function AdminTabsClient({
     if (tab === 'museums') {
       return '/admin/museums/new';
     } else if (tab === 'rooms') {
-      const params = new URLSearchParams();
-      if (selectedMuseumId) {
-        params.set('museumId', selectedMuseumId.toString());
+      // Rooms require a museumId - if none selected, redirect to museums tab first
+      if (!selectedMuseumId) {
+        return '/admin?tab=museums';
       }
+      const params = new URLSearchParams();
+      params.set('museumId', selectedMuseumId.toString());
       return `/admin/rooms/new?${params.toString()}`;
     } else if (tab === 'artifacts') {
       const params = new URLSearchParams();

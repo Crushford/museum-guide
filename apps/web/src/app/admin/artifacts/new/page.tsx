@@ -4,7 +4,7 @@ import { api } from '../../../../lib/api';
 import { AdminPageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { PromptTemplateBox } from '../../../../components/shared';
-import { ArtifactFormClient } from './ArtifactFormClient';
+import { ArtifactFormWrapper } from './ArtifactFormWrapper';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -41,11 +41,7 @@ export default async function NewArtifactPage({
   // Fetch museum information
   let museum: Museum | null = null;
   try {
-    const museumData = await api<Museum>(`/nodes/${museumId}`);
-    if (museumData.type !== 'MUSEUM') {
-      redirect('/admin');
-    }
-    museum = museumData;
+    museum = await api<Museum>(`/museums/${museumId}`);
   } catch {
     redirect('/admin');
   }
@@ -53,7 +49,7 @@ export default async function NewArtifactPage({
   // Fetch rooms for this museum
   let rooms: Room[] = [];
   try {
-    rooms = await api<Room[]>(`/admin/nodes/rooms?museumId=${museumId}`);
+    rooms = await api<Room[]>(`/museums/${museumId}/rooms`);
   } catch {
     // Continue without rooms
   }
@@ -62,9 +58,14 @@ export default async function NewArtifactPage({
   let selectedRoom: Room | null = null;
   if (roomId) {
     try {
-      const roomData = await api<Room>(`/nodes/${roomId}`);
-      if (roomData.type === 'ROOM' && roomData.parentId === museumId) {
-        selectedRoom = roomData;
+      const rooms = await api<Room[]>(`/museums/${museumId}/rooms`);
+      const roomData = rooms.find((r) => r.id === roomId);
+      if (roomData) {
+        selectedRoom = {
+          ...roomData,
+          type: 'ROOM' as const,
+          parentId: museumId,
+        };
       }
     } catch {
       // Room not found or invalid
@@ -113,7 +114,7 @@ export default async function NewArtifactPage({
         </Button>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-6 pb-24">
         {/* Museum Context */}
         <SectionCard title="Adding Artifact To">
           <div className="space-y-2">
@@ -125,8 +126,8 @@ export default async function NewArtifactPage({
             )}
             {!selectedRoom && (
               <p className="text-sm text-muted-foreground">
-                This artifact will be added to a room. If the room doesn't exist
-                yet, it will be created automatically.
+                This artifact will be added to a room. If the room doesn&apos;t
+                exist yet, it will be created automatically.
               </p>
             )}
           </div>
@@ -142,11 +143,11 @@ export default async function NewArtifactPage({
             <p className="text-muted-foreground">
               {selectedRoom
                 ? `The room "${selectedRoom.name}" has been pre-filled.`
-                : "You can specify a room by name (parentName) or ID (parentId). If the room doesn't exist, it will be created automatically."}
+                : 'You can specify a room by name (parentName) or ID (parentId). If the room doesn&apos;t exist, it will be created automatically.'}
             </p>
             <p className="text-sm text-muted-foreground">
-              If you import JSON that conflicts with existing form data, you'll
-              be able to choose which values to keep for each field.
+              If you import JSON that conflicts with existing form data,
+              you&apos;ll be able to choose which values to keep for each field.
             </p>
           </div>
         </SectionCard>
@@ -188,7 +189,7 @@ The information about the artifact I want to add is below, please search and try
         </SectionCard>
 
         {/* Artifact Form */}
-        <ArtifactFormClient
+        <ArtifactFormWrapper
           museumId={museumId}
           museumName={museum.name}
           rooms={rooms}

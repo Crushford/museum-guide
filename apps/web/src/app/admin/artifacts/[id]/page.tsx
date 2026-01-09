@@ -27,7 +27,7 @@ type Museum = {
 };
 
 async function getArtifactHierarchy(artifactId: number): Promise<string[]> {
-  const artifact = await api<Artifact>(`/nodes/${artifactId}`).catch(
+  const artifact = await api<Artifact>(`/artifacts/${artifactId}`).catch(
     () => null
   );
   if (!artifact) return [];
@@ -78,7 +78,7 @@ export default async function ArtifactEditPage({
   }
 
   const [artifact, museums, allRooms] = await Promise.all([
-    api<Artifact>(`/nodes/${nodeId}`),
+    api<Artifact>(`/artifacts/${nodeId}`),
     api<Museum[]>(`/museums`).catch(() => []),
     api<Room[]>(`/admin/rooms`).catch(() => []),
   ]);
@@ -91,11 +91,11 @@ export default async function ArtifactEditPage({
     parentId?: number | null;
   };
   const parentRoom: Room | null = artifact.roomId
-    ? await api<RoomResponse>(`/nodes/${artifact.roomId}`)
+    ? await api<RoomResponse>(`/rooms/${artifact.roomId}`)
         .then((r) => ({
           id: r.id,
           name: r.name,
-          museumId: r.museumId ?? r.parentId ?? null,
+          museumId: r.museumId ?? null,
         }))
         .catch(() => null)
     : null;

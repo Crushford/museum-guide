@@ -1,11 +1,8 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { JsonPasteBox } from '../../../../components/shared';
-import { ImportPreviewTable } from '../../../../components/shared';
-import { SaveBar } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
-import { createArtifactWithRoom } from './actions';
 
 type ArtifactData = {
   type: 'ARTIFACT';
@@ -141,82 +138,47 @@ function validateJson(jsonString: string): {
   };
 }
 
+type ImportedArtifactData = {
+  name: string;
+  parentId?: number;
+  parentName?: string;
+  knowledgeText?: string;
+  furtherReading?: string[];
+};
+
 type ArtifactJsonImportClientProps = {
   museumId: number;
   roomId?: number;
+  onValidJson?: (data: ImportedArtifactData) => void;
 };
 
 export function ArtifactJsonImportClient({
   museumId,
   roomId,
+  onValidJson,
 }: ArtifactJsonImportClientProps) {
-  // Prefill JSON if params are provided
-  const getInitialJson = () => {
-    if (roomId) {
-      return JSON.stringify(
-        {
-          type: 'ARTIFACT',
-          name: '',
-          parentId: roomId,
-        },
-        null,
-        2
-      );
-    }
-    return JSON.stringify(
-      {
-        type: 'ARTIFACT',
-        name: '',
-        museumId: museumId,
-      },
-      null,
-      2
-    );
-  };
-
-  const [jsonString, setJsonString] = useState(() => getInitialJson());
-  const [isPending, startTransition] = useTransition();
+  const [jsonString, setJsonString] = useState('');
 
   const validation = validateJson(jsonString);
-  const hasPreview = validation.preview !== null;
-  const isDirty = jsonString.trim().length > 0;
 
-  const handleSave = () => {
-    if (!validation.isValid || !validation.data) {
-      return;
-    }
-
-    startTransition(async () => {
-      try {
-        // Ensure museumId is included in the data when creating a new room
-        const artifactData = {
-          ...validation.data!,
-          museumId: validation.data!.museumId || museumId,
-        };
-
-        // Validate that museumId is provided when creating a new room
-        if (!artifactData.parentId && !artifactData.museumId) {
-          alert(
-            'Museum ID is required when creating a new room. A room must have a museum as its parent.'
-          );
-          return;
-        }
-
-        await createArtifactWithRoom(artifactData);
-      } catch (error) {
-        console.error('Failed to create artifact:', error);
-        alert(
-          error instanceof Error
-            ? error.message
-            : 'Failed to create artifact. Please try again.'
-        );
+  // When valid JSON is detected, populate the form fields
+  const lastValidDataRef = useRef<string>('');
+  useEffect(() => {
+    if (validation.isValid && validation.data && onValidJson) {
+      // Create a stable key to prevent infinite loops
+      const dataKey = JSON.stringify(validation.data);
+      if (dataKey !== lastValidDataRef.current) {
+        lastValidDataRef.current = dataKey;
+        onValidJson({
+          name: validation.data.name,
+          parentId: validation.data.parentId,
+          parentName: validation.data.parentName,
+          knowledgeText: validation.data.knowledgeText,
+          furtherReading: validation.data.furtherReading,
+        });
       }
-    });
-  };
-
-  const handleDiscard = () => {
-    setJsonString(getInitialJson());
-  };
+    }
+  }, [validation.isValid, validation.data, onValidJson]);
 
   return (
     <>
@@ -229,18 +191,6 @@ export function ArtifactJsonImportClient({
           placeholder='{"type": "ARTIFACT", "name": "Artifact Name", "parentName": "Room Name", ...}'
         />
       </SectionCard>
-
-      {hasPreview && (
-        <SectionCard title="Preview">
-          <ImportPreviewTable rows={[validation.preview!]} />
-        </SectionCard>
-      )}
-
-      <SaveBar
-        isDirty={isDirty && validation.isValid}
-        onSave={validation.isValid ? handleSave : undefined}
-        onDiscard={handleDiscard}
-      />
     </>
   );
 }

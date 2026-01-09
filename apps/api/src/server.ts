@@ -506,6 +506,38 @@ app.get('/museums/:museumId/rooms', async (req, res) => {
   );
 });
 
+// GET /rooms/:id - Get a single room by ID
+app.get('/rooms/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
+
+    const room = await prisma.room.findUnique({
+      where: { id },
+    });
+
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    res.json({
+      id: room.id,
+      name: room.name,
+      museumId: room.museumId,
+      parentRoomId: room.parentRoomId,
+      knowledgeText: room.knowledgeText,
+      furtherReading: room.furtherReading,
+    });
+  } catch (error) {
+    console.error('Error fetching room:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch room';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 app.get('/rooms/:roomId/artifacts', async (req, res) => {
   const roomId = Number(req.params.roomId);
 
@@ -563,6 +595,37 @@ app.get('/artifacts', async (_req, res) => {
       createdAt: a.createdAt,
     }))
   );
+});
+
+// GET /artifacts/:id - Get a single artifact by ID
+app.get('/artifacts/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid artifact ID' });
+    }
+
+    const artifact = await prisma.artifact.findUnique({
+      where: { id },
+    });
+
+    if (!artifact) {
+      return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    res.json({
+      id: artifact.id,
+      name: artifact.name,
+      roomId: artifact.roomId,
+      knowledgeText: artifact.knowledgeText,
+      furtherReading: artifact.furtherReading,
+    });
+  } catch (error) {
+    console.error('Error fetching artifact:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch artifact';
+    res.status(500).json({ error: errorMessage });
+  }
 });
 
 app.post('/content', async (req, res) => {

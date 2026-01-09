@@ -6,11 +6,11 @@ import { SectionCard } from '../../../../components/shared';
 import { PromptTemplateBox } from '../../../../components/shared';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { RoomFormWrapper } from './RoomFormWrapper';
 
 type Museum = {
   id: number;
   name: string;
-  type: 'MUSEUM';
 };
 
 export const metadata: Metadata = {
@@ -32,13 +32,20 @@ export default async function NewRoomPage({
   // Fetch museum information
   let museum: Museum | null = null;
   try {
-    const museumData = await api<Museum>(`/nodes/${museumId}`);
-    if (museumData.type !== 'MUSEUM') {
-      redirect('/admin');
-    }
-    museum = museumData;
+    museum = await api<Museum>(`/museums/${museumId}`);
   } catch {
     redirect('/admin');
+  }
+
+  // Fetch rooms for this museum (for child room selection)
+  let rooms: Array<{ id: number; name: string }> = [];
+  try {
+    const roomsData = await api<Array<{ id: number; name: string }>>(
+      `/museums/${museumId}/rooms`
+    );
+    rooms = roomsData;
+  } catch {
+    // Continue without rooms
   }
 
   // Create prompt template with museum information
@@ -70,7 +77,7 @@ export default async function NewRoomPage({
         </Button>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-6 pb-24">
         {/* Museum Context */}
         <SectionCard title="Adding Room To">
           <div className="space-y-2">
@@ -104,6 +111,9 @@ export default async function NewRoomPage({
             helperText={`Include parentId (${museum.id}) or parentName ("${museum.name}"). Describe the thematic focus and key artifacts on display. The museum context is already included.`}
           />
         </SectionCard>
+
+        {/* Room Form */}
+        <RoomFormWrapper museumId={museum.id} rooms={rooms} />
       </div>
     </AdminPageLayout>
   );
