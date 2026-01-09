@@ -6,6 +6,7 @@ import { EditPageClient } from '../../shared/EditPageClient';
 import { updateMuseum } from '../../shared/actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { DeleteMuseumButton } from './DeleteMuseumButton';
 
 type Museum = {
   id: number;
@@ -106,19 +107,24 @@ export default async function MuseumEditPage({
         </Button>
       }
     >
-      <EditPageClient
-        entity={{
-          id: museum.id,
-          name: museum.name,
-          knowledgeText: museum.knowledgeText,
-          furtherReading: museum.furtherReading,
-          type: 'museum',
-        }}
-        childRooms={rooms}
-        childArtifacts={artifacts}
-        museums={museums}
-        onSave={handleSave}
-      />
+      <div className="space-y-6">
+        <EditPageClient
+          entity={{
+            id: museum.id,
+            name: museum.name,
+            knowledgeText: museum.knowledgeText,
+            furtherReading: museum.furtherReading,
+            type: 'museum',
+          }}
+          childRooms={rooms}
+          childArtifacts={artifacts}
+          museums={museums}
+          onSave={handleSave}
+        />
+        <div className="flex justify-end pt-4">
+          <DeleteMuseumButton museumId={museum.id} museumName={museum.name} />
+        </div>
+      </div>
     </AdminPageLayout>
   );
 }

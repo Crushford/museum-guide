@@ -399,6 +399,37 @@ app.post('/museums', async (req, res) => {
   res.json(museum);
 });
 
+// DELETE /museums/:id - Delete a museum
+app.delete('/museums/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid museum ID' });
+    }
+
+    // Check if museum exists
+    const museum = await prisma.museum.findUnique({
+      where: { id },
+    });
+
+    if (!museum) {
+      return res.status(404).json({ error: 'Museum not found' });
+    }
+
+    // Delete the museum (cascade will handle related rooms and artifacts)
+    await prisma.museum.delete({
+      where: { id },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting museum:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to delete museum';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 app.post('/rooms', async (req, res) => {
   const { name, museumId, parentRoomId, knowledgeText, furtherReading } =
     req.body;
