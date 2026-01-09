@@ -78,7 +78,7 @@ export default async function MuseumEditPage({
   const [museum, rooms, artifacts] = await Promise.all([
     api<Museum>(`/museums/${nodeId}`),
     api<Room[]>(`/museums/${nodeId}/rooms`).catch(() => []),
-    api<Artifact[]>(`/museums/${nodeId}/artifacts`).catch(() => []),
+    api<Artifact[]>(`/museums/${nodeId}/artifacts-recursive`).catch(() => []),
   ]);
 
   // Get all museums for potential parent selection (not needed for museums, but for consistency)
