@@ -235,6 +235,31 @@ app.get('/museums', async (_req, res) => {
   }
 });
 
+// GET /museums/:id - Get a single museum by ID
+app.get('/museums/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid museum ID' });
+    }
+
+    const museum = await prisma.museum.findUnique({
+      where: { id },
+    });
+
+    if (!museum) {
+      return res.status(404).json({ error: 'Museum not found' });
+    }
+
+    res.json(museum);
+  } catch (error) {
+    console.error('Error fetching museum:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch museum';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 // GET /admin/rooms - List all rooms with museum info
 app.get('/admin/rooms', async (req, res) => {
   try {

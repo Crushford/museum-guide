@@ -61,9 +61,9 @@ export default async function MuseumEditPage({
 }) {
   const { id } = await params;
 
-  // Redirect "new" to admin (museums don't have a dedicated new page)
+  // Redirect "new" to the new museum page
   if (id === 'new') {
-    redirect('/admin');
+    redirect('/admin/museums/new');
   }
 
   const nodeId = Number(id);
