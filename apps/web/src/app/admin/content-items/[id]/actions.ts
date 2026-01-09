@@ -4,6 +4,11 @@ import { redirect } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
+type Node = {
+  id: number;
+  type: 'MUSEUM' | 'ROOM' | 'ARTIFACT';
+};
+
 export async function updateContentItemBody(
   id: number,
   body: string,
@@ -23,8 +28,28 @@ export async function updateContentItemBody(
   }
 
   if (returnTo) {
-    // Redirect to typed route - the /admin/nodes/[id] route will handle the redirect
-    redirect(`/admin/nodes/${returnTo}`);
+    // Fetch the node to determine its type and redirect to the appropriate route
+    try {
+      const nodeResponse = await fetch(`${API_URL}/nodes/${returnTo}`, {
+        cache: 'no-store',
+      });
+      if (nodeResponse.ok) {
+        const node: Node = await nodeResponse.json();
+        if (node.type === 'MUSEUM') {
+          redirect(`/admin/museums/${returnTo}`);
+        } else if (node.type === 'ROOM') {
+          redirect(`/admin/rooms/${returnTo}`);
+        } else if (node.type === 'ARTIFACT') {
+          redirect(`/admin/artifacts/${returnTo}`);
+        } else {
+          redirect('/admin');
+        }
+      } else {
+        redirect('/admin');
+      }
+    } catch {
+      redirect('/admin');
+    }
   } else {
     redirect(`/admin/content-items/${id}`);
   }

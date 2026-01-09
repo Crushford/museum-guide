@@ -64,7 +64,38 @@ type PlaylistResponse = {
         body: string;
       };
     }>
-  >;
+  > & {
+    artifactMain?: Array<{
+      id: number;
+      sortOrder: number;
+      contentItem: {
+        id: number;
+        title: string;
+        type: string;
+        body: string;
+      };
+    }>;
+    qa?: Array<{
+      id: number;
+      sortOrder: number;
+      contentItem: {
+        id: number;
+        title: string;
+        type: string;
+        body: string;
+      };
+    }>;
+    followup?: Array<{
+      id: number;
+      sortOrder: number;
+      contentItem: {
+        id: number;
+        title: string;
+        type: string;
+        body: string;
+      };
+    }>;
+  };
 };
 
 export default async function ArtifactPage({
@@ -79,10 +110,17 @@ export default async function ArtifactPage({
 
   const [artifactNode, playlist] = await Promise.all([
     api<Node>(`/nodes/${artifactNodeId}`).catch(() => null),
-    api<PlaylistResponse>(`/nodes/${artifactNodeId}/playlist`).catch(() => ({
-      node: { id: artifactNodeId, type: '', name: '' },
-      roles: {},
-    })),
+    api<PlaylistResponse>(`/nodes/${artifactNodeId}/playlist`).catch(
+      () =>
+        ({
+          node: { id: artifactNodeId, type: '', name: '' },
+          roles: {
+            artifactMain: undefined,
+            qa: undefined,
+            followup: undefined,
+          },
+        }) as PlaylistResponse
+    ),
   ]);
 
   // Validate node type and parent chain

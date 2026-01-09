@@ -4,15 +4,13 @@ import { api } from '../../../../lib/api';
 import { AdminPageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { PromptTemplateBox } from '../../../../components/shared';
-import { JsonImportClient } from '../../nodes/new/JsonImportClient';
-import { nodeEditHref } from '../../shared/nodeRoutes';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { RoomFormWrapper } from './RoomFormWrapper';
 
 type Museum = {
   id: number;
   name: string;
-  type: 'MUSEUM';
 };
 
 export const metadata: Metadata = {
@@ -28,19 +26,26 @@ export default async function NewRoomPage({
   const museumId = params.museumId ? parseInt(params.museumId, 10) : undefined;
 
   if (!museumId) {
-    redirect('/admin/nodes/new?type=ROOM');
+    redirect('/admin');
   }
 
   // Fetch museum information
   let museum: Museum | null = null;
   try {
-    const museumData = await api<Museum>(`/nodes/${museumId}`);
-    if (museumData.type !== 'MUSEUM') {
-      redirect('/admin/nodes/new?type=ROOM');
-    }
-    museum = museumData;
+    museum = await api<Museum>(`/museums/${museumId}`);
   } catch {
-    redirect('/admin/nodes/new?type=ROOM');
+    redirect('/admin');
+  }
+
+  // Fetch rooms for this museum (for child room selection)
+  let rooms: Array<{ id: number; name: string }> = [];
+  try {
+    const roomsData = await api<Array<{ id: number; name: string }>>(
+      `/museums/${museumId}/rooms`
+    );
+    rooms = roomsData;
+  } catch {
+    // Continue without rooms
   }
 
   // Create prompt template with museum information
@@ -66,13 +71,13 @@ export default async function NewRoomPage({
       ]}
       actions={
         <Button asChild size="sm">
-          <Link href={nodeEditHref('MUSEUM', museum.id)}>
+          <Link href={`/admin/museums/${museum.id}`}>
             Back to {museum.name}
           </Link>
         </Button>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-6 pb-24">
         {/* Museum Context */}
         <SectionCard title="Adding Room To">
           <div className="space-y-2">
@@ -107,8 +112,8 @@ export default async function NewRoomPage({
           />
         </SectionCard>
 
-        {/* JSON Import */}
-        <JsonImportClient nodeType="ROOM" museumId={museumId} />
+        {/* Room Form */}
+        <RoomFormWrapper museumId={museum.id} rooms={rooms} />
       </div>
     </AdminPageLayout>
   );

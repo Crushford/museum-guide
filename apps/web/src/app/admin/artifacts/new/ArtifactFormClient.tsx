@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
-import { JsonPasteBox } from '../../../../components/shared';
 import { SaveBar } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { Input } from '@/components/ui/input';
@@ -20,6 +19,8 @@ type ArtifactData = {
   museumName?: string;
   knowledgeText?: string;
   furtherReading?: string[];
+  newRoomParentType?: 'museum' | 'room';
+  newRoomParentRoomId?: number;
 };
 
 type FormData = {
@@ -28,6 +29,8 @@ type FormData = {
   museumId: string;
   knowledgeText: string;
   furtherReading: string[];
+  newRoomParentType?: 'museum' | 'room';
+  newRoomParentRoomId?: string;
 };
 
 type ConflictField = {
@@ -228,6 +231,8 @@ function ConflictResolutionUI({
       museumId: 'Museum ID',
       knowledgeText: 'Knowledge Text',
       furtherReading: 'Further Reading',
+      newRoomParentType: 'New Room Parent Type',
+      newRoomParentRoomId: 'New Room Parent Room ID',
     };
     return labels[field];
   };
@@ -337,12 +342,21 @@ type Room = {
   parentId: number | null;
 };
 
+type ImportedArtifactData = {
+  name: string;
+  parentId?: number;
+  parentName?: string;
+  knowledgeText?: string;
+  furtherReading?: string[];
+};
+
 type ArtifactFormClientProps = {
   museumId: number;
   museumName: string;
   rooms: Room[];
   roomId?: number;
   initialParentName?: string;
+  importedData?: ImportedArtifactData | null;
 };
 
 export function ArtifactFormClient({
@@ -350,6 +364,7 @@ export function ArtifactFormClient({
   museumName,
   rooms,
   initialParentName,
+  importedData,
 }: ArtifactFormClientProps) {
   const STORAGE_KEY = `artifact-form-${museumId}`;
 
@@ -360,8 +375,42 @@ export function ArtifactFormClient({
     museumId: museumId.toString(),
     knowledgeText: '',
     furtherReading: [],
+    newRoomParentType: 'museum',
+    newRoomParentRoomId: '',
   }));
   const isHydratedRef = useRef(false);
+  const lastImportedRef = useRef<string>('');
+
+  // Update form fields when JSON data is imported
+  useEffect(() => {
+    if (importedData) {
+      // Create a stable key from the imported data to prevent infinite loops
+      const dataKey = JSON.stringify({
+        name: importedData.name,
+        parentName: importedData.parentName,
+        knowledgeText: importedData.knowledgeText,
+        furtherReading: importedData.furtherReading,
+      });
+
+      // Only update if this is new data
+      if (dataKey !== lastImportedRef.current) {
+        lastImportedRef.current = dataKey;
+        // Use queueMicrotask to defer state updates and avoid synchronous setState warning
+        queueMicrotask(() => {
+          setFormData((prev) => ({
+            name: importedData.name || prev.name,
+            parentName: importedData.parentName || prev.parentName,
+            museumId: prev.museumId,
+            knowledgeText: importedData.knowledgeText || prev.knowledgeText,
+            furtherReading: importedData.furtherReading || prev.furtherReading,
+          }));
+          if (importedData.parentName) {
+            setShowAddNewRoom(true);
+          }
+        });
+      }
+    }
+  }, [importedData]);
 
   // Load from localStorage after hydration (client-side only)
   useEffect(() => {
@@ -385,9 +434,6 @@ export function ArtifactFormClient({
     }
   }, [STORAGE_KEY]);
 
-  const [jsonString, setJsonString] = useState('');
-  const [conflicts, setConflicts] = useState<ConflictField[]>([]);
-  const [showConflictResolution, setShowConflictResolution] = useState(false);
   const [, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<
     'idle' | 'loading' | 'success' | 'error'
@@ -404,7 +450,6 @@ export function ArtifactFormClient({
     }
   }, [formData, STORAGE_KEY]);
 
-  const validation = validateJson(jsonString);
   const hasFormData = !!(
     formData.name.trim() ||
     formData.parentName.trim() ||
@@ -417,84 +462,6 @@ export function ArtifactFormClient({
     value: FormData[K]
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleJsonChange = (newJson: string) => {
-    setJsonString(newJson);
-    setShowConflictResolution(false);
-    setConflicts([]);
-  };
-
-  const handleJsonImport = () => {
-    if (!validation.isValid || !validation.data) {
-      return;
-    }
-
-    const detectedConflicts = detectConflicts(formData, validation.data);
-
-    if (detectedConflicts.length > 0) {
-      setConflicts(detectedConflicts);
-      setShowConflictResolution(true);
-    } else {
-      // No conflicts, apply JSON data directly
-      applyJsonData(validation.data);
-    }
-  };
-
-  const applyJsonData = (jsonData: ArtifactData) => {
-    setFormData((prev) => ({
-      name: jsonData.name || prev.name,
-      parentName: jsonData.parentName || prev.parentName,
-      museumId: jsonData.museumId?.toString() || prev.museumId,
-      knowledgeText: jsonData.knowledgeText || prev.knowledgeText,
-      furtherReading: jsonData.furtherReading || prev.furtherReading,
-    }));
-    setJsonString('');
-    setShowConflictResolution(false);
-    setConflicts([]);
-  };
-
-  const handleConflictResolution = (resolution: ConflictResolution) => {
-    if (!validation.data) return;
-
-    const updatedFormData = { ...formData };
-
-    conflicts.forEach((conflict) => {
-      const choice = resolution[conflict.field];
-      if (choice === 'replace') {
-        if (conflict.field === 'furtherReading') {
-          updatedFormData[conflict.field] = conflict.newValue as string[];
-        } else {
-          updatedFormData[conflict.field] = conflict.newValue as string;
-        }
-      }
-    });
-
-    // Apply non-conflicting fields from JSON
-    if (!conflicts.find((c) => c.field === 'name')) {
-      updatedFormData.name = validation.data.name || updatedFormData.name;
-    }
-    if (!conflicts.find((c) => c.field === 'parentName')) {
-      updatedFormData.parentName =
-        validation.data.parentName || updatedFormData.parentName;
-    }
-    if (!conflicts.find((c) => c.field === 'museumId')) {
-      updatedFormData.museumId =
-        validation.data.museumId?.toString() || updatedFormData.museumId;
-    }
-    if (!conflicts.find((c) => c.field === 'knowledgeText')) {
-      updatedFormData.knowledgeText =
-        validation.data.knowledgeText || updatedFormData.knowledgeText;
-    }
-    if (!conflicts.find((c) => c.field === 'furtherReading')) {
-      updatedFormData.furtherReading =
-        validation.data.furtherReading || updatedFormData.furtherReading;
-    }
-
-    setFormData(updatedFormData);
-    setJsonString('');
-    setShowConflictResolution(false);
-    setConflicts([]);
   };
 
   const handleSave = () => {
@@ -522,6 +489,10 @@ export function ArtifactFormClient({
       museumId: validMuseumId,
       knowledgeText: formData.knowledgeText.trim() || undefined,
       furtherReading: formData.furtherReading.filter((url) => url.trim()),
+      newRoomParentType: formData.newRoomParentType,
+      newRoomParentRoomId: formData.newRoomParentRoomId
+        ? parseInt(formData.newRoomParentRoomId, 10)
+        : undefined,
     };
 
     // Ensure museumId is provided when creating a new room
@@ -585,11 +556,10 @@ export function ArtifactFormClient({
       museumId: museumId.toString(),
       knowledgeText: '',
       furtherReading: [],
+      newRoomParentType: 'museum',
+      newRoomParentRoomId: '',
     });
     setShowAddNewRoom(false);
-    setJsonString('');
-    setShowConflictResolution(false);
-    setConflicts([]);
     setSaveStatus('idle');
     setErrorMessage('');
     // Clear localStorage when discarding
@@ -661,15 +631,71 @@ export function ArtifactFormClient({
                 </>
               ) : (
                 <>
-                  <Input
-                    id="parentName"
-                    value={formData.parentName}
-                    onChange={(e) =>
-                      handleFormChange('parentName', e.target.value)
-                    }
-                    placeholder="Enter new room name"
-                    className="w-64"
-                  />
+                  <div className="flex flex-col gap-2">
+                    <Input
+                      id="parentName"
+                      value={formData.parentName}
+                      onChange={(e) =>
+                        handleFormChange('parentName', e.target.value)
+                      }
+                      placeholder="Enter new room name"
+                      className="w-64"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="newRoomParentType" className="text-xs">
+                        Parent:
+                      </Label>
+                      <Button
+                        type="button"
+                        variant={
+                          formData.newRoomParentType === 'museum'
+                            ? 'default'
+                            : 'secondary'
+                        }
+                        size="sm"
+                        onClick={() => {
+                          handleFormChange('newRoomParentType', 'museum');
+                          handleFormChange('newRoomParentRoomId', '');
+                        }}
+                      >
+                        Museum
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={
+                          formData.newRoomParentType === 'room'
+                            ? 'default'
+                            : 'secondary'
+                        }
+                        size="sm"
+                        onClick={() => {
+                          handleFormChange('newRoomParentType', 'room');
+                        }}
+                      >
+                        Room
+                      </Button>
+                    </div>
+                    {formData.newRoomParentType === 'room' && (
+                      <select
+                        id="newRoomParentRoomId"
+                        value={formData.newRoomParentRoomId || ''}
+                        onChange={(e) =>
+                          handleFormChange(
+                            'newRoomParentRoomId',
+                            e.target.value
+                          )
+                        }
+                        className="flex h-10 w-64 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <option value="">Select a parent room</option>
+                        {rooms.map((room) => (
+                          <option key={room.id} value={room.id.toString()}>
+                            {room.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                   <Button
                     type="button"
                     size="sm"
@@ -677,6 +703,8 @@ export function ArtifactFormClient({
                     onClick={() => {
                       setShowAddNewRoom(false);
                       handleFormChange('parentName', '');
+                      handleFormChange('newRoomParentType', 'museum');
+                      handleFormChange('newRoomParentRoomId', '');
                     }}
                   >
                     Cancel
@@ -686,7 +714,9 @@ export function ArtifactFormClient({
             </div>
             <p className="text-xs text-muted-foreground">
               {showAddNewRoom
-                ? "Enter a new room name (will be created if it doesn't exist)"
+                ? formData.newRoomParentType === 'museum'
+                  ? "Enter a new room name (will be created as a parent room if it doesn't exist)"
+                  : "Enter a new room name (will be created as a child room if it doesn't exist)"
                 : 'Select an existing room or add a new one'}
             </p>
           </div>
@@ -736,34 +766,6 @@ export function ArtifactFormClient({
               placeholder="https://example.com/article"
             />
           </div>
-        </div>
-      </SectionCard>
-
-      {/* JSON Import */}
-      <SectionCard title="Import from JSON">
-        <div className="space-y-4">
-          <JsonPasteBox
-            label="Artifact JSON"
-            value={jsonString}
-            onChange={handleJsonChange}
-            errors={validation.errors}
-            placeholder='{"type": "ARTIFACT", "name": "Artifact Name", "parentName": "Room Name", ...}'
-          />
-
-          {validation.isValid && validation.data && (
-            <div className="flex justify-end">
-              <Button onClick={handleJsonImport} size="sm">
-                Import JSON to Form
-              </Button>
-            </div>
-          )}
-
-          {showConflictResolution && conflicts.length > 0 && (
-            <ConflictResolutionUI
-              conflicts={conflicts}
-              onResolve={handleConflictResolution}
-            />
-          )}
         </div>
       </SectionCard>
 

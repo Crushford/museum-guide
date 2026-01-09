@@ -14,6 +14,8 @@ type InlineEditableFieldProps = {
   placeholder?: string;
   rows?: number;
   className?: string;
+  isEditing?: boolean;
+  onEditChange?: (editing: boolean) => void;
 };
 
 export function InlineEditableField({
@@ -24,8 +26,12 @@ export function InlineEditableField({
   placeholder,
   rows = 4,
   className = '',
+  isEditing: externalIsEditing,
+  onEditChange,
 }: InlineEditableFieldProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [internalIsEditing, setInternalIsEditing] = useState(false);
+  const isEditing =
+    externalIsEditing !== undefined ? externalIsEditing : internalIsEditing;
   const [value, setValue] = useState(initialValue);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -36,13 +42,21 @@ export function InlineEditableField({
   }, [initialValue]);
 
   const handleEdit = () => {
-    setIsEditing(true);
+    if (externalIsEditing === undefined) {
+      setInternalIsEditing(true);
+    } else {
+      onEditChange?.(true);
+    }
     setHasUnsavedChanges(false);
   };
 
   const handleCancel = () => {
     setValue(initialValue);
-    setIsEditing(false);
+    if (externalIsEditing === undefined) {
+      setInternalIsEditing(false);
+    } else {
+      onEditChange?.(false);
+    }
     setHasUnsavedChanges(false);
   };
 
@@ -55,7 +69,11 @@ export function InlineEditableField({
     setIsSaving(true);
     try {
       await onSave(value);
-      setIsEditing(false);
+      if (externalIsEditing === undefined) {
+        setInternalIsEditing(false);
+      } else {
+        onEditChange?.(false);
+      }
       setHasUnsavedChanges(false);
     } catch (error) {
       console.error('Failed to save:', error);
@@ -116,9 +134,11 @@ export function InlineEditableField({
             <span className="text-muted-foreground italic">Not set</span>
           )}
         </span>
-        <Button onClick={handleEdit} size="sm" className="border-white">
-          Edit
-        </Button>
+        {externalIsEditing === undefined && (
+          <Button onClick={handleEdit} size="sm" className="border-white">
+            Edit
+          </Button>
+        )}
       </div>
     </div>
   );

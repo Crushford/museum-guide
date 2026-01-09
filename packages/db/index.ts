@@ -22,3 +22,4 @@ const client = new PrismaClient({
 });
 
 export const prisma = client;
+export type { Prisma } from '@prisma/client';

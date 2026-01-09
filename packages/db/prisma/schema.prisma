@@ -12,36 +12,51 @@ datasource db {
   provider = "postgresql"
 }
 
-enum NodeType {
-  MUSEUM
-  ROOM
-  ARTIFACT
-}
-
 model Museum {
-  id          Int      @id @default(autoincrement())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  rooms       Room[]
-  content     Content[]
+  id               Int       @id @default(autoincrement())
+  name             String
+  knowledgeText    String?
+  furtherReading   String[]  @default([])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  rooms            Room[]
+  content          Content[]
 }
 
 model Room {
-  id        Int      @id @default(autoincrement())
-  name      String
-  museumId Int
-  createdAt DateTime @default(now())
+  id               Int       @id @default(autoincrement())
+  name             String
+  museumId         Int?      // Optional - only set if top-level room
+  parentRoomId     Int?      // Optional - only set if nested room
+  knowledgeText    String?
+  furtherReading   String[]  @default([])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  museum   Museum  @relation(fields: [museumId], references: [id], onDelete: Cascade)
-  content  Content[]
+  museum           Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  parentRoom       Room?     @relation("RoomHierarchy", fields: [parentRoomId], references: [id], onDelete: Cascade)
+  childRooms       Room[]    @relation("RoomHierarchy")
+  artifacts        Artifact[]
+  content          Content[]
+
+  @@index([museumId])
+  @@index([parentRoomId])
 }
 
 model Artifact {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
-  content   Content[]
+  id               Int       @id @default(autoincrement())
+  name             String
+  roomId           Int
+  knowledgeText    String?
+  furtherReading   String[]  @default([])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  room             Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  content          Content[]
+
+  @@index([roomId])
 }
 
 model Content {
@@ -58,55 +73,3 @@ model Content {
   artifact Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
 }
 
-model Node {
-  id               Int       @id @default(autoincrement())
-  type             NodeType
-  name             String
-  parentId         Int?
-  knowledgeText    String?
-  furtherReading   String[]  @default([])
-  outline          Json?
-  outlineUpdatedAt DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  parent   Node?  @relation("NodeParent", fields: [parentId], references: [id], onDelete: Cascade)
-  children Node[] @relation("NodeParent")
-
-  content      ContentItem[]
-  nodeContents NodeContent[]
-}
-
-model ContentItem {
-  id          Int      @id @default(autoincrement())
-  nodeId      Int?
-  type        String
-  title       String
-  body        String
-  audioUrl    String?
-  outlineKey  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  node         Node?         @relation(fields: [nodeId], references: [id], onDelete: Cascade)
-  nodeContents NodeContent[]
-
-  @@index([nodeId, outlineKey])
-}
-
-model NodeContent {
-  id            Int      @id @default(autoincrement())
-  nodeId        Int
-  contentItemId Int
-  role          String
-  sortOrder     Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  node        Node        @relation(fields: [nodeId], references: [id], onDelete: Cascade)
-  contentItem ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
-
-  @@index([nodeId, role, sortOrder])
-  @@unique([nodeId, role, sortOrder])
-  @@unique([nodeId, role, contentItemId])
-}

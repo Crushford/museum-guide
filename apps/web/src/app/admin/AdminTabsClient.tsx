@@ -5,52 +5,31 @@ import { useState, useEffect } from 'react';
 import { Tabs } from '../../components/shared';
 import { EmptyState } from '../../components/shared';
 import { NodesListClient } from './nodes/NodesListClient';
-import { nodeEditHref } from './shared/nodeRoutes';
+import type {
+  MuseumResponse,
+  RoomResponse,
+  ArtifactResponse,
+} from '@repo/types';
 
-type Museum = {
-  id: number;
-  name: string;
-};
-
-type Room = {
-  id: number;
-  name: string;
-  museumId: number | null;
-  museumName: string | null;
-};
-
-type Artifact = {
-  id: number;
-  name: string;
-  roomId: number | null;
-  roomName: string | null;
-  museumId: number | null;
-  museumName: string | null;
-};
-
-type Node = {
-  id: number;
-  name: string;
-  type: 'MUSEUM' | 'ROOM' | 'ARTIFACT';
-  parentId: number | null;
-};
+// Use shared types from API
+type Museum = MuseumResponse;
+type Room = RoomResponse;
+type Artifact = ArtifactResponse;
 
 type AdminTabsClientProps = {
   museums: Museum[];
   rooms: Room[];
   artifacts: Artifact[];
-  allNodes: Node[];
 };
 
 export function AdminTabsClient({
   museums,
   rooms,
   artifacts,
-  allNodes,
 }: AdminTabsClientProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const tab = searchParams.get('tab') || 'all';
+  const tab = searchParams.get('tab') || 'museums';
   const museumIdParam = searchParams.get('museumId');
   const roomIdParam = searchParams.get('roomId');
 
@@ -68,7 +47,6 @@ export function AdminTabsClient({
         (r) => r.id === selectedRoomId && r.museumId === selectedMuseumId
       );
       if (!room) {
-        setSelectedRoomId(null);
         const params = new URLSearchParams(searchParams.toString());
         params.delete('roomId');
         router.replace(`/admin?${params.toString()}`);
@@ -121,7 +99,7 @@ export function AdminTabsClient({
     displayItems = museums.map((m) => ({
       id: m.id,
       name: m.name,
-      href: nodeEditHref('MUSEUM', m.id),
+      href: `/admin/museums/${m.id}`,
       typePill: 'MUSEUM',
       parentId: null,
     }));
@@ -137,7 +115,7 @@ export function AdminTabsClient({
           ? `${r.museumName} - ${r.name}`
           : r.name,
       subtitle: r.museumName ? `Museum: ${r.museumName}` : undefined,
-      href: nodeEditHref('ROOM', r.id),
+      href: `/admin/rooms/${r.id}`,
       typePill: 'ROOM',
       parentId: r.museumId,
     }));
@@ -177,79 +155,58 @@ export function AdminTabsClient({
         id: a.id,
         name,
         subtitle,
-        href: nodeEditHref('ARTIFACT', a.id),
+        href: `/admin/artifacts/${a.id}`,
         typePill: 'ARTIFACT',
         parentId: a.roomId,
-      };
-    });
-  } else {
-    // tab === 'all'
-    displayItems = allNodes.map((node) => {
-      let subtitle: string | undefined;
-      if (node.type === 'ROOM') {
-        const room = rooms.find((r) => r.id === node.id);
-        subtitle = room?.museumName ? `Museum: ${room.museumName}` : undefined;
-      } else if (node.type === 'ARTIFACT') {
-        const artifact = artifacts.find((a) => a.id === node.id);
-        if (artifact) {
-          const parts: string[] = [];
-          if (artifact.roomName) parts.push(`Room: ${artifact.roomName}`);
-          if (artifact.museumName) parts.push(`Museum: ${artifact.museumName}`);
-          subtitle = parts.length > 0 ? parts.join(', ') : undefined;
-        }
-      }
-
-      return {
-        id: node.id,
-        name: node.name,
-        subtitle,
-        href: nodeEditHref(node.type, node.id),
-        typePill: node.type,
-        parentId: node.parentId,
       };
     });
   }
 
   const getAddButtonHref = () => {
     if (tab === 'museums') {
-      return '/admin/nodes/new?type=MUSEUM';
+      return '/admin/museums/new';
     } else if (tab === 'rooms') {
+      // Rooms require a museumId
+      // If no museum selected but museums exist, use the first one
+      // If no museums exist, redirect to museums tab
+      const museumIdToUse =
+        selectedMuseumId || (museums.length > 0 ? museums[0].id : null);
+
+      if (!museumIdToUse) {
+        return '/admin?tab=museums';
+      }
+
       const params = new URLSearchParams();
-      params.set('type', 'ROOM');
+      params.set('museumId', museumIdToUse.toString());
+      return `/admin/rooms/new?${params.toString()}`;
+    } else if (tab === 'artifacts') {
+      const params = new URLSearchParams();
       if (selectedMuseumId) {
         params.set('museumId', selectedMuseumId.toString());
       }
-      return `/admin/nodes/new?${params.toString()}`;
-    } else if (tab === 'artifacts') {
-      if (!selectedMuseumId) {
-        return '/admin/nodes/new?type=ARTIFACT';
-      }
-      const params = new URLSearchParams();
-      params.set('museumId', selectedMuseumId.toString());
       if (selectedRoomId) {
         params.set('roomId', selectedRoomId.toString());
       }
       return `/admin/artifacts/new?${params.toString()}`;
     }
-    return '/admin/nodes/new';
+    return '/admin/museums/new';
   };
 
   const getAddButtonLabel = () => {
     if (tab === 'museums') return 'Add Museum';
     if (tab === 'rooms') return 'Add Room';
     if (tab === 'artifacts') return 'Add Artifact';
-    return 'Add New Node';
+    return 'Add Museum';
   };
 
   const tabs = [
-    { id: 'all', label: 'All nodes' },
     { id: 'museums', label: 'Museums' },
     { id: 'rooms', label: 'Rooms' },
     { id: 'artifacts', label: 'Artifacts' },
   ];
 
   return (
-    <Tabs tabs={tabs} defaultTab="all">
+    <Tabs tabs={tabs} defaultTab="museums">
       <div className="space-y-4">
         {/* Filters for Rooms tab */}
         {tab === 'rooms' && (
@@ -322,14 +279,10 @@ export function AdminTabsClient({
           }}
           emptyState={
             <EmptyState
-              title={`No ${tab === 'all' ? 'nodes' : tab} yet`}
-              message={
-                tab === 'all'
-                  ? 'Create your first museum to get started.'
-                  : `Create your first ${tab.slice(0, -1)} to get started.`
-              }
+              title={`No ${tab} yet`}
+              message={`Create your first ${tab.slice(0, -1)} to get started.`}
               action={{
-                label: `Add ${tab === 'all' ? 'your first museum' : `your first ${tab.slice(0, -1)}`}`,
+                label: `Add your first ${tab.slice(0, -1)}`,
                 href: getAddButtonHref(),
               }}
             />

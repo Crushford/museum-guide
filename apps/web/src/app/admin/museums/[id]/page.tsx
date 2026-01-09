@@ -3,42 +3,33 @@ import { redirect } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { AdminPageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
-import { updateNode } from '../../shared/actions';
-import { nodeEditHref } from '../../shared/nodeRoutes';
+import { updateMuseum } from '../../shared/actions';
+import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
+import { deleteMuseum } from './actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-type Node = {
+type Museum = {
   id: number;
-  type: 'MUSEUM' | 'ROOM' | 'ARTIFACT';
   name: string;
-  parentId: number | null;
   knowledgeText: string | null;
   furtherReading: string[];
 };
 
-type Child = {
+type Room = {
   id: number;
   name: string;
-  type: 'ROOM' | 'ARTIFACT';
 };
 
-type Parent = {
+type Artifact = {
   id: number;
   name: string;
-  type: 'MUSEUM' | 'ROOM';
 };
 
-async function getNodeHierarchy(nodeId: number): Promise<string[]> {
-  const node = await api<Node>(`/nodes/${nodeId}`).catch(() => null);
-  if (!node) return [];
-
-  const hierarchy = [node.name];
-  if (node.parentId) {
-    const parentHierarchy = await getNodeHierarchy(node.parentId);
-    return [...parentHierarchy, ...hierarchy];
-  }
-  return hierarchy;
+async function getMuseumHierarchy(museumId: number): Promise<string[]> {
+  const museum = await api<Museum>(`/museums/${museumId}`).catch(() => null);
+  if (!museum) return [];
+  return [museum.name];
 }
 
 export async function generateMetadata({
@@ -50,7 +41,7 @@ export async function generateMetadata({
   const nodeId = Number(id);
 
   try {
-    const hierarchy = await getNodeHierarchy(nodeId);
+    const hierarchy = await getMuseumHierarchy(nodeId);
     if (hierarchy.length > 0) {
       return {
         title: `Museum Guide - Museum: ${hierarchy[0]}`,
@@ -72,9 +63,9 @@ export default async function MuseumEditPage({
 }) {
   const { id } = await params;
 
-  // Redirect "new" to the proper new node page
+  // Redirect "new" to the new museum page
   if (id === 'new') {
-    redirect('/admin/nodes/new?type=MUSEUM');
+    redirect('/admin/museums/new');
   }
 
   const nodeId = Number(id);
@@ -84,22 +75,14 @@ export default async function MuseumEditPage({
     redirect('/admin');
   }
 
-  const [node, children, allArtifacts] = await Promise.all([
-    api<Node>(`/nodes/${nodeId}`),
-    api<Child[]>(`/nodes/${nodeId}/children`).catch(() => []),
-    api<Child[]>(`/admin/nodes/artifacts?museumId=${nodeId}`).catch(() => []),
+  const [museum, rooms, artifacts] = await Promise.all([
+    api<Museum>(`/museums/${nodeId}`),
+    api<Room[]>(`/museums/${nodeId}/rooms`).catch(() => []),
+    api<Artifact[]>(`/museums/${nodeId}/artifacts-recursive`).catch(() => []),
   ]);
 
-  // Filter to only artifacts (children are rooms)
-  const artifacts = allArtifacts.filter((a) => a.type === 'ARTIFACT');
-
-  if (node.type !== 'MUSEUM') {
-    // Redirect to correct type
-    redirect(nodeEditHref(node.type, nodeId));
-  }
-
   // Get all museums for potential parent selection (not needed for museums, but for consistency)
-  const museums = await api<Node[]>(`/admin/nodes/museums`).catch(() => []);
+  const museums = await api<Museum[]>(`/museums`).catch(() => []);
 
   const handleSave = async (data: {
     name: string;
@@ -108,16 +91,16 @@ export default async function MuseumEditPage({
     furtherReading: string[];
   }) => {
     'use server';
-    await updateNode(nodeId, 'MUSEUM', data);
+    await updateMuseum(nodeId, data);
   };
 
   return (
     <AdminPageLayout
-      title={`Museum: ${node.name}`}
+      title={`Museum: ${museum.name}`}
       breadcrumbs={[
         { label: 'Admin', href: '/admin' },
         { label: 'Museums', href: '/admin?tab=museums' },
-        { label: node.name },
+        { label: museum.name },
       ]}
       actions={
         <Button asChild size="sm">
@@ -125,14 +108,29 @@ export default async function MuseumEditPage({
         </Button>
       }
     >
-      <EditPageClient
-        node={node}
-        childNodes={children}
-        museums={museums.filter((m) => m.type === 'MUSEUM') as Parent[]}
-        rooms={[]}
-        artifacts={artifacts}
-        onSave={handleSave}
-      />
+      <div className="space-y-6">
+        <EditPageClient
+          entity={{
+            id: museum.id,
+            name: museum.name,
+            knowledgeText: museum.knowledgeText,
+            furtherReading: museum.furtherReading,
+            type: 'museum',
+          }}
+          childRooms={rooms}
+          childArtifacts={artifacts}
+          museums={museums}
+          onSave={handleSave}
+        />
+        <div className="flex justify-end pt-4">
+          <DeleteEntityButton
+            entityType="museum"
+            entityId={museum.id}
+            entityName={museum.name}
+            onDelete={deleteMuseum}
+          />
+        </div>
+      </div>
     </AdminPageLayout>
   );
 }

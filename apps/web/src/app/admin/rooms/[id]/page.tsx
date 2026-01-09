@@ -3,42 +3,43 @@ import { redirect } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { AdminPageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
-import { updateNode } from '../../shared/actions';
-import { nodeEditHref } from '../../shared/nodeRoutes';
+import { updateRoom } from '../../shared/actions';
+import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
+import { deleteRoom } from './actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-type Node = {
+type Room = {
   id: number;
-  type: 'MUSEUM' | 'ROOM' | 'ARTIFACT';
   name: string;
-  parentId: number | null;
+  museumId: number | null;
+  parentRoomId: number | null;
   knowledgeText: string | null;
   furtherReading: string[];
 };
 
-type Child = {
+type ChildRoom = {
   id: number;
   name: string;
-  type: 'ROOM' | 'ARTIFACT';
+  museumId: number | null;
+  parentRoomId: number | null;
 };
 
-type Parent = {
+type Museum = {
   id: number;
   name: string;
-  type: 'MUSEUM' | 'ROOM';
 };
 
-async function getNodeHierarchy(nodeId: number): Promise<string[]> {
-  const node = await api<Node>(`/nodes/${nodeId}`).catch(() => null);
-  if (!node) return [];
+type Artifact = {
+  id: number;
+  name: string;
+  roomId?: number;
+};
 
-  const hierarchy = [node.name];
-  if (node.parentId) {
-    const parentHierarchy = await getNodeHierarchy(node.parentId);
-    return [...parentHierarchy, ...hierarchy];
-  }
-  return hierarchy;
+async function getRoomHierarchy(roomId: number): Promise<string[]> {
+  const room = await api<Room>(`/rooms/${roomId}`).catch(() => null);
+  if (!room) return [];
+  return [room.name];
 }
 
 export async function generateMetadata({
@@ -50,7 +51,7 @@ export async function generateMetadata({
   const nodeId = Number(id);
 
   try {
-    const hierarchy = await getNodeHierarchy(nodeId);
+    const hierarchy = await getRoomHierarchy(nodeId);
     if (hierarchy.length > 0) {
       return {
         title: `Museum Guide - Room: ${hierarchy[0]}`,
@@ -72,9 +73,9 @@ export default async function RoomEditPage({
 }) {
   const { id } = await params;
 
-  // Redirect "new" to the proper new node page
+  // Redirect "new" to admin (rooms require a museumId)
   if (id === 'new') {
-    redirect('/admin/nodes/new?type=ROOM');
+    redirect('/admin');
   }
 
   const nodeId = Number(id);
@@ -84,23 +85,158 @@ export default async function RoomEditPage({
     redirect('/admin');
   }
 
-  const [node, children, museums] = await Promise.all([
-    api<Node>(`/nodes/${nodeId}`),
-    api<Child[]>(`/nodes/${nodeId}/children`).catch(() => []),
-    api<Node[]>(`/admin/nodes/museums`).catch(() => []),
+  const [room, artifacts, childRooms, museums, allRooms] = await Promise.all([
+    api<Room>(`/rooms/${nodeId}`),
+    api<Artifact[]>(`/rooms/${nodeId}/artifacts`).catch(() => []),
+    api<ChildRoom[]>(`/rooms/${nodeId}/children`).catch(() => []),
+    api<Museum[]>(`/museums`).catch(() => []),
+    api<Room[]>(`/admin/rooms`).catch(() => []),
   ]);
 
-  if (node.type !== 'ROOM') {
-    // Redirect to correct type
-    redirect(nodeEditHref(node.type, nodeId));
+  // Filter out the current room and its children from parent room options
+  const availableParentRooms = allRooms.filter(
+    (r) => r.id !== nodeId && r.parentRoomId !== nodeId
+  );
+
+  // If this is a parent room, get all artifacts from child rooms too
+  let allArtifacts = artifacts;
+  if (childRooms.length > 0) {
+    const recursiveArtifacts = await api<Artifact[]>(
+      `/rooms/${nodeId}/artifacts-recursive`
+    ).catch(() => []);
+    allArtifacts = recursiveArtifacts;
   }
 
-  // Get parent museum
-  const parent: Parent | undefined = node.parentId
-    ? await api<Node>(`/nodes/${node.parentId}`)
-        .then((n) => ({ id: n.id, name: n.name, type: n.type as 'MUSEUM' }))
-        .catch(() => undefined)
-    : undefined;
+  // Get parent museum - either directly attached or via parent room
+  let parentMuseum: Museum | null = null;
+  if (room.museumId) {
+    // Room is directly attached to a museum
+    parentMuseum = await api<Museum>(`/museums/${room.museumId}`).catch(
+      () => null
+    );
+  } else if (room.parentRoomId) {
+    // Room is a child room - get parent room's museum
+    try {
+      const parentRoom = await api<Room>(`/rooms/${room.parentRoomId}`);
+      if (parentRoom.museumId) {
+        parentMuseum = await api<Museum>(
+          `/museums/${parentRoom.museumId}`
+        ).catch(() => null);
+      }
+    } catch {
+      // Failed to fetch parent room
+    }
+  }
+
+  // Fetch museum information for child rooms
+  const childRoomsWithMuseums = await Promise.all(
+    childRooms.map(async (childRoom) => {
+      let museum: Museum | null = null;
+      // If child room has a parent room, get the parent room's museum
+      if (childRoom.parentRoomId) {
+        try {
+          const parentRoom = await api<Room>(
+            `/rooms/${childRoom.parentRoomId}`
+          );
+          if (parentRoom.museumId) {
+            museum = await api<Museum>(`/museums/${parentRoom.museumId}`).catch(
+              () => null
+            );
+          }
+        } catch {
+          // If parent room lookup fails, try direct museumId
+          if (childRoom.museumId) {
+            museum = await api<Museum>(`/museums/${childRoom.museumId}`).catch(
+              () => null
+            );
+          }
+        }
+      } else if (childRoom.museumId) {
+        // Direct museum attachment
+        museum = await api<Museum>(`/museums/${childRoom.museumId}`).catch(
+          () => null
+        );
+      }
+      return {
+        id: childRoom.id,
+        name: childRoom.name,
+        museum: museum?.name || null,
+      };
+    })
+  );
+
+  // Fetch museum information for artifacts
+  const artifactsWithMuseums = await Promise.all(
+    artifacts.map(async (artifact) => {
+      let museum: Museum | null = null;
+      if (artifact.roomId) {
+        try {
+          const artifactRoom = await api<Room>(`/rooms/${artifact.roomId}`);
+          if (artifactRoom.museumId) {
+            museum = await api<Museum>(
+              `/museums/${artifactRoom.museumId}`
+            ).catch(() => null);
+          } else if (artifactRoom.parentRoomId) {
+            // If artifact's room is a child room, get parent room's museum
+            const parentRoom = await api<Room>(
+              `/rooms/${artifactRoom.parentRoomId}`
+            );
+            if (parentRoom.museumId) {
+              museum = await api<Museum>(
+                `/museums/${parentRoom.museumId}`
+              ).catch(() => null);
+            }
+          }
+        } catch {
+          // Failed to fetch room info
+        }
+      }
+      return {
+        id: artifact.id,
+        name: artifact.name,
+        museum: museum?.name || null,
+      };
+    })
+  );
+
+  // Fetch museum information for all artifacts (including from child rooms)
+  const allArtifactsWithMuseums =
+    childRooms.length > 0
+      ? await Promise.all(
+          allArtifacts.map(async (artifact) => {
+            let museum: Museum | null = null;
+            if (artifact.roomId) {
+              try {
+                const artifactRoom = await api<Room>(
+                  `/rooms/${artifact.roomId}`
+                );
+                if (artifactRoom.museumId) {
+                  museum = await api<Museum>(
+                    `/museums/${artifactRoom.museumId}`
+                  ).catch(() => null);
+                } else if (artifactRoom.parentRoomId) {
+                  // If artifact's room is a child room, get parent room's museum
+                  const parentRoom = await api<Room>(
+                    `/rooms/${artifactRoom.parentRoomId}`
+                  );
+                  if (parentRoom.museumId) {
+                    museum = await api<Museum>(
+                      `/museums/${parentRoom.museumId}`
+                    ).catch(() => null);
+                  }
+                }
+              } catch {
+                // Failed to fetch room info
+              }
+            }
+            return {
+              id: artifact.id,
+              name: artifact.name,
+              museum: museum?.name || null,
+            };
+          })
+        )
+      : artifactsWithMuseums;
 
   const handleSave = async (data: {
     name: string;
@@ -109,16 +245,16 @@ export default async function RoomEditPage({
     furtherReading: string[];
   }) => {
     'use server';
-    await updateNode(nodeId, 'ROOM', data);
+    await updateRoom(nodeId, data);
   };
 
   return (
     <AdminPageLayout
-      title={`Room: ${node.name}`}
+      title={`Room: ${room.name}`}
       breadcrumbs={[
         { label: 'Admin', href: '/admin' },
         { label: 'Rooms', href: '/admin?tab=rooms' },
-        { label: node.name },
+        { label: room.name },
       ]}
       actions={
         <Button asChild size="sm">
@@ -127,13 +263,37 @@ export default async function RoomEditPage({
       }
     >
       <EditPageClient
-        node={node}
-        parent={parent}
-        childNodes={children}
-        museums={museums.filter((m) => m.type === 'MUSEUM') as Parent[]}
-        rooms={[]}
+        entity={{
+          id: room.id,
+          name: room.name,
+          knowledgeText: room.knowledgeText,
+          furtherReading: room.furtherReading,
+          type: 'room',
+          parentId: room.museumId,
+          parentRoomId: room.parentRoomId,
+        }}
+        parentMuseum={parentMuseum}
+        parentRooms={availableParentRooms.map((r) => ({
+          id: r.id,
+          name: r.name,
+          parentId: r.museumId ?? r.parentRoomId,
+        }))}
+        childRooms={childRoomsWithMuseums}
+        childArtifacts={artifactsWithMuseums}
+        allArtifacts={
+          childRooms.length > 0 ? allArtifactsWithMuseums : undefined
+        }
+        museums={museums}
         onSave={handleSave}
       />
+      <div className="flex justify-end pt-4">
+        <DeleteEntityButton
+          entityType="room"
+          entityId={room.id}
+          entityName={room.name}
+          onDelete={deleteRoom}
+        />
+      </div>
     </AdminPageLayout>
   );
 }
