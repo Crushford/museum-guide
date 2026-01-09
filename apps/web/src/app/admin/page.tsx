@@ -29,36 +29,11 @@ type Artifact = {
   museumName: string | null;
 };
 
-type Node = {
-  id: number;
-  type: 'MUSEUM' | 'ROOM' | 'ARTIFACT';
-  name: string;
-  parentId: number | null;
-};
-
-async function getAllNodes(): Promise<Node[]> {
-  const museums = await api<Node[]>('/nodes/museums');
-  const allNodes: Node[] = [];
-
-  for (const museum of museums) {
-    allNodes.push(museum);
-    const rooms = await api<Node[]>(`/nodes/${museum.id}/children`);
-    for (const room of rooms) {
-      allNodes.push(room);
-      const artifacts = await api<Node[]>(`/nodes/${room.id}/children`);
-      allNodes.push(...artifacts);
-    }
-  }
-
-  return allNodes;
-}
-
 export default async function AdminPage() {
-  const [museums, rooms, artifacts, allNodes] = await Promise.all([
-    api<Museum[]>('/nodes/museums'),
-    api<Room[]>('/admin/nodes/rooms'),
-    api<Artifact[]>('/admin/nodes/artifacts'),
-    getAllNodes(),
+  const [museums, rooms, artifacts] = await Promise.all([
+    api<Museum[]>('/museums'),
+    api<Room[]>('/admin/rooms'),
+    api<Artifact[]>('/admin/artifacts'),
   ]);
 
   return (
@@ -68,7 +43,6 @@ export default async function AdminPage() {
           museums={museums}
           rooms={rooms}
           artifacts={artifacts}
-          allNodes={allNodes}
         />
       </SectionCard>
     </AdminPageLayout>

@@ -7,42 +7,246 @@ const PORT = process.env.PORT || 3001;
 app.use(express.json());
 
 // ============================================================================
-// NEW NODE-BASED ENDPOINTS
+// MUSEUM, ROOM, AND ARTIFACT ENDPOINTS
 // ============================================================================
 
-// 5A) List top-level museums (Nodes with type MUSEUM and parentId null)
-app.get('/nodes/museums', async (_req, res) => {
-  const museums = await prisma.node.findMany({
-    where: {
-      type: 'MUSEUM',
-      parentId: null,
-    },
-    orderBy: {
-      id: 'asc',
-    },
-  });
-  res.json(museums);
+// Helper function to calculate string similarity (Levenshtein distance ratio)
+function stringSimilarity(str1: string, str2: string): number {
+  const s1 = str1.toLowerCase().trim();
+  const s2 = str2.toLowerCase().trim();
+
+  if (s1 === s2) return 1.0;
+  if (s1.length === 0 || s2.length === 0) return 0.0;
+
+  // Use longest common subsequence ratio for better text similarity
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+
+  // Check for substring match (one contains the other)
+  if (longer.includes(shorter)) {
+    return shorter.length / longer.length;
+  }
+
+  // Calculate Levenshtein distance
+  const matrix: number[][] = [];
+  for (let i = 0; i <= shorter.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= longer.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= shorter.length; i++) {
+    for (let j = 1; j <= longer.length; j++) {
+      if (shorter[i - 1] === longer[j - 1]) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+
+  const distance = matrix[shorter.length][longer.length];
+  const maxLength = Math.max(s1.length, s2.length);
+  return 1 - distance / maxLength;
+}
+
+// Helper function to normalize URL for comparison
+function normalizeUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    // Remove trailing slashes and normalize
+    return `${urlObj.protocol}//${urlObj.host}${urlObj.pathname.replace(/\/$/, '')}`;
+  } catch {
+    return url.toLowerCase().trim();
+  }
+}
+
+// POST /artifacts/check-duplicates - Check for potential duplicate artifacts
+app.post('/artifacts/check-duplicates', async (req, res) => {
+  try {
+    const { name, knowledgeText, furtherReading } = req.body;
+
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    // Fetch all existing artifacts
+    const existingArtifacts = await prisma.artifact.findMany({
+      include: {
+        room: {
+          include: {
+            museum: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const duplicates: Array<{
+      id: number;
+      name: string;
+      similarity: number;
+      matchReasons: string[];
+      knowledgeText?: string | null;
+      furtherReading: string[];
+      roomName?: string | null;
+      museumName?: string | null;
+    }> = [];
+
+    const normalizedNewUrls = (furtherReading || []).map(normalizeUrl);
+    const newKnowledgeText = (knowledgeText || '').trim().toLowerCase();
+
+    for (const artifact of existingArtifacts) {
+      const matchReasons: string[] = [];
+      let maxSimilarity = 0;
+
+      // Check name similarity
+      const nameSimilarity = stringSimilarity(name, artifact.name);
+      if (nameSimilarity >= 0.7) {
+        matchReasons.push(
+          `Name similarity: ${Math.round(nameSimilarity * 100)}%`
+        );
+        maxSimilarity = Math.max(maxSimilarity, nameSimilarity);
+      }
+
+      // Check knowledgeText similarity
+      if (newKnowledgeText && artifact.knowledgeText) {
+        const knowledgeSimilarity = stringSimilarity(
+          newKnowledgeText,
+          artifact.knowledgeText.trim().toLowerCase()
+        );
+        if (knowledgeSimilarity >= 0.6) {
+          matchReasons.push(
+            `Knowledge text similarity: ${Math.round(knowledgeSimilarity * 100)}%`
+          );
+          maxSimilarity = Math.max(maxSimilarity, knowledgeSimilarity);
+        }
+
+        // Also check for substring matches (one contains significant portion of the other)
+        const shorter =
+          newKnowledgeText.length < artifact.knowledgeText.length
+            ? newKnowledgeText
+            : artifact.knowledgeText.trim().toLowerCase();
+        const longer =
+          newKnowledgeText.length >= artifact.knowledgeText.length
+            ? newKnowledgeText
+            : artifact.knowledgeText.trim().toLowerCase();
+
+        if (shorter.length > 50 && longer.includes(shorter)) {
+          const substringRatio = shorter.length / longer.length;
+          if (substringRatio >= 0.5) {
+            matchReasons.push(
+              `Knowledge text contains significant overlap: ${Math.round(substringRatio * 100)}%`
+            );
+            maxSimilarity = Math.max(maxSimilarity, substringRatio);
+          }
+        }
+      }
+
+      // Check furtherReading URL matches
+      const artifactUrls = (artifact.furtherReading || []).map(normalizeUrl);
+      const matchingUrls = normalizedNewUrls.filter((url: string) =>
+        artifactUrls.some((artifactUrl: string) => {
+          // Exact match
+          if (url === artifactUrl) return true;
+          // Similar URLs (same domain and similar path)
+          try {
+            const url1 = new URL(url);
+            const url2 = new URL(artifactUrl);
+            if (url1.host === url2.host) {
+              const path1 = url1.pathname.toLowerCase();
+              const path2 = url2.pathname.toLowerCase();
+              return stringSimilarity(path1, path2) >= 0.8;
+            }
+          } catch {
+            // If URL parsing fails, use string similarity
+            return stringSimilarity(url, artifactUrl) >= 0.9;
+          }
+          return false;
+        })
+      );
+
+      if (matchingUrls.length > 0) {
+        matchReasons.push(
+          `Shared ${matchingUrls.length} further reading URL${matchingUrls.length > 1 ? 's' : ''}`
+        );
+        // Boost similarity score for URL matches
+        maxSimilarity = Math.max(maxSimilarity, 0.6);
+      }
+
+      // If we found any matches, add to duplicates list
+      if (matchReasons.length > 0 && maxSimilarity >= 0.5) {
+        duplicates.push({
+          id: artifact.id,
+          name: artifact.name,
+          similarity: maxSimilarity,
+          matchReasons,
+          knowledgeText: artifact.knowledgeText,
+          furtherReading: artifact.furtherReading || [],
+          roomName: artifact.room?.name || null,
+          museumName: artifact.room?.museum?.name || null,
+        });
+      }
+    }
+
+    // Sort by similarity (highest first)
+    duplicates.sort((a, b) => b.similarity - a.similarity);
+
+    res.json({
+      duplicates,
+      totalChecked: existingArtifacts.length,
+    });
+  } catch (error) {
+    console.error('Error checking duplicates:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to check duplicates';
+    res.status(500).json({ error: errorMessage });
+  }
 });
 
-// Admin endpoints with parent names included
-app.get('/admin/nodes/rooms', async (req, res) => {
+// GET /museums - List all museums
+app.get('/museums', async (_req, res) => {
+  try {
+    const museums = await prisma.museum.findMany({
+      orderBy: {
+        id: 'asc',
+      },
+    });
+    res.json(museums);
+  } catch (error) {
+    console.error('Error fetching museums:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch museums';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /admin/rooms - List all rooms with museum info
+app.get('/admin/rooms', async (req, res) => {
   try {
     const museumId = req.query.museumId
       ? Number(req.query.museumId)
       : undefined;
 
-    const where: any = {
-      type: 'ROOM',
-    };
+    const where: any = {};
 
     if (museumId && !Number.isNaN(museumId)) {
-      where.parentId = museumId;
+      where.museumId = museumId;
     }
 
-    const rooms = await prisma.node.findMany({
+    const rooms = await prisma.room.findMany({
       where,
       include: {
-        parent: {
+        museum: {
           select: {
             id: true,
             name: true,
@@ -58,10 +262,8 @@ app.get('/admin/nodes/rooms', async (req, res) => {
       rooms.map((room) => ({
         id: room.id,
         name: room.name,
-        type: room.type,
-        parentId: room.parentId,
-        museumId: room.parentId,
-        museumName: room.parent?.name || null,
+        museumId: room.museumId,
+        museumName: room.museum?.name || null,
         updatedAt: room.updatedAt,
       }))
     );
@@ -73,25 +275,23 @@ app.get('/admin/nodes/rooms', async (req, res) => {
   }
 });
 
-app.get('/admin/nodes/artifacts', async (req, res) => {
+// GET /admin/artifacts - List all artifacts with room and museum info
+app.get('/admin/artifacts', async (req, res) => {
   try {
     const museumId = req.query.museumId
       ? Number(req.query.museumId)
       : undefined;
     const roomId = req.query.roomId ? Number(req.query.roomId) : undefined;
 
-    const where: any = {
-      type: 'ARTIFACT',
-    };
+    const where: any = {};
 
     if (roomId && !Number.isNaN(roomId)) {
-      where.parentId = roomId;
+      where.roomId = roomId;
     } else if (museumId && !Number.isNaN(museumId)) {
       // Get all rooms for this museum, then get their artifacts
-      const rooms = await prisma.node.findMany({
+      const rooms = await prisma.room.findMany({
         where: {
-          type: 'ROOM',
-          parentId: museumId,
+          museumId: museumId,
         },
         select: { id: true },
       });
@@ -100,25 +300,17 @@ app.get('/admin/nodes/artifacts', async (req, res) => {
       if (roomIds.length === 0) {
         return res.json([]);
       }
-      where.parentId = {
+      where.roomId = {
         in: roomIds,
       };
     }
 
-    const artifacts = await prisma.node.findMany({
+    const artifacts = await prisma.artifact.findMany({
       where,
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        parentId: true,
-        updatedAt: true,
-        parent: {
-          select: {
-            id: true,
-            name: true,
-            parentId: true,
-            parent: {
+      include: {
+        room: {
+          include: {
+            museum: {
               select: {
                 id: true,
                 name: true,
@@ -136,13 +328,10 @@ app.get('/admin/nodes/artifacts', async (req, res) => {
       artifacts.map((artifact) => ({
         id: artifact.id,
         name: artifact.name,
-        type: artifact.type,
-        parentId: artifact.parentId,
-        roomId: artifact.parentId,
-        roomName: artifact.parent?.name || null,
-        museumId: artifact.parent?.parentId || null,
-        museumName: artifact.parent?.parent?.name || null,
-        updatedAt: artifact.updatedAt,
+        roomId: artifact.roomId,
+        roomName: artifact.room?.name || null,
+        museumId: artifact.room?.museum?.id || null,
+        museumName: artifact.room?.museum?.name || null,
       }))
     );
   } catch (error) {
@@ -153,561 +342,52 @@ app.get('/admin/nodes/artifacts', async (req, res) => {
   }
 });
 
-// 5B) Get one node
-app.get('/nodes/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: 'Invalid node id' });
-  }
-  const node = await prisma.node.findUnique({
-    where: { id },
-  });
-  if (!node) {
-    return res.status(404).json({ error: 'Node not found' });
-  }
-  res.json(node);
-});
-
-// 5C) Get children of a node
-app.get('/nodes/:id/children', async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: 'Invalid node id' });
-  }
-  const children = await prisma.node.findMany({
-    where: {
-      parentId: id,
-    },
-    orderBy: {
-      id: 'asc',
-    },
-  });
-  res.json(children);
-});
-
-// 5D) Create a node
-app.post('/nodes', async (req, res) => {
-  const { type, name, parentId, knowledgeText, furtherReading } = req.body;
-
-  if (!type || !name) {
-    return res.status(400).json({ error: 'type and name are required' });
-  }
-
-  if (type === 'MUSEUM') {
-    if (parentId !== null && parentId !== undefined) {
-      return res.status(400).json({
-        error: 'MUSEUM nodes must have parentId null',
-      });
-    }
-  } else if (type === 'ROOM') {
-    if (!parentId) {
-      return res.status(400).json({
-        error: 'ROOM nodes require parentId',
-      });
-    }
-    // Validate parent is MUSEUM
-    const parent = await prisma.node.findUnique({
-      where: { id: parentId },
-    });
-    if (!parent || parent.type !== 'MUSEUM') {
-      return res.status(400).json({
-        error: 'ROOM parent must be a MUSEUM node',
-      });
-    }
-  } else if (type === 'ARTIFACT') {
-    if (!parentId) {
-      return res.status(400).json({
-        error: 'ARTIFACT nodes require parentId',
-      });
-    }
-    // Validate parent is ROOM
-    const parent = await prisma.node.findUnique({
-      where: { id: parentId },
-    });
-    if (!parent || parent.type !== 'ROOM') {
-      return res.status(400).json({
-        error: 'ARTIFACT parent must be a ROOM node',
-      });
-    }
-  } else {
-    return res.status(400).json({
-      error: 'type must be MUSEUM, ROOM, or ARTIFACT',
-    });
-  }
-
-  const node = await prisma.node.create({
-    data: {
-      type,
-      name,
-      parentId: type === 'MUSEUM' ? null : parentId,
-      knowledgeText: knowledgeText || null,
-      furtherReading: furtherReading || [],
-    },
-  });
-
-  res.json(node);
-});
-
-// PATCH /nodes/:id - Update a node
-app.patch('/nodes/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: 'Invalid node id' });
-  }
-
-  // Get current node to check its type
-  const currentNode = await prisma.node.findUnique({
-    where: { id },
-  });
-
-  if (!currentNode) {
-    return res.status(404).json({ error: 'Node not found' });
-  }
-
-  const { name, knowledgeText, furtherReading, parentId } = req.body;
-
-  // Build update data object
-  const updateData: {
-    name?: string;
-    knowledgeText?: string | null;
-    furtherReading?: string[];
-    parentId?: number | null;
-  } = {};
-
-  if (name !== undefined) {
-    updateData.name = name;
-  }
-
-  if (knowledgeText !== undefined) {
-    updateData.knowledgeText = knowledgeText || null;
-  }
-
-  if (furtherReading !== undefined) {
-    if (!Array.isArray(furtherReading)) {
-      return res.status(400).json({
-        error: 'furtherReading must be an array of strings',
-      });
-    }
-    // Validate all items are strings
-    if (!furtherReading.every((item) => typeof item === 'string')) {
-      return res.status(400).json({
-        error: 'furtherReading must be an array of strings',
-      });
-    }
-    updateData.furtherReading = furtherReading;
-  }
-
-  if (parentId !== undefined) {
-    // Validate parentId based on node type
-    if (currentNode.type === 'MUSEUM') {
-      if (parentId !== null && parentId !== undefined) {
-        return res.status(400).json({
-          error: 'MUSEUM nodes must have parentId null',
-        });
-      }
-      updateData.parentId = null;
-    } else if (currentNode.type === 'ROOM') {
-      if (!parentId) {
-        return res.status(400).json({
-          error: 'ROOM nodes require parentId',
-        });
-      }
-      // Validate parent is MUSEUM
-      const parent = await prisma.node.findUnique({
-        where: { id: parentId },
-      });
-      if (!parent || parent.type !== 'MUSEUM') {
-        return res.status(400).json({
-          error: 'ROOM parent must be a MUSEUM node',
-        });
-      }
-      updateData.parentId = parentId;
-    } else if (currentNode.type === 'ARTIFACT') {
-      if (!parentId) {
-        return res.status(400).json({
-          error: 'ARTIFACT nodes require parentId',
-        });
-      }
-      // Validate parent is ROOM
-      const parent = await prisma.node.findUnique({
-        where: { id: parentId },
-      });
-      if (!parent || parent.type !== 'ROOM') {
-        return res.status(400).json({
-          error: 'ARTIFACT parent must be a ROOM node',
-        });
-      }
-      updateData.parentId = parentId;
-    }
-  }
-
-  try {
-    const node = await prisma.node.update({
-      where: { id },
-      data: updateData,
-    });
-    res.json(node);
-  } catch (error) {
-    if ((error as any).code === 'P2025') {
-      return res.status(404).json({ error: 'Node not found' });
-    }
-    throw error;
-  }
-});
-
-// 5E) Content endpoints now attach by nodeId
-app.post('/content-items', async (req, res) => {
-  const { nodeId, type, title, body } = req.body;
-
-  if (!nodeId || !type || !title || !body) {
-    return res.status(400).json({
-      error: 'nodeId, type, title, and body are required',
-    });
-  }
-
-  const contentItem = await prisma.contentItem.create({
-    data: {
-      nodeId,
-      type,
-      title,
-      body,
-    },
-  });
-
-  res.json(contentItem);
-});
-
-app.get('/nodes/:id/content-items', async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: 'Invalid node id' });
-  }
-  const contentItems = await prisma.contentItem.findMany({
-    where: { nodeId: id },
-    orderBy: { id: 'asc' },
-  });
-  res.json(contentItems);
-});
-
-// GET /nodes/:id/playlist - Get node's placements grouped by role
-app.get('/nodes/:id/playlist', async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: 'Invalid node id' });
-  }
-
-  const node = await prisma.node.findUnique({
-    where: { id },
-  });
-
-  if (!node) {
-    return res.status(404).json({ error: 'Node not found' });
-  }
-
-  const placements = await prisma.nodeContent.findMany({
-    where: { nodeId: id },
-    include: { contentItem: true },
-    orderBy: [{ role: 'asc' }, { sortOrder: 'asc' }],
-  });
-
-  // Group by role
-  const roles: Record<string, any[]> = {};
-  for (const placement of placements) {
-    if (!roles[placement.role]) {
-      roles[placement.role] = [];
-    }
-    roles[placement.role].push({
-      id: placement.id,
-      sortOrder: placement.sortOrder,
-      contentItem: {
-        id: placement.contentItem.id,
-        title: placement.contentItem.title,
-        type: placement.contentItem.type,
-        body: placement.contentItem.body,
-        audioUrl: placement.contentItem.audioUrl,
-      },
-    });
-  }
-
-  res.json({
-    node: {
-      id: node.id,
-      type: node.type,
-      name: node.name,
-    },
-    roles,
-  });
-});
-
-// POST /nodes/:id/outline - Ingest outline JSON and materialize placements
-app.post('/nodes/:id/outline', async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: 'Invalid node id' });
-  }
-
-  const { outline } = req.body;
-
-  if (!outline || typeof outline !== 'object') {
-    return res.status(400).json({ error: 'outline must be an object' });
-  }
-
-  if (!outline.roles || typeof outline.roles !== 'object') {
-    return res.status(400).json({
-      error: 'outline must have a roles object',
-    });
-  }
-
-  // Validate outline structure
-  const roles = outline.roles;
-  const roleKeys = Object.keys(roles);
-  const allKeys: string[] = [];
-
-  for (const roleKey of roleKeys) {
-    if (!Array.isArray(roles[roleKey])) {
-      return res.status(400).json({
-        error: `roles.${roleKey} must be an array`,
-      });
-    }
-    for (const item of roles[roleKey]) {
-      if (!item.key || !item.title || !item.contentType) {
-        return res.status(400).json({
-          error: `Each outline item must have key, title, and contentType`,
-        });
-      }
-      // Validate keys are unique across all roles for this node
-      if (allKeys.includes(item.key)) {
-        return res.status(400).json({
-          error: `Duplicate key "${item.key}" found. Keys must be unique across all roles.`,
-        });
-      }
-      allKeys.push(item.key);
-    }
-  }
-
-  // Check node exists
-  const node = await prisma.node.findUnique({
-    where: { id },
-  });
-
-  if (!node) {
-    return res.status(404).json({ error: 'Node not found' });
-  }
-
-  // Update node with outline
-  await prisma.node.update({
-    where: { id },
-    data: {
-      outline: outline as any,
-      outlineUpdatedAt: new Date(),
-    },
-  });
-
-  let placementsCreated = 0;
-  let contentItemsCreated = 0;
-
-  // Materialize placements and content items
-  for (const roleKey of roleKeys) {
-    const items = roles[roleKey];
-    const contentItemIdsToKeep: number[] = [];
-
-    // First, delete any existing placements at sortOrders we'll be using
-    // This handles the unique constraint on [nodeId, role, sortOrder]
-    const sortOrdersToUse = items.map((_: any, index: number) => index);
-    await prisma.nodeContent.deleteMany({
-      where: {
-        nodeId: id,
-        role: roleKey,
-        sortOrder: {
-          in: sortOrdersToUse,
-        },
-      },
-    });
-
-    for (let sortOrder = 0; sortOrder < items.length; sortOrder++) {
-      const item = items[sortOrder];
-      const { key, title, contentType } = item;
-
-      // Find or create ContentItem (scoped by nodeId + outlineKey)
-      let contentItem = await prisma.contentItem.findFirst({
-        where: {
-          nodeId: id,
-          outlineKey: key,
-        },
-      });
-
-      if (!contentItem) {
-        contentItem = await prisma.contentItem.create({
-          data: {
-            nodeId: id,
-            type: contentType,
-            title,
-            body: '',
-            outlineKey: key,
-          },
-        });
-        contentItemsCreated++;
-      } else {
-        // Update title/type if changed
-        await prisma.contentItem.update({
-          where: { id: contentItem.id },
-          data: {
-            title,
-            type: contentType,
-          },
-        });
-      }
-
-      contentItemIdsToKeep.push(contentItem.id);
-
-      // Create NodeContent placement (we deleted conflicting ones above)
-      await prisma.nodeContent.create({
-        data: {
-          nodeId: id,
-          contentItemId: contentItem.id,
-          role: roleKey,
-          sortOrder,
-        },
-      });
-      placementsCreated++;
-    }
-
-    // Cleanup: remove placements for this role that aren't in the new outline
-    // This only deletes NodeContent rows, NOT ContentItems
-    await prisma.nodeContent.deleteMany({
-      where: {
-        nodeId: id,
-        role: roleKey,
-        contentItemId: {
-          notIn: contentItemIdsToKeep,
-        },
-      },
-    });
-  }
-
-  res.json({
-    success: true,
-    nodeId: id,
-    placementsCreated,
-    contentItemsCreated,
-  });
-});
-
-// GET /content-items/:id - Get single content item
-app.get('/content-items/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: 'Invalid content item id' });
-  }
-
-  const contentItem = await prisma.contentItem.findUnique({
-    where: { id },
-    include: {
-      nodeContents: {
-        include: {
-          node: {
-            select: {
-              id: true,
-              type: true,
-              name: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!contentItem) {
-    return res.status(404).json({ error: 'Content item not found' });
-  }
-
-  res.json(contentItem);
-});
-
-// PATCH /content-items/:id - Update content item
-app.patch('/content-items/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ error: 'Invalid content item id' });
-  }
-
-  const { body, audioUrl } = req.body;
-
-  const updateData: { body?: string; audioUrl?: string | null } = {};
-
-  if (body !== undefined) {
-    updateData.body = body;
-  }
-
-  if (audioUrl !== undefined) {
-    updateData.audioUrl = audioUrl || null;
-  }
-
-  try {
-    const contentItem = await prisma.contentItem.update({
-      where: { id },
-      data: updateData,
-    });
-    res.json(contentItem);
-  } catch (error) {
-    if ((error as any).code === 'P2025') {
-      return res.status(404).json({ error: 'Content item not found' });
-    }
-    throw error;
-  }
-});
-
 // ============================================================================
-// BACKWARDS COMPATIBILITY ENDPOINTS (using Node queries)
+// CREATE AND UPDATE ENDPOINTS
 // ============================================================================
 
 app.post('/museums', async (req, res) => {
-  const { name, description } = req.body;
+  const { name, knowledgeText, furtherReading } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'Name is required' });
   }
   const museum = await prisma.museum.create({
     data: {
       name,
-      description,
+      knowledgeText: knowledgeText || null,
+      furtherReading: furtherReading || [],
     },
   });
   res.json(museum);
 });
 
-app.get('/museums', async (_req, res) => {
-  // Backwards compatibility: return Node museums
-  const museums = await prisma.node.findMany({
-    where: {
-      type: 'MUSEUM',
-      parentId: null,
-    },
-    orderBy: {
-      id: 'asc',
-    },
-  });
-  // Transform to match old format
-  res.json(
-    museums.map((m) => ({
-      id: m.id,
-      name: m.name,
-      description: m.knowledgeText,
-      createdAt: m.createdAt,
-    }))
-  );
-});
-
 app.post('/rooms', async (req, res) => {
-  const { name, museumId } = req.body;
+  const { name, museumId, parentRoomId, knowledgeText, furtherReading } =
+    req.body;
 
-  if (!name || !museumId) {
-    return res.status(400).json({ error: 'name and museumId are required' });
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+
+  if (!museumId && !parentRoomId) {
+    return res.status(400).json({
+      error: 'Either museumId or parentRoomId is required',
+    });
+  }
+
+  if (museumId && parentRoomId) {
+    return res.status(400).json({
+      error: 'Cannot set both museumId and parentRoomId',
+    });
   }
 
   const room = await prisma.room.create({
     data: {
       name,
-      museumId,
+      museumId: museumId || null,
+      parentRoomId: parentRoomId || null,
+      knowledgeText: knowledgeText || null,
+      furtherReading: furtherReading || [],
     },
   });
 
@@ -721,23 +401,20 @@ app.get('/museums/:museumId/rooms', async (req, res) => {
     return res.status(400).json({ error: 'Invalid museumId' });
   }
 
-  // Backwards compatibility: return Node rooms that are children of the museum
-  const rooms = await prisma.node.findMany({
+  const rooms = await prisma.room.findMany({
     where: {
-      type: 'ROOM',
-      parentId: museumId,
+      museumId: museumId,
     },
     orderBy: {
       id: 'asc',
     },
   });
 
-  // Transform to match old format
   res.json(
     rooms.map((r) => ({
       id: r.id,
       name: r.name,
-      museumId: r.parentId,
+      museumId: r.museumId,
       createdAt: r.createdAt,
     }))
   );
@@ -750,18 +427,15 @@ app.get('/rooms/:roomId/artifacts', async (req, res) => {
     return res.status(400).json({ error: 'Invalid roomId' });
   }
 
-  // Backwards compatibility: return Node artifacts that are children of the room
-  const artifacts = await prisma.node.findMany({
+  const artifacts = await prisma.artifact.findMany({
     where: {
-      type: 'ARTIFACT',
-      parentId: roomId,
+      roomId: roomId,
     },
     orderBy: {
       id: 'asc',
     },
   });
 
-  // Transform to match old format
   res.json(
     artifacts.map((a) => ({
       id: a.id,
@@ -772,15 +446,18 @@ app.get('/rooms/:roomId/artifacts', async (req, res) => {
 });
 
 app.post('/artifacts', async (req, res) => {
-  const { name } = req.body;
+  const { name, roomId, knowledgeText, furtherReading } = req.body;
 
-  if (!name) {
-    return res.status(400).json({ error: 'name is required' });
+  if (!name || !roomId) {
+    return res.status(400).json({ error: 'name and roomId are required' });
   }
 
   const artifact = await prisma.artifact.create({
     data: {
       name,
+      roomId,
+      knowledgeText: knowledgeText || null,
+      furtherReading: furtherReading || [],
     },
   });
 
@@ -788,16 +465,11 @@ app.post('/artifacts', async (req, res) => {
 });
 
 app.get('/artifacts', async (_req, res) => {
-  // Backwards compatibility: return Node artifacts
-  const artifacts = await prisma.node.findMany({
-    where: {
-      type: 'ARTIFACT',
-    },
+  const artifacts = await prisma.artifact.findMany({
     orderBy: {
       id: 'asc',
     },
   });
-  // Transform to match old format
   res.json(
     artifacts.map((a) => ({
       id: a.id,
@@ -843,24 +515,12 @@ app.get('/museums/:museumId/content', async (req, res) => {
     return res.status(400).json({ error: 'Invalid museumId' });
   }
 
-  // Backwards compatibility: return ContentItems for the museum node
-  const contentItems = await prisma.contentItem.findMany({
-    where: { nodeId: museumId },
+  const content = await prisma.content.findMany({
+    where: { museumId: museumId },
     orderBy: { id: 'asc' },
   });
 
-  // Transform to match old format
-  res.json(
-    contentItems.map((c) => ({
-      id: c.id,
-      text: c.body,
-      type: c.type,
-      museumId: c.nodeId,
-      roomId: null,
-      artifactId: null,
-      createdAt: c.createdAt,
-    }))
-  );
+  res.json(content);
 });
 
 app.get('/rooms/:roomId/content', async (req, res) => {
@@ -870,24 +530,12 @@ app.get('/rooms/:roomId/content', async (req, res) => {
     return res.status(400).json({ error: 'Invalid roomId' });
   }
 
-  // Backwards compatibility: return ContentItems for the room node
-  const contentItems = await prisma.contentItem.findMany({
-    where: { nodeId: roomId },
+  const content = await prisma.content.findMany({
+    where: { roomId: roomId },
     orderBy: { id: 'asc' },
   });
 
-  // Transform to match old format
-  res.json(
-    contentItems.map((c) => ({
-      id: c.id,
-      text: c.body,
-      type: c.type,
-      museumId: null,
-      roomId: c.nodeId,
-      artifactId: null,
-      createdAt: c.createdAt,
-    }))
-  );
+  res.json(content);
 });
 
 app.get('/artifacts/:artifactId/content', async (req, res) => {
@@ -897,24 +545,12 @@ app.get('/artifacts/:artifactId/content', async (req, res) => {
     return res.status(400).json({ error: 'Invalid artifactId' });
   }
 
-  // Backwards compatibility: return ContentItems for the artifact node
-  const contentItems = await prisma.contentItem.findMany({
-    where: { nodeId: artifactId },
+  const content = await prisma.content.findMany({
+    where: { artifactId: artifactId },
     orderBy: { id: 'asc' },
   });
 
-  // Transform to match old format
-  res.json(
-    contentItems.map((c) => ({
-      id: c.id,
-      text: c.body,
-      type: c.type,
-      museumId: null,
-      roomId: null,
-      artifactId: c.nodeId,
-      createdAt: c.createdAt,
-    }))
-  );
+  res.json(content);
 });
 
 app.listen(PORT, () => {
