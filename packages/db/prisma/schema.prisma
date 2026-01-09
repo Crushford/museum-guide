@@ -27,17 +27,21 @@ model Museum {
 model Room {
   id               Int       @id @default(autoincrement())
   name             String
-  museumId         Int
+  museumId         Int?      // Optional - only set if top-level room
+  parentRoomId     Int?      // Optional - only set if nested room
   knowledgeText    String?
   furtherReading   String[]  @default([])
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  museum           Museum    @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  museum           Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  parentRoom       Room?     @relation("RoomHierarchy", fields: [parentRoomId], references: [id], onDelete: Cascade)
+  childRooms       Room[]    @relation("RoomHierarchy")
   artifacts        Artifact[]
   content          Content[]
 
   @@index([museumId])
+  @@index([parentRoomId])
 }
 
 model Artifact {
