@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
 import { updateContentItemBody } from './actions';
-import { nodeEditHref } from '../shared/nodeRoutes';
+import { nodeEditHref } from '../../shared/nodeRoutes';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 

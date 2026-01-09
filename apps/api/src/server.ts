@@ -1,5 +1,10 @@
 import express from 'express';
 import { prisma } from '@repo/db';
+import type {
+  MuseumResponse,
+  RoomResponse,
+  ArtifactResponse,
+} from '@repo/types';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -216,7 +221,7 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
 // GET /museums - List all museums
 app.get('/museums', async (_req, res) => {
   try {
-    const museums = await prisma.museum.findMany({
+    const museums: MuseumResponse[] = await prisma.museum.findMany({
       orderBy: {
         id: 'asc',
       },
@@ -258,15 +263,14 @@ app.get('/admin/rooms', async (req, res) => {
       },
     });
 
-    res.json(
-      rooms.map((room) => ({
-        id: room.id,
-        name: room.name,
-        museumId: room.museumId,
-        museumName: room.museum?.name || null,
-        updatedAt: room.updatedAt,
-      }))
-    );
+    const response: RoomResponse[] = rooms.map((room) => ({
+      id: room.id,
+      name: room.name,
+      museumId: room.museumId,
+      museumName: room.museum?.name || null,
+      updatedAt: room.updatedAt,
+    }));
+    res.json(response);
   } catch (error) {
     console.error('Error fetching rooms:', error);
     const errorMessage =
@@ -324,16 +328,25 @@ app.get('/admin/artifacts', async (req, res) => {
       },
     });
 
-    res.json(
-      artifacts.map((artifact) => ({
-        id: artifact.id,
-        name: artifact.name,
-        roomId: artifact.roomId,
-        roomName: artifact.room?.name || null,
-        museumId: artifact.room?.museum?.id || null,
-        museumName: artifact.room?.museum?.name || null,
-      }))
-    );
+    const response: ArtifactResponse[] = artifacts.map((artifact) => {
+      // Type assertion to work around Prisma type inference issue
+      const artifactWithRoom = artifact as typeof artifact & {
+        roomId: number;
+        room: {
+          name: string;
+          museum: { id: number; name: string } | null;
+        } | null;
+      };
+      return {
+        id: artifactWithRoom.id,
+        name: artifactWithRoom.name,
+        roomId: artifactWithRoom.roomId,
+        roomName: artifactWithRoom.room?.name || null,
+        museumId: artifactWithRoom.room?.museum?.id || null,
+        museumName: artifactWithRoom.room?.museum?.name || null,
+      };
+    });
+    res.json(response);
   } catch (error) {
     console.error('Error fetching artifacts:', error);
     const errorMessage =
@@ -381,14 +394,31 @@ app.post('/rooms', async (req, res) => {
     });
   }
 
+  const roomData: {
+    name: string;
+    museumId?: number | null;
+    parentRoomId?: number | null;
+    knowledgeText?: string | null;
+    furtherReading?: string[];
+  } = {
+    name,
+  };
+
+  if (museumId) {
+    roomData.museumId = museumId;
+  }
+  if (parentRoomId) {
+    roomData.parentRoomId = parentRoomId;
+  }
+  if (knowledgeText) {
+    roomData.knowledgeText = knowledgeText;
+  }
+  if (furtherReading) {
+    roomData.furtherReading = furtherReading;
+  }
+
   const room = await prisma.room.create({
-    data: {
-      name,
-      museumId: museumId || null,
-      parentRoomId: parentRoomId || null,
-      knowledgeText: knowledgeText || null,
-      furtherReading: furtherReading || [],
-    },
+    data: roomData as any,
   });
 
   res.json(room);

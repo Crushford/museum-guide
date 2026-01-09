@@ -1801,6 +1801,8 @@ __metadata:
 "@repo/types@workspace:*, @repo/types@workspace:packages/types":
   version: 0.0.0-use.local
   resolution: "@repo/types@workspace:packages/types"
+  dependencies:
+    "@repo/db": "workspace:*"
   languageName: unknown
   linkType: soft
 
@@ -9320,6 +9322,8 @@ __metadata:
     "@radix-ui/react-label": "npm:^2.1.8"
     "@radix-ui/react-slot": "npm:^1.2.4"
     "@radix-ui/react-tabs": "npm:^1.1.13"
+    "@repo/db": "workspace:*"
+    "@repo/types": "workspace:*"
     "@storybook/addon-a11y": "npm:^10.1.10"
     "@storybook/addon-docs": "npm:^10.1.10"
     "@storybook/addon-mcp": "npm:^0.1.6"

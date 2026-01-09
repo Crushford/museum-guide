@@ -59,7 +59,28 @@ type PlaylistResponse = {
         body: string;
       };
     }>
-  >;
+  > & {
+    roomBrief?: Array<{
+      id: number;
+      sortOrder: number;
+      contentItem: {
+        id: number;
+        title: string;
+        type: string;
+        body: string;
+      };
+    }>;
+    followup?: Array<{
+      id: number;
+      sortOrder: number;
+      contentItem: {
+        id: number;
+        title: string;
+        type: string;
+        body: string;
+      };
+    }>;
+  };
 };
 
 export default async function RoomPage({
@@ -73,10 +94,16 @@ export default async function RoomPage({
 
   const [roomNode, playlist, artifacts] = await Promise.all([
     api<Node>(`/nodes/${roomNodeId}`).catch(() => null),
-    api<PlaylistResponse>(`/nodes/${roomNodeId}/playlist`).catch(() => ({
-      node: { id: roomNodeId, type: '', name: '' },
-      roles: {},
-    })),
+    api<PlaylistResponse>(`/nodes/${roomNodeId}/playlist`).catch(
+      () =>
+        ({
+          node: { id: roomNodeId, type: '', name: '' },
+          roles: {
+            roomBrief: undefined,
+            followup: undefined,
+          },
+        }) as PlaylistResponse
+    ),
     api<Node[]>(`/nodes/${roomNodeId}/children`).catch(() => []),
   ]);
 

@@ -5,27 +5,16 @@ import { useState, useEffect } from 'react';
 import { Tabs } from '../../components/shared';
 import { EmptyState } from '../../components/shared';
 import { NodesListClient } from './nodes/NodesListClient';
+import type {
+  MuseumResponse,
+  RoomResponse,
+  ArtifactResponse,
+} from '@repo/types';
 
-type Museum = {
-  id: number;
-  name: string;
-};
-
-type Room = {
-  id: number;
-  name: string;
-  museumId: number | null;
-  museumName: string | null;
-};
-
-type Artifact = {
-  id: number;
-  name: string;
-  roomId: number | null;
-  roomName: string | null;
-  museumId: number | null;
-  museumName: string | null;
-};
+// Use shared types from API
+type Museum = MuseumResponse;
+type Room = RoomResponse;
+type Artifact = ArtifactResponse;
 
 type AdminTabsClientProps = {
   museums: Museum[];

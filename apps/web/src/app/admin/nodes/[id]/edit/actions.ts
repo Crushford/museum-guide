@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { nodeEditHref } from '../../shared/nodeRoutes';
+import { nodeEditHref } from '../../../shared/nodeRoutes';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 

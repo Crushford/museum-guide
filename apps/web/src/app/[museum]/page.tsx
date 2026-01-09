@@ -48,7 +48,28 @@ type PlaylistResponse = {
         body: string;
       };
     }>
-  >;
+  > & {
+    intro?: Array<{
+      id: number;
+      sortOrder: number;
+      contentItem: {
+        id: number;
+        title: string;
+        type: string;
+        body: string;
+      };
+    }>;
+    followup?: Array<{
+      id: number;
+      sortOrder: number;
+      contentItem: {
+        id: number;
+        title: string;
+        type: string;
+        body: string;
+      };
+    }>;
+  };
 };
 
 export default async function MuseumPage({
@@ -61,10 +82,16 @@ export default async function MuseumPage({
 
   const [node, playlist, rooms] = await Promise.all([
     api<Node>(`/nodes/${nodeId}`).catch(() => null),
-    api<PlaylistResponse>(`/nodes/${nodeId}/playlist`).catch(() => ({
-      node: { id: nodeId, type: '', name: '' },
-      roles: {},
-    })),
+    api<PlaylistResponse>(`/nodes/${nodeId}/playlist`).catch(
+      () =>
+        ({
+          node: { id: nodeId, type: '', name: '' },
+          roles: {
+            intro: undefined,
+            followup: undefined,
+          },
+        }) as PlaylistResponse
+    ),
     api<Node[]>(`/nodes/${nodeId}/children`).catch(() => []),
   ]);
 
