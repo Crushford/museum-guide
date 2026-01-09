@@ -132,3 +132,42 @@ export async function updateNodeField(
 
   return response.json();
 }
+
+// Update room parent relationship (museumId or parentRoomId)
+export async function updateRoomParent(
+  id: number,
+  museumId: number | null,
+  parentRoomId: number | null
+) {
+  const updateData: {
+    museumId?: number | null;
+    parentRoomId?: number | null;
+  } = {};
+
+  if (museumId !== null) {
+    updateData.museumId = museumId;
+    updateData.parentRoomId = null; // Clear parentRoomId when setting museumId
+  } else if (parentRoomId !== null) {
+    updateData.parentRoomId = parentRoomId;
+    updateData.museumId = null; // Clear museumId when setting parentRoomId
+  } else {
+    // Both are null - clear both
+    updateData.museumId = null;
+    updateData.parentRoomId = null;
+  }
+
+  const response = await fetch(`${API_URL}/rooms/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(updateData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to update room parent');
+  }
+
+  return response.json();
+}

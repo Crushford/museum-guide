@@ -85,12 +85,18 @@ export default async function RoomEditPage({
     redirect('/admin');
   }
 
-  const [room, artifacts, childRooms, museums] = await Promise.all([
+  const [room, artifacts, childRooms, museums, allRooms] = await Promise.all([
     api<Room>(`/rooms/${nodeId}`),
     api<Artifact[]>(`/rooms/${nodeId}/artifacts`).catch(() => []),
     api<ChildRoom[]>(`/rooms/${nodeId}/children`).catch(() => []),
     api<Museum[]>(`/museums`).catch(() => []),
+    api<Room[]>(`/admin/rooms`).catch(() => []),
   ]);
+
+  // Filter out the current room and its children from parent room options
+  const availableParentRooms = allRooms.filter(
+    (r) => r.id !== nodeId && r.parentRoomId !== nodeId
+  );
 
   // If this is a parent room, get all artifacts from child rooms too
   let allArtifacts = artifacts;
@@ -101,10 +107,136 @@ export default async function RoomEditPage({
     allArtifacts = recursiveArtifacts;
   }
 
-  // Get parent museum
-  const parentMuseum: Museum | null = room.museumId
-    ? await api<Museum>(`/museums/${room.museumId}`).catch(() => null)
-    : null;
+  // Get parent museum - either directly attached or via parent room
+  let parentMuseum: Museum | null = null;
+  if (room.museumId) {
+    // Room is directly attached to a museum
+    parentMuseum = await api<Museum>(`/museums/${room.museumId}`).catch(
+      () => null
+    );
+  } else if (room.parentRoomId) {
+    // Room is a child room - get parent room's museum
+    try {
+      const parentRoom = await api<Room>(`/rooms/${room.parentRoomId}`);
+      if (parentRoom.museumId) {
+        parentMuseum = await api<Museum>(
+          `/museums/${parentRoom.museumId}`
+        ).catch(() => null);
+      }
+    } catch {
+      // Failed to fetch parent room
+    }
+  }
+
+  // Fetch museum information for child rooms
+  const childRoomsWithMuseums = await Promise.all(
+    childRooms.map(async (childRoom) => {
+      let museum: Museum | null = null;
+      // If child room has a parent room, get the parent room's museum
+      if (childRoom.parentRoomId) {
+        try {
+          const parentRoom = await api<Room>(
+            `/rooms/${childRoom.parentRoomId}`
+          );
+          if (parentRoom.museumId) {
+            museum = await api<Museum>(`/museums/${parentRoom.museumId}`).catch(
+              () => null
+            );
+          }
+        } catch {
+          // If parent room lookup fails, try direct museumId
+          if (childRoom.museumId) {
+            museum = await api<Museum>(`/museums/${childRoom.museumId}`).catch(
+              () => null
+            );
+          }
+        }
+      } else if (childRoom.museumId) {
+        // Direct museum attachment
+        museum = await api<Museum>(`/museums/${childRoom.museumId}`).catch(
+          () => null
+        );
+      }
+      return {
+        id: childRoom.id,
+        name: childRoom.name,
+        museum: museum?.name || null,
+      };
+    })
+  );
+
+  // Fetch museum information for artifacts
+  const artifactsWithMuseums = await Promise.all(
+    artifacts.map(async (artifact) => {
+      let museum: Museum | null = null;
+      if (artifact.roomId) {
+        try {
+          const artifactRoom = await api<Room>(`/rooms/${artifact.roomId}`);
+          if (artifactRoom.museumId) {
+            museum = await api<Museum>(
+              `/museums/${artifactRoom.museumId}`
+            ).catch(() => null);
+          } else if (artifactRoom.parentRoomId) {
+            // If artifact's room is a child room, get parent room's museum
+            const parentRoom = await api<Room>(
+              `/rooms/${artifactRoom.parentRoomId}`
+            );
+            if (parentRoom.museumId) {
+              museum = await api<Museum>(
+                `/museums/${parentRoom.museumId}`
+              ).catch(() => null);
+            }
+          }
+        } catch {
+          // Failed to fetch room info
+        }
+      }
+      return {
+        id: artifact.id,
+        name: artifact.name,
+        museum: museum?.name || null,
+      };
+    })
+  );
+
+  // Fetch museum information for all artifacts (including from child rooms)
+  const allArtifactsWithMuseums =
+    childRooms.length > 0
+      ? await Promise.all(
+          allArtifacts.map(async (artifact) => {
+            let museum: Museum | null = null;
+            if (artifact.roomId) {
+              try {
+                const artifactRoom = await api<Room>(
+                  `/rooms/${artifact.roomId}`
+                );
+                if (artifactRoom.museumId) {
+                  museum = await api<Museum>(
+                    `/museums/${artifactRoom.museumId}`
+                  ).catch(() => null);
+                } else if (artifactRoom.parentRoomId) {
+                  // If artifact's room is a child room, get parent room's museum
+                  const parentRoom = await api<Room>(
+                    `/rooms/${artifactRoom.parentRoomId}`
+                  );
+                  if (parentRoom.museumId) {
+                    museum = await api<Museum>(
+                      `/museums/${parentRoom.museumId}`
+                    ).catch(() => null);
+                  }
+                }
+              } catch {
+                // Failed to fetch room info
+              }
+            }
+            return {
+              id: artifact.id,
+              name: artifact.name,
+              museum: museum?.name || null,
+            };
+          })
+        )
+      : artifactsWithMuseums;
 
   const handleSave = async (data: {
     name: string;
@@ -138,14 +270,18 @@ export default async function RoomEditPage({
           furtherReading: room.furtherReading,
           type: 'room',
           parentId: room.museumId,
+          parentRoomId: room.parentRoomId,
         }}
         parentMuseum={parentMuseum}
-        childRooms={childRooms.map((r) => ({ id: r.id, name: r.name }))}
-        childArtifacts={artifacts.map((a) => ({ id: a.id, name: a.name }))}
+        parentRooms={availableParentRooms.map((r) => ({
+          id: r.id,
+          name: r.name,
+          parentId: r.museumId ?? r.parentRoomId,
+        }))}
+        childRooms={childRoomsWithMuseums}
+        childArtifacts={artifactsWithMuseums}
         allArtifacts={
-          childRooms.length > 0
-            ? allArtifacts.map((a) => ({ id: a.id, name: a.name }))
-            : undefined
+          childRooms.length > 0 ? allArtifactsWithMuseums : undefined
         }
         museums={museums}
         onSave={handleSave}

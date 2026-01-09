@@ -658,6 +658,79 @@ app.get('/rooms/:id/children', async (req, res) => {
   }
 });
 
+// PATCH /rooms/:id - Update a room
+app.patch('/rooms/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
+
+    const { name, museumId, parentRoomId, knowledgeText, furtherReading } =
+      req.body;
+
+    // Validate that only one parent type is set
+    if (museumId !== undefined && parentRoomId !== undefined) {
+      if (museumId !== null && parentRoomId !== null) {
+        return res.status(400).json({
+          error: 'Cannot set both museumId and parentRoomId',
+        });
+      }
+    }
+
+    const updateData: {
+      name?: string;
+      museumId?: number | null;
+      parentRoomId?: number | null;
+      knowledgeText?: string | null;
+      furtherReading?: string[];
+    } = {};
+
+    if (name !== undefined) {
+      updateData.name = name;
+    }
+    if (museumId !== undefined) {
+      updateData.museumId = museumId;
+      // If setting museumId, clear parentRoomId
+      if (museumId !== null) {
+        updateData.parentRoomId = null;
+      }
+    }
+    if (parentRoomId !== undefined) {
+      updateData.parentRoomId = parentRoomId;
+      // If setting parentRoomId, clear museumId
+      if (parentRoomId !== null) {
+        updateData.museumId = null;
+      }
+    }
+    if (knowledgeText !== undefined) {
+      updateData.knowledgeText = knowledgeText;
+    }
+    if (furtherReading !== undefined) {
+      updateData.furtherReading = furtherReading;
+    }
+
+    const room = await prisma.room.update({
+      where: { id },
+      data: updateData as any,
+    });
+
+    res.json({
+      id: room.id,
+      name: room.name,
+      museumId: room.museumId,
+      parentRoomId: room.parentRoomId,
+      knowledgeText: room.knowledgeText,
+      furtherReading: room.furtherReading,
+    });
+  } catch (error) {
+    console.error('Error updating room:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to update room';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 // GET /rooms/:id/artifacts-recursive - Get all artifacts from room and all child rooms
 app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
   try {

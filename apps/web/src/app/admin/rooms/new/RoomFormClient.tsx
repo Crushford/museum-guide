@@ -145,7 +145,7 @@ export function RoomFormClient({
             <div className="flex gap-2">
               <Button
                 type="button"
-                variant={parentType === 'museum' ? 'default' : 'outline'}
+                variant={parentType === 'museum' ? 'default' : 'secondary'}
                 size="sm"
                 onClick={() => {
                   setParentType('museum');
@@ -156,7 +156,7 @@ export function RoomFormClient({
               </Button>
               <Button
                 type="button"
-                variant={parentType === 'room' ? 'default' : 'outline'}
+                variant={parentType === 'room' ? 'default' : 'secondary'}
                 size="sm"
                 onClick={() => {
                   setParentType('room');

@@ -2,7 +2,6 @@
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { SectionCard } from '@/components/shared/SectionCard';
 import { InlineEditableField } from '@/components/shared/InlineEditableField';
 import { InlineEditableUrlList } from '@/components/shared/InlineEditableUrlList';
 import { updateNodeField } from './actions';
@@ -12,6 +11,7 @@ type EntityDetailsFormProps = {
   name: string;
   knowledgeText: string | null;
   furtherReading: string[];
+  isEditing?: boolean;
 };
 
 export function EntityDetailsForm({
@@ -19,6 +19,7 @@ export function EntityDetailsForm({
   name,
   knowledgeText,
   furtherReading,
+  isEditing = false,
 }: EntityDetailsFormProps) {
   const router = useRouter();
 
@@ -47,30 +48,31 @@ export function EntityDetailsForm({
   );
 
   return (
-    <SectionCard title="Details">
-      <div className="space-y-6">
-        <InlineEditableField
-          label="Name"
-          value={name}
-          onSave={handleSaveName}
-          type="text"
-        />
+    <div className="space-y-6">
+      <InlineEditableField
+        label="Name"
+        value={name}
+        onSave={handleSaveName}
+        type="text"
+        isEditing={isEditing}
+      />
 
-        <InlineEditableField
-          label="Knowledge Text"
-          value={knowledgeText || ''}
-          onSave={handleSaveKnowledgeText}
-          type="textarea"
-          rows={8}
-          placeholder="Enter knowledge text about this entity..."
-        />
+      <InlineEditableField
+        label="Knowledge Text"
+        value={knowledgeText || ''}
+        onSave={handleSaveKnowledgeText}
+        type="textarea"
+        rows={8}
+        placeholder="Enter knowledge text about this entity..."
+        isEditing={isEditing}
+      />
 
-        <InlineEditableUrlList
-          label="Further Reading"
-          value={furtherReading || []}
-          onSave={handleSaveFurtherReading}
-        />
-      </div>
-    </SectionCard>
+      <InlineEditableUrlList
+        label="Further Reading"
+        value={furtherReading || []}
+        onSave={handleSaveFurtherReading}
+        isEditing={isEditing}
+      />
+    </div>
   );
 }

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { InlineEditableMuseumRoom } from '@/components/shared/InlineEditableMuseumRoom';
-import { updateNodeField } from './actions';
+import { updateNodeField, updateRoomParent } from './actions';
 
 type Museum = {
   id: number;
@@ -28,8 +28,13 @@ type ParentSelectorProps =
       type: 'room';
       entityId: number;
       currentMuseumId: number | null;
+      currentParentRoomId: number | null;
       museums: Museum[];
+      parentRooms?: Room[]; // Available parent rooms for child room selection
+      parentMuseum?: Museum | null; // Museum that the parent room belongs to (for child rooms)
       onMuseumChange?: (museumId: number | null) => void;
+      isEditing?: boolean;
+      onEditChange?: (editing: boolean) => void;
     }
   | {
       type: 'artifact';
@@ -46,13 +51,44 @@ export function ParentSelector(props: ParentSelectorProps) {
   const router = useRouter();
 
   // Room-specific state (only used when type === 'room')
-  const [isEditingRoom, setIsEditingRoom] = useState(false);
+  const [internalIsEditingRoom, setInternalIsEditingRoom] = useState(false);
+  const isEditingRoom =
+    props.type === 'room' && props.isEditing !== undefined
+      ? props.isEditing
+      : internalIsEditingRoom;
   const currentMuseumIdForRoom =
     props.type === 'room' ? props.currentMuseumId : null;
+  const currentParentRoomIdForRoom =
+    props.type === 'room' ? props.currentParentRoomId : null;
+
+  // Determine if room is currently a parent room (has museum) or child room (has parentRoom)
+  const isParentRoom = currentMuseumIdForRoom !== null;
+  const [roomMode, setRoomMode] = useState<'parent' | 'child'>(() =>
+    isParentRoom ? 'parent' : 'child'
+  );
+
   const [selectedMuseumId, setSelectedMuseumId] = useState<number | null>(
     () => currentMuseumIdForRoom
   );
+  const [selectedParentRoomId, setSelectedParentRoomId] = useState<
+    number | null
+  >(() => currentParentRoomIdForRoom);
   const lastMuseumIdForRoomRef = useRef(currentMuseumIdForRoom);
+  const lastParentRoomIdForRoomRef = useRef(currentParentRoomIdForRoom);
+
+  // Update selectedParentRoomId when currentParentRoomId changes
+  useEffect(() => {
+    if (
+      props.type === 'room' &&
+      currentParentRoomIdForRoom !== null &&
+      lastParentRoomIdForRoomRef.current !== currentParentRoomIdForRoom
+    ) {
+      lastParentRoomIdForRoomRef.current = currentParentRoomIdForRoom;
+      queueMicrotask(() => {
+        setSelectedParentRoomId(currentParentRoomIdForRoom);
+      });
+    }
+  }, [props.type, currentParentRoomIdForRoom]);
 
   // Artifact-specific state (only used when type === 'artifact')
   const currentMuseumIdForArtifact =
@@ -111,22 +147,29 @@ export function ParentSelector(props: ParentSelectorProps) {
   const roomEntityId = props.type === 'room' ? props.entityId : null;
   const roomOnMuseumChange =
     props.type === 'room' ? props.onMuseumChange : null;
+  const roomIsEditing = props.type === 'room' ? props.isEditing : undefined;
+  const roomOnEditChange = props.type === 'room' ? props.onEditChange : null;
 
-  const handleRoomMuseumChange = useCallback(
-    async (museumId: number | null) => {
+  const handleRoomParentChange = useCallback(
+    async (museumId: number | null, parentRoomId: number | null) => {
       if (!roomEntityId) return;
       try {
-        await updateNodeField(roomEntityId, 'parentId', museumId);
+        await updateRoomParent(roomEntityId, museumId, parentRoomId);
         setSelectedMuseumId(museumId);
+        setSelectedParentRoomId(parentRoomId);
         roomOnMuseumChange?.(museumId);
-        setIsEditingRoom(false);
+        if (roomIsEditing === undefined) {
+          setInternalIsEditingRoom(false);
+        } else {
+          roomOnEditChange?.(false);
+        }
         router.refresh();
       } catch (error) {
-        console.error('Failed to update museum:', error);
-        alert('Failed to update museum. Please try again.');
+        console.error('Failed to update room parent:', error);
+        alert('Failed to update room parent. Please try again.');
       }
     },
-    [roomEntityId, roomOnMuseumChange, router]
+    [roomEntityId, roomOnMuseumChange, roomIsEditing, roomOnEditChange, router]
   );
 
   // Extract values for useCallback dependencies
@@ -177,79 +220,265 @@ export function ParentSelector(props: ParentSelectorProps) {
   }
 
   if (props.type === 'room') {
+    // Check current state - prioritize parentRoomId over museumId
+    const hasParentRoom = currentParentRoomIdForRoom !== null;
+    const hasMuseum = currentMuseumIdForRoom !== null;
+
     const currentMuseum = selectedMuseumId
       ? props.museums.find((m) => m.id === selectedMuseumId)
       : null;
+    const currentParentRoom = selectedParentRoomId
+      ? props.parentRooms?.find((r) => r.id === selectedParentRoomId)
+      : null;
 
-    if (!isEditingRoom && currentMuseum) {
-      return (
+    // Display mode: show current parent (museum or parent room)
+    // Prioritize showing parent room if it exists
+    if (!isEditingRoom) {
+      if (hasParentRoom && currentParentRoom) {
+        return (
+          <div className="space-y-2">
+            <Label>Parent Room</Label>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/admin/rooms/${currentParentRoom.id}`}
+                  className="text-primary hover:underline font-medium"
+                >
+                  {currentParentRoom.name}
+                </Link>
+                {props.isEditing === undefined && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      if (props.isEditing === undefined) {
+                        setInternalIsEditingRoom(true);
+                      } else {
+                        props.onEditChange?.(true);
+                      }
+                    }}
+                    className="h-8 px-2"
+                  >
+                    Edit
+                  </Button>
+                )}
+              </div>
+              {props.parentMuseum && (
+                <div className="text-sm text-muted-foreground">
+                  Museum:{' '}
+                  <Link
+                    href={`/admin/museums/${props.parentMuseum.id}`}
+                    className="text-primary hover:underline"
+                  >
+                    {props.parentMuseum.name}
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      } else if (hasMuseum && currentMuseum) {
+        return (
+          <div className="space-y-2">
+            <Label>Museum</Label>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/admin/museums/${currentMuseum.id}`}
+                className="text-primary hover:underline font-medium"
+              >
+                {currentMuseum.name}
+              </Link>
+              {props.isEditing === undefined && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    if (props.isEditing === undefined) {
+                      setInternalIsEditingRoom(true);
+                    } else {
+                      props.onEditChange?.(true);
+                    }
+                  }}
+                  className="h-8 px-2"
+                >
+                  Edit
+                </Button>
+              )}
+            </div>
+          </div>
+        );
+      } else {
+        // No parent set - show error message
+        return (
+          <div className="space-y-2">
+            <Label>Parent</Label>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-destructive">
+                There is no parent attached and you should attach one.
+              </p>
+              {props.isEditing === undefined && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    if (props.isEditing === undefined) {
+                      setInternalIsEditingRoom(true);
+                    } else {
+                      props.onEditChange?.(true);
+                    }
+                  }}
+                  className="h-8 px-2"
+                >
+                  Edit
+                </Button>
+              )}
+            </div>
+          </div>
+        );
+      }
+    }
+
+    // Edit mode: show toggle and selector
+    return (
+      <div className="space-y-4">
         <div className="space-y-2">
-          <Label>Museum</Label>
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/admin/museums/${currentMuseum.id}`}
-              className="text-primary hover:underline font-medium"
-            >
-              {currentMuseum.name}
-            </Link>
+          <Label>Room Type</Label>
+          <div className="flex gap-2">
             <Button
               type="button"
-              variant="secondary"
+              variant={roomMode === 'parent' ? 'default' : 'secondary'}
               size="sm"
-              onClick={() => setIsEditingRoom(true)}
-              className="h-8 px-2"
+              onClick={() => {
+                setRoomMode('parent');
+                setSelectedParentRoomId(null);
+              }}
             >
-              Edit
+              Parent Room (Museum)
+            </Button>
+            <Button
+              type="button"
+              variant={roomMode === 'child' ? 'default' : 'secondary'}
+              size="sm"
+              onClick={() => {
+                setRoomMode('child');
+                setSelectedMuseumId(null);
+              }}
+            >
+              Child Room (Parent Room)
             </Button>
           </div>
         </div>
-      );
-    }
 
-    return (
-      <div className="space-y-2">
-        <Label htmlFor="parentId">Museum</Label>
-        <div className="flex items-center gap-2">
-          <select
-            id="parentId"
-            value={selectedMuseumId || ''}
-            onChange={(e) => {
-              const museumId = e.target.value ? Number(e.target.value) : null;
-              setSelectedMuseumId(museumId);
-            }}
-            className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <option value="">Select a museum</option>
-            {props.museums.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={() => handleRoomMuseumChange(selectedMuseumId)}
-            className="h-10"
-          >
-            Save
-          </Button>
-          {currentMuseum && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setIsEditingRoom(false);
-                setSelectedMuseumId(props.currentMuseumId);
-              }}
-              className="h-10"
-            >
-              Cancel
-            </Button>
-          )}
-        </div>
+        {roomMode === 'parent' ? (
+          <div className="space-y-2">
+            <Label htmlFor="museumId">Museum</Label>
+            <div className="flex items-center gap-2">
+              <select
+                id="museumId"
+                value={selectedMuseumId || ''}
+                onChange={(e) => {
+                  const museumId = e.target.value
+                    ? Number(e.target.value)
+                    : null;
+                  setSelectedMuseumId(museumId);
+                }}
+                className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">Select a museum</option>
+                {props.museums.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                onClick={() => handleRoomParentChange(selectedMuseumId, null)}
+                disabled={!selectedMuseumId}
+                className="h-10"
+              >
+                Save
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  if (props.isEditing === undefined) {
+                    setInternalIsEditingRoom(false);
+                  } else {
+                    props.onEditChange?.(false);
+                  }
+                  setSelectedMuseumId(props.currentMuseumId);
+                  setSelectedParentRoomId(props.currentParentRoomId);
+                  setRoomMode(isParentRoom ? 'parent' : 'child');
+                }}
+                className="h-10"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="parentRoomId">Parent Room</Label>
+            <div className="flex items-center gap-2">
+              <select
+                id="parentRoomId"
+                value={selectedParentRoomId || ''}
+                onChange={(e) => {
+                  const parentRoomId = e.target.value
+                    ? Number(e.target.value)
+                    : null;
+                  setSelectedParentRoomId(parentRoomId);
+                }}
+                className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">Select a parent room</option>
+                {props.parentRooms?.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                onClick={() =>
+                  handleRoomParentChange(null, selectedParentRoomId)
+                }
+                disabled={!selectedParentRoomId}
+                className="h-10"
+              >
+                Save
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  if (props.isEditing === undefined) {
+                    setInternalIsEditingRoom(false);
+                  } else {
+                    props.onEditChange?.(false);
+                  }
+                  setSelectedMuseumId(props.currentMuseumId);
+                  setSelectedParentRoomId(props.currentParentRoomId);
+                  setRoomMode(isParentRoom ? 'parent' : 'child');
+                }}
+                className="h-10"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

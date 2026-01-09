@@ -9,6 +9,7 @@ type ChildEntity = {
   id: number;
   name: string;
   type: 'room' | 'artifact';
+  museum?: string | null;
 };
 
 type ChildEntityListProps = {
@@ -18,6 +19,7 @@ type ChildEntityListProps = {
   newEntityRoute: string | null;
   newEntityLabel: string;
   emptyMessage: string;
+  inline?: boolean; // If true, render without SectionCard wrapper
 };
 
 export function ChildEntityList({
@@ -27,7 +29,52 @@ export function ChildEntityList({
   newEntityRoute,
   newEntityLabel,
   emptyMessage,
+  inline = false,
 }: ChildEntityListProps) {
+  const content = (
+    <>
+      {entities.length > 0 ? (
+        <EntityList
+          title=""
+          items={entities.map((entity) => ({
+            id: entity.id,
+            name: entity.name,
+            subtitle: entity.museum ? `Museum: ${entity.museum}` : undefined,
+            href:
+              entity.type === 'room'
+                ? `/admin/rooms/${entity.id}`
+                : `/admin/artifacts/${entity.id}`,
+            typePill: entity.type.toUpperCase(),
+          }))}
+          emptyState={null}
+        />
+      ) : newEntityRoute ? (
+        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+      ) : null}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-primary">{title}</h3>
+            {subtitle && (
+              <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+            )}
+          </div>
+          {newEntityRoute && (
+            <Button asChild size="sm">
+              <Link href={newEntityRoute}>{newEntityLabel}</Link>
+            </Button>
+          )}
+        </div>
+        {content}
+      </div>
+    );
+  }
+
   if (entities.length > 0) {
     return (
       <SectionCard
@@ -41,19 +88,7 @@ export function ChildEntityList({
           ) : undefined
         }
       >
-        <EntityList
-          title=""
-          items={entities.map((entity) => ({
-            id: entity.id,
-            name: entity.name,
-            href:
-              entity.type === 'room'
-                ? `/admin/rooms/${entity.id}`
-                : `/admin/artifacts/${entity.id}`,
-            typePill: entity.type.toUpperCase(),
-          }))}
-          emptyState={null}
-        />
+        {content}
       </SectionCard>
     );
   }
@@ -68,7 +103,7 @@ export function ChildEntityList({
           </Button>
         }
       >
-        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+        {content}
       </SectionCard>
     );
   }

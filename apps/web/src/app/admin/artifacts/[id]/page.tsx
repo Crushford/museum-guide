@@ -21,6 +21,7 @@ type Room = {
   id: number;
   name: string;
   museumId: number | null;
+  parentRoomId: number | null;
 };
 
 type Museum = {
@@ -90,7 +91,7 @@ export default async function ArtifactEditPage({
     id: number;
     name: string;
     museumId?: number | null;
-    parentId?: number | null;
+    parentRoomId?: number | null;
   };
   const parentRoom: Room | null = artifact.roomId
     ? await api<RoomResponse>(`/rooms/${artifact.roomId}`)
@@ -98,14 +99,39 @@ export default async function ArtifactEditPage({
           id: r.id,
           name: r.name,
           museumId: r.museumId ?? null,
+          parentRoomId: r.parentRoomId ?? null,
         }))
         .catch(() => null)
     : null;
 
-  // Get parent's parent (museum)
-  const parentMuseum: Museum | null = parentRoom?.museumId
-    ? await api<Museum>(`/museums/${parentRoom.museumId}`).catch(() => null)
-    : null;
+  // Get parent room's parent room (if it exists)
+  let parentParentRoom: Room | null = null;
+  if (parentRoom?.parentRoomId) {
+    parentParentRoom = await api<RoomResponse>(
+      `/rooms/${parentRoom.parentRoomId}`
+    )
+      .then((r) => ({
+        id: r.id,
+        name: r.name,
+        museumId: r.museumId ?? null,
+        parentRoomId: r.parentRoomId ?? null,
+      }))
+      .catch(() => null);
+  }
+
+  // Get museum - either directly from room or from parent room
+  let parentMuseum: Museum | null = null;
+  if (parentRoom?.museumId) {
+    // Room is directly attached to a museum
+    parentMuseum = await api<Museum>(`/museums/${parentRoom.museumId}`).catch(
+      () => null
+    );
+  } else if (parentRoom?.parentRoomId && parentParentRoom?.museumId) {
+    // Room is a child room - get parent room's museum
+    parentMuseum = await api<Museum>(
+      `/museums/${parentParentRoom.museumId}`
+    ).catch(() => null);
+  }
 
   const handleSave = async (data: {
     name: string;
@@ -146,6 +172,15 @@ export default async function ArtifactEditPage({
                 id: parentRoom.id,
                 name: parentRoom.name,
                 parentId: parentRoom.museumId,
+              }
+            : null
+        }
+        parentParentRoom={
+          parentParentRoom
+            ? {
+                id: parentParentRoom.id,
+                name: parentParentRoom.name,
+                parentId: parentParentRoom.museumId,
               }
             : null
         }
