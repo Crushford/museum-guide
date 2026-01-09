@@ -4,6 +4,8 @@ import { api } from '../../../../lib/api';
 import { AdminPageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
 import { updateRoom } from '../../shared/actions';
+import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
+import { deleteRoom } from './actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -11,8 +13,16 @@ type Room = {
   id: number;
   name: string;
   museumId: number | null;
+  parentRoomId: number | null;
   knowledgeText: string | null;
   furtherReading: string[];
+};
+
+type ChildRoom = {
+  id: number;
+  name: string;
+  museumId: number | null;
+  parentRoomId: number | null;
 };
 
 type Museum = {
@@ -23,6 +33,7 @@ type Museum = {
 type Artifact = {
   id: number;
   name: string;
+  roomId?: number;
 };
 
 async function getRoomHierarchy(roomId: number): Promise<string[]> {
@@ -74,11 +85,21 @@ export default async function RoomEditPage({
     redirect('/admin');
   }
 
-  const [room, artifacts, museums] = await Promise.all([
+  const [room, artifacts, childRooms, museums] = await Promise.all([
     api<Room>(`/rooms/${nodeId}`),
     api<Artifact[]>(`/rooms/${nodeId}/artifacts`).catch(() => []),
+    api<ChildRoom[]>(`/rooms/${nodeId}/children`).catch(() => []),
     api<Museum[]>(`/museums`).catch(() => []),
   ]);
+
+  // If this is a parent room, get all artifacts from child rooms too
+  let allArtifacts = artifacts;
+  if (childRooms.length > 0) {
+    const recursiveArtifacts = await api<Artifact[]>(
+      `/rooms/${nodeId}/artifacts-recursive`
+    ).catch(() => []);
+    allArtifacts = recursiveArtifacts;
+  }
 
   // Get parent museum
   const parentMuseum: Museum | null = room.museumId
@@ -119,10 +140,24 @@ export default async function RoomEditPage({
           parentId: room.museumId,
         }}
         parentMuseum={parentMuseum}
-        childArtifacts={artifacts}
+        childRooms={childRooms.map((r) => ({ id: r.id, name: r.name }))}
+        childArtifacts={artifacts.map((a) => ({ id: a.id, name: a.name }))}
+        allArtifacts={
+          childRooms.length > 0
+            ? allArtifacts.map((a) => ({ id: a.id, name: a.name }))
+            : undefined
+        }
         museums={museums}
         onSave={handleSave}
       />
+      <div className="flex justify-end pt-4">
+        <DeleteEntityButton
+          entityType="room"
+          entityId={room.id}
+          entityName={room.name}
+          onDelete={deleteRoom}
+        />
+      </div>
     </AdminPageLayout>
   );
 }

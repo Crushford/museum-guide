@@ -4,6 +4,8 @@ import { api } from '../../../../lib/api';
 import { AdminPageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
 import { updateArtifact } from '../../shared/actions';
+import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
+import { deleteArtifact } from './actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -156,6 +158,14 @@ export default async function ArtifactEditPage({
         }))}
         onSave={handleSave}
       />
+      <div className="flex justify-end pt-4">
+        <DeleteEntityButton
+          entityType="artifact"
+          entityId={artifact.id}
+          entityName={artifact.name}
+          onDelete={deleteArtifact}
+        />
+      </div>
     </AdminPageLayout>
   );
 }

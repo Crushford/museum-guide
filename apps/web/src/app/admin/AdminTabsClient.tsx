@@ -166,12 +166,18 @@ export function AdminTabsClient({
     if (tab === 'museums') {
       return '/admin/museums/new';
     } else if (tab === 'rooms') {
-      // Rooms require a museumId - if none selected, redirect to museums tab first
-      if (!selectedMuseumId) {
+      // Rooms require a museumId
+      // If no museum selected but museums exist, use the first one
+      // If no museums exist, redirect to museums tab
+      const museumIdToUse =
+        selectedMuseumId || (museums.length > 0 ? museums[0].id : null);
+
+      if (!museumIdToUse) {
         return '/admin?tab=museums';
       }
+
       const params = new URLSearchParams();
-      params.set('museumId', selectedMuseumId.toString());
+      params.set('museumId', museumIdToUse.toString());
       return `/admin/rooms/new?${params.toString()}`;
     } else if (tab === 'artifacts') {
       const params = new URLSearchParams();

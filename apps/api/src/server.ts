@@ -430,6 +430,68 @@ app.delete('/museums/:id', async (req, res) => {
   }
 });
 
+// DELETE /rooms/:id - Delete a room
+app.delete('/rooms/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
+
+    // Check if room exists
+    const room = await prisma.room.findUnique({
+      where: { id },
+    });
+
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    // Delete the room (cascade will handle related child rooms and artifacts)
+    await prisma.room.delete({
+      where: { id },
+    });
+
+    res.status(204).send(); // No Content
+  } catch (error) {
+    console.error('Error deleting room:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to delete room';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// DELETE /artifacts/:id - Delete an artifact
+app.delete('/artifacts/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid artifact ID' });
+    }
+
+    // Check if artifact exists
+    const artifact = await prisma.artifact.findUnique({
+      where: { id },
+    });
+
+    if (!artifact) {
+      return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    // Delete the artifact
+    await prisma.artifact.delete({
+      where: { id },
+    });
+
+    res.status(204).send(); // No Content
+  } catch (error) {
+    console.error('Error deleting artifact:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to delete artifact';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 app.post('/rooms', async (req, res) => {
   const { name, museumId, parentRoomId, knowledgeText, furtherReading } =
     req.body;
@@ -561,6 +623,99 @@ app.get('/rooms/:roomId/artifacts', async (req, res) => {
       createdAt: a.createdAt,
     }))
   );
+});
+
+// GET /rooms/:id/children - Get child rooms for a parent room
+app.get('/rooms/:id/children', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
+
+    const childRooms = await prisma.room.findMany({
+      where: {
+        parentRoomId: id,
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    });
+
+    res.json(
+      childRooms.map((r) => ({
+        id: r.id,
+        name: r.name,
+        museumId: r.museumId,
+        parentRoomId: r.parentRoomId,
+      }))
+    );
+  } catch (error) {
+    console.error('Error fetching child rooms:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch child rooms';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /rooms/:id/artifacts-recursive - Get all artifacts from room and all child rooms
+app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
+
+    // Get all child room IDs recursively
+    const getAllChildRoomIds = async (parentId: number): Promise<number[]> => {
+      const children = await prisma.room.findMany({
+        where: { parentRoomId: parentId },
+        select: { id: true },
+      });
+
+      const childIds = children.map((c) => c.id);
+      const allChildIds = [...childIds];
+
+      // Recursively get children of children
+      for (const childId of childIds) {
+        const grandChildren = await getAllChildRoomIds(childId);
+        allChildIds.push(...grandChildren);
+      }
+
+      return allChildIds;
+    };
+
+    const childRoomIds = await getAllChildRoomIds(id);
+    const allRoomIds = [id, ...childRoomIds];
+
+    // Get all artifacts from this room and all child rooms
+    const artifacts = await prisma.artifact.findMany({
+      where: {
+        roomId: {
+          in: allRoomIds,
+        },
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    });
+
+    res.json(
+      artifacts.map((a) => ({
+        id: a.id,
+        name: a.name,
+        roomId: a.roomId,
+        createdAt: a.createdAt,
+      }))
+    );
+  } catch (error) {
+    console.error('Error fetching recursive artifacts:', error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to fetch recursive artifacts';
+    res.status(500).json({ error: errorMessage });
+  }
 });
 
 app.post('/artifacts', async (req, res) => {

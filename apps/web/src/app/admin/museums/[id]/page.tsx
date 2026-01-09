@@ -4,9 +4,10 @@ import { api } from '../../../../lib/api';
 import { AdminPageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
 import { updateMuseum } from '../../shared/actions';
+import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
+import { deleteMuseum } from './actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { DeleteMuseumButton } from './DeleteMuseumButton';
 
 type Museum = {
   id: number;
@@ -122,7 +123,12 @@ export default async function MuseumEditPage({
           onSave={handleSave}
         />
         <div className="flex justify-end pt-4">
-          <DeleteMuseumButton museumId={museum.id} museumName={museum.name} />
+          <DeleteEntityButton
+            entityType="museum"
+            entityId={museum.id}
+            entityName={museum.name}
+            onDelete={deleteMuseum}
+          />
         </div>
       </div>
     </AdminPageLayout>

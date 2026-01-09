@@ -13,6 +13,7 @@ type ChildEntity = {
 
 type ChildEntityListProps = {
   title: string;
+  subtitle?: string;
   entities: ChildEntity[];
   newEntityRoute: string | null;
   newEntityLabel: string;
@@ -21,6 +22,7 @@ type ChildEntityListProps = {
 
 export function ChildEntityList({
   title,
+  subtitle,
   entities,
   newEntityRoute,
   newEntityLabel,
@@ -30,6 +32,7 @@ export function ChildEntityList({
     return (
       <SectionCard
         title={title}
+        subtitle={subtitle}
         actions={
           newEntityRoute ? (
             <Button asChild size="sm">

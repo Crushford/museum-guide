@@ -3,6 +3,7 @@
 import { EntityDetailsForm } from './EntityDetailsForm';
 import { ParentSelector } from './ParentSelector';
 import { ChildEntityList } from './ChildEntityList';
+import { SectionCard } from '@/components/shared/SectionCard';
 
 type Museum = {
   id: number;
@@ -52,7 +53,9 @@ type MuseumProps = {
 type RoomProps = {
   entity: RoomEntity;
   parentMuseum: Museum | null;
+  childRooms: Array<{ id: number; name: string }>;
   childArtifacts: Array<{ id: number; name: string }>;
+  allArtifacts?: Array<{ id: number; name: string }>; // All artifacts including from child rooms
   museums: Museum[];
   onSave: (data: {
     name: string;
@@ -139,6 +142,12 @@ export function EditPageClient(props: EditPageClientProps) {
     const newArtifactRoute = props.parentMuseum
       ? `/admin/artifacts/new?museumId=${props.parentMuseum.id}&roomId=${props.entity.id}`
       : null;
+    const newChildRoomRoute = props.parentMuseum
+      ? `/admin/rooms/new?museumId=${props.parentMuseum.id}`
+      : null;
+
+    // Show child rooms if this room has children
+    const hasChildRooms = props.childRooms.length > 0;
 
     return (
       <div className="space-y-6">
@@ -149,22 +158,51 @@ export function EditPageClient(props: EditPageClientProps) {
           furtherReading={props.entity.furtherReading}
         />
 
-        <div className="space-y-6">
+        <SectionCard title="Museum">
           <ParentSelector
             type="room"
             entityId={props.entity.id}
             currentMuseumId={props.entity.parentId}
             museums={props.museums}
           />
-        </div>
+        </SectionCard>
 
+        {/* Child Rooms */}
+        {hasChildRooms && (
+          <ChildEntityList
+            title="Child Rooms"
+            entities={props.childRooms.map((r) => ({
+              id: r.id,
+              name: r.name,
+              type: 'room' as const,
+            }))}
+            newEntityRoute={newChildRoomRoute}
+            newEntityLabel="Add Child Room"
+            emptyMessage="No child rooms yet."
+          />
+        )}
+
+        {/* Artifacts - includes artifacts from child rooms if this is a parent room */}
         <ChildEntityList
           title="Artifacts"
-          entities={props.childArtifacts.map((a) => ({
-            id: a.id,
-            name: a.name,
-            type: 'artifact' as const,
-          }))}
+          subtitle={
+            hasChildRooms && props.allArtifacts
+              ? 'Includes artifacts from child rooms'
+              : undefined
+          }
+          entities={
+            hasChildRooms && props.allArtifacts
+              ? props.allArtifacts.map((a) => ({
+                  id: a.id,
+                  name: a.name,
+                  type: 'artifact' as const,
+                }))
+              : props.childArtifacts.map((a) => ({
+                  id: a.id,
+                  name: a.name,
+                  type: 'artifact' as const,
+                }))
+          }
           newEntityRoute={newArtifactRoute}
           newEntityLabel="Add Artifact"
           emptyMessage="No artifacts yet."
@@ -184,7 +222,7 @@ export function EditPageClient(props: EditPageClientProps) {
           furtherReading={props.entity.furtherReading}
         />
 
-        <div className="space-y-6">
+        <SectionCard title="Parent">
           <ParentSelector
             type="artifact"
             entityId={props.entity.id}
@@ -193,7 +231,7 @@ export function EditPageClient(props: EditPageClientProps) {
             museums={props.museums}
             rooms={props.rooms}
           />
-        </div>
+        </SectionCard>
       </div>
     );
   }
