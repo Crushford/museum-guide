@@ -109,7 +109,7 @@ export default async function MuseumPage({
               id: r.id,
               name: r.name,
               type: 'room' as const,
-              href: `/${museumSlug}/${r.slug || r.id}`,
+              href: `/${museumSlug}/rooms/${r.slug || r.id}`,
             }))}
             newEntityRoute={null}
             newEntityLabel="Add Room"
