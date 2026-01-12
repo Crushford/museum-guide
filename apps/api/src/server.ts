@@ -582,6 +582,7 @@ app.get('/museums/:museumId/rooms', async (req, res) => {
     rooms.map((r) => ({
       id: r.id,
       name: r.name,
+      slug: (r as any).slug,
       museumId: r.museumId,
       createdAt: r.createdAt,
     }))

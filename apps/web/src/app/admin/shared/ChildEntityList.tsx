@@ -10,6 +10,7 @@ type ChildEntity = {
   name: string;
   type: 'room' | 'artifact';
   museum?: string | null;
+  href?: string; // Optional href for the entity link
 };
 
 type ChildEntityListProps = {
@@ -20,6 +21,7 @@ type ChildEntityListProps = {
   newEntityLabel: string;
   emptyMessage: string;
   inline?: boolean; // If true, render without SectionCard wrapper
+  allowEdit?: boolean; // If false, hide Add buttons (read-only mode)
 };
 
 export function ChildEntityList({
@@ -30,7 +32,19 @@ export function ChildEntityList({
   newEntityLabel,
   emptyMessage,
   inline = false,
+  allowEdit = true,
 }: ChildEntityListProps) {
+  const getEntityHref = (entity: ChildEntity): string | undefined => {
+    // Use provided href if available
+    if (entity.href) {
+      return entity.href;
+    }
+    // Default admin routes
+    return entity.type === 'room'
+      ? `/admin/rooms/${entity.id}`
+      : `/admin/artifacts/${entity.id}`;
+  };
+
   const content = (
     <>
       {entities.length > 0 ? (
@@ -40,15 +54,14 @@ export function ChildEntityList({
             id: entity.id,
             name: entity.name,
             subtitle: entity.museum ? `Museum: ${entity.museum}` : undefined,
-            href:
-              entity.type === 'room'
-                ? `/admin/rooms/${entity.id}`
-                : `/admin/artifacts/${entity.id}`,
+            href: getEntityHref(entity),
             typePill: entity.type.toUpperCase(),
           }))}
           emptyState={null}
         />
-      ) : newEntityRoute ? (
+      ) : newEntityRoute && allowEdit ? (
+        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+      ) : !allowEdit && entities.length === 0 ? (
         <p className="text-sm text-muted-foreground">{emptyMessage}</p>
       ) : null}
     </>
@@ -64,7 +77,7 @@ export function ChildEntityList({
               <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
             )}
           </div>
-          {newEntityRoute && (
+          {newEntityRoute && allowEdit && (
             <Button asChild size="sm">
               <Link href={newEntityRoute}>{newEntityLabel}</Link>
             </Button>
@@ -81,7 +94,7 @@ export function ChildEntityList({
         title={title}
         subtitle={subtitle}
         actions={
-          newEntityRoute ? (
+          newEntityRoute && allowEdit ? (
             <Button asChild size="sm">
               <Link href={newEntityRoute}>{newEntityLabel}</Link>
             </Button>
@@ -93,7 +106,7 @@ export function ChildEntityList({
     );
   }
 
-  if (newEntityRoute) {
+  if (newEntityRoute && allowEdit) {
     return (
       <SectionCard
         title={title}
@@ -103,6 +116,14 @@ export function ChildEntityList({
           </Button>
         }
       >
+        {content}
+      </SectionCard>
+    );
+  }
+
+  if (!allowEdit && entities.length === 0) {
+    return (
+      <SectionCard title={title} subtitle={subtitle}>
         {content}
       </SectionCard>
     );

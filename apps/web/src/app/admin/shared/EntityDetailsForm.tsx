@@ -12,6 +12,7 @@ type EntityDetailsFormProps = {
   knowledgeText: string | null;
   furtherReading: string[];
   isEditing?: boolean;
+  allowEdit?: boolean; // If false, never show edit buttons (read-only mode)
 };
 
 export function EntityDetailsForm({
@@ -20,6 +21,7 @@ export function EntityDetailsForm({
   knowledgeText,
   furtherReading,
   isEditing = false,
+  allowEdit = true,
 }: EntityDetailsFormProps) {
   const router = useRouter();
 
@@ -47,31 +49,35 @@ export function EntityDetailsForm({
     [id, router]
   );
 
+  // If allowEdit is false, always set isEditing to false and don't pass onSave handlers
+  const effectiveIsEditing = allowEdit ? isEditing : false;
+  const noopSave = async () => {}; // No-op function for read-only mode
+
   return (
     <div className="space-y-6">
       <InlineEditableField
         label="Name"
         value={name}
-        onSave={handleSaveName}
+        onSave={allowEdit ? handleSaveName : noopSave}
         type="text"
-        isEditing={isEditing}
+        isEditing={effectiveIsEditing}
       />
 
       <InlineEditableField
         label="Knowledge Text"
         value={knowledgeText || ''}
-        onSave={handleSaveKnowledgeText}
+        onSave={allowEdit ? handleSaveKnowledgeText : noopSave}
         type="textarea"
         rows={8}
         placeholder="Enter knowledge text about this entity..."
-        isEditing={isEditing}
+        isEditing={effectiveIsEditing}
       />
 
       <InlineEditableUrlList
         label="Further Reading"
         value={furtherReading || []}
-        onSave={handleSaveFurtherReading}
-        isEditing={isEditing}
+        onSave={allowEdit ? handleSaveFurtherReading : noopSave}
+        isEditing={effectiveIsEditing}
       />
     </div>
   );

@@ -6,25 +6,20 @@ import { AdminPageLayout } from '../components/shared';
 import { SectionCard } from '../components/shared';
 import { EntityList } from '../components/shared';
 import { EmptyState } from '../components/shared';
+import type { MuseumResponse } from '@repo/types';
 
 export const metadata: Metadata = {
   title: 'Museums',
 };
 
-type Museum = {
-  id: number;
-  name: string;
-  slug: string;
-};
-
 export default async function Home() {
-  const museums = await api<Museum[]>('/museums');
+  const museums = await api<MuseumResponse[]>('/museums');
 
   return (
     <AdminPageLayout
       title="Museum Guide"
       actions={
-        <Button asChild variant="outline">
+        <Button asChild variant="secondary">
           <Link href="/admin">Admin</Link>
         </Button>
       }
@@ -35,12 +30,15 @@ export default async function Home() {
       >
         <EntityList
           title=""
-          items={museums.map((museum) => ({
-            id: museum.id,
-            name: museum.name,
-            href: `/${museum.slug}`,
-            typePill: 'MUSEUM',
-          }))}
+          items={museums.map((museum) => {
+            const museumWithSlug = museum as MuseumResponse & { slug: string };
+            return {
+              id: museum.id,
+              name: museum.name,
+              href: `/${museumWithSlug.slug || museum.id}`,
+              typePill: 'MUSEUM' as const,
+            };
+          })}
           emptyState={
             <EmptyState
               title="No museums available"
