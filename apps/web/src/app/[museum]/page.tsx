@@ -1,13 +1,32 @@
-import Link from 'next/link';
 import type { Metadata } from 'next';
 import { api } from '../../lib/api';
 import { notFound } from 'next/navigation';
+import type { MuseumResponse } from '@repo/types';
+import { AdminPageLayout } from '../../components/shared';
+import { SectionCard } from '../../components/shared';
+import { EntityDetailsForm } from '../../app/admin/shared/EntityDetailsForm';
+import { ChildEntityList } from '../../app/admin/shared/ChildEntityList';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
-type Node = {
+type Room = {
   id: number;
-  type: 'MUSEUM' | 'ROOM' | 'ARTIFACT';
   name: string;
-  parentId: number | null;
+  slug: string;
+  museumId: number | null;
+};
+
+type Artifact = {
+  id: number;
+  name: string;
+  slug: string;
+  roomId: number;
+};
+
+type Content = {
+  id: number;
+  text: string;
+  type: string | null;
 };
 
 export async function generateMetadata({
@@ -15,16 +34,13 @@ export async function generateMetadata({
 }: {
   params: Promise<{ museum: string }>;
 }): Promise<Metadata> {
-  const { museum: museumId } = await params;
-  const nodeId = Number(museumId);
+  const { museum: museumSlug } = await params;
 
   try {
-    const node = await api<Node>(`/nodes/${nodeId}`);
-    if (node && node.type === 'MUSEUM') {
-      return {
-        title: node.name,
-      };
-    }
+    const museum = await api<MuseumResponse>(`/museums/by-slug/${museumSlug}`);
+    return {
+      title: museum.name,
+    };
   } catch {
     // Fall through to default
   }
@@ -34,125 +50,117 @@ export async function generateMetadata({
   };
 }
 
-type PlaylistResponse = {
-  node: { id: number; type: string; name: string };
-  roles: Record<
-    string,
-    Array<{
-      id: number;
-      sortOrder: number;
-      contentItem: {
-        id: number;
-        title: string;
-        type: string;
-        body: string;
-      };
-    }>
-  > & {
-    intro?: Array<{
-      id: number;
-      sortOrder: number;
-      contentItem: {
-        id: number;
-        title: string;
-        type: string;
-        body: string;
-      };
-    }>;
-    followup?: Array<{
-      id: number;
-      sortOrder: number;
-      contentItem: {
-        id: number;
-        title: string;
-        type: string;
-        body: string;
-      };
-    }>;
-  };
-};
-
 export default async function MuseumPage({
   params,
 }: {
   params: Promise<{ museum: string }>;
 }) {
-  const { museum: museumId } = await params;
-  const nodeId = Number(museumId);
+  const { museum: museumSlug } = await params;
 
-  const [node, playlist, rooms] = await Promise.all([
-    api<Node>(`/nodes/${nodeId}`).catch(() => null),
-    api<PlaylistResponse>(`/nodes/${nodeId}/playlist`).catch(
-      () =>
-        ({
-          node: { id: nodeId, type: '', name: '' },
-          roles: {
-            intro: undefined,
-            followup: undefined,
-          },
-        }) as PlaylistResponse
-    ),
-    api<Node[]>(`/nodes/${nodeId}/children`).catch(() => []),
-  ]);
+  // Fetch museum by slug to get the ID
+  const museum = await api<MuseumResponse>(
+    `/museums/by-slug/${museumSlug}`
+  ).catch(() => null);
 
-  // Validate node type
-  if (!node || node.type !== 'MUSEUM') {
+  if (!museum) {
     notFound();
   }
 
-  const intro = playlist.roles.intro?.[0];
-  const followups = playlist.roles.followup?.slice(0, 3) || [];
+  const [rooms, artifacts, content] = await Promise.all([
+    api<Room[]>(`/museums/${museum.id}/rooms`).catch(() => []),
+    api<Artifact[]>(`/museums/${museum.id}/artifacts`).catch(() => []),
+    api<Content[]>(`/museums/${museum.id}/content`).catch(() => []),
+  ]);
+
+  // Find intro content (type 'intro' or first content item)
+  const intro = content.find((c) => c.type === 'intro') || content[0];
+  const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
+
+  const museumWithKnowledgeText = museum as MuseumResponse & {
+    knowledgeText: string | null;
+    furtherReading: string[];
+  };
 
   return (
-    <main className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">{node.name}</h1>
+    <AdminPageLayout
+      title={museum.name}
+      actions={
+        <Button asChild variant="secondary" size="sm">
+          <Link href="/admin">Admin</Link>
+        </Button>
+      }
+    >
+      <div className="space-y-6">
+        {/* Museum Details */}
+        <SectionCard title="About">
+          <EntityDetailsForm
+            id={museum.id}
+            name={museum.name}
+            knowledgeText={museumWithKnowledgeText.knowledgeText}
+            furtherReading={museumWithKnowledgeText.furtherReading || []}
+            allowEdit={false}
+          />
+        </SectionCard>
 
-      {intro && intro.contentItem.body.trim() && (
-        <section className="mb-8">
-          <div className="prose max-w-none">
-            <p className="text-lg leading-relaxed">{intro.contentItem.body}</p>
-          </div>
-        </section>
-      )}
+        {/* Intro Content */}
+        {intro && intro.text.trim() && (
+          <SectionCard title="Introduction">
+            <p className="text-primary leading-relaxed">{intro.text}</p>
+          </SectionCard>
+        )}
 
-      {rooms.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-4">In This Museum</h2>
-          <ul className="space-y-3">
-            {rooms.map((room) => (
-              <li key={room.id}>
-                <Link
-                  className="text-blue-600 underline hover:text-blue-800 text-lg"
-                  href={`/${museumId}/${room.id}`}
-                >
-                  {room.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        {/* Rooms */}
+        {rooms.length > 0 && (
+          <ChildEntityList
+            title="Rooms"
+            entities={rooms.map((r) => ({
+              id: r.id,
+              name: r.name,
+              type: 'room' as const,
+              href: `/${museumSlug}/rooms/${r.slug || r.id}`,
+            }))}
+            newEntityRoute={null}
+            newEntityLabel="Add Room"
+            emptyMessage="No rooms yet."
+            allowEdit={false}
+          />
+        )}
 
-      {followups.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-4">Explore Next</h2>
-          <ul className="space-y-4">
-            {followups.map((followup) => {
-              if (!followup.contentItem.body.trim()) return null;
-              return (
-                <li key={followup.id}>
-                  <div className="prose max-w-none">
-                    <h3 className="text-lg font-medium mb-2">
-                      {followup.contentItem.title}
-                    </h3>
-                    <p className="text-gray-700">{followup.contentItem.body}</p>
+        {/* Artifacts */}
+        {artifacts.length > 0 && (
+          <ChildEntityList
+            title="Artifacts"
+            entities={artifacts.map((a) => ({
+              id: a.id,
+              name: a.name,
+              type: 'artifact' as const,
+              href: `/${museumSlug}/artifacts/${a.slug || a.id}`,
+            }))}
+            newEntityRoute={null}
+            newEntityLabel="Add Artifact"
+            emptyMessage="No artifacts yet."
+            allowEdit={false}
+          />
+        )}
+
+        {/* Follow-up Content */}
+        {followups.length > 0 && (
+          <SectionCard title="Explore Next">
+            <div className="space-y-4">
+              {followups.map((followup) => {
+                if (!followup.text.trim()) return null;
+                return (
+                  <div key={followup.id}>
+                    <p className="text-primary leading-relaxed">
+                      {followup.text}
+                    </p>
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-    </main>
+                );
+              })}
+            </div>
+          </SectionCard>
+        )}
+      </div>
+    </AdminPageLayout>
   );
 }

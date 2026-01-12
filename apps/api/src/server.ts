@@ -1,5 +1,6 @@
 import express from 'express';
 import { prisma } from '@repo/db';
+import type { Prisma } from '@repo/db';
 import type {
   MuseumResponse,
   RoomResponse,
@@ -82,9 +83,14 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
 
     // Fetch all existing artifacts
     const existingArtifacts = await prisma.artifact.findMany({
-      include: {
+      select: {
+        id: true,
+        name: true,
+        knowledgeText: true,
+        furtherReading: true,
         room: {
-          include: {
+          select: {
+            name: true,
             museum: {
               select: {
                 id: true,
@@ -93,7 +99,7 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
             },
           },
         },
-      },
+      } as Prisma.ArtifactSelect,
     });
 
     const duplicates: Array<{
@@ -111,6 +117,14 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
     const newKnowledgeText = (knowledgeText || '').trim().toLowerCase();
 
     for (const artifact of existingArtifacts) {
+      const artifactWithFields = artifact as typeof artifact & {
+        knowledgeText: string | null;
+        furtherReading: string[];
+        room: {
+          name: string;
+          museum: { id: number; name: string } | null;
+        } | null;
+      };
       const matchReasons: string[] = [];
       let maxSimilarity = 0;
 
@@ -124,10 +138,10 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
       }
 
       // Check knowledgeText similarity
-      if (newKnowledgeText && artifact.knowledgeText) {
+      if (newKnowledgeText && artifactWithFields.knowledgeText) {
         const knowledgeSimilarity = stringSimilarity(
           newKnowledgeText,
-          artifact.knowledgeText.trim().toLowerCase()
+          artifactWithFields.knowledgeText.trim().toLowerCase()
         );
         if (knowledgeSimilarity >= 0.6) {
           matchReasons.push(
@@ -138,13 +152,13 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
 
         // Also check for substring matches (one contains significant portion of the other)
         const shorter =
-          newKnowledgeText.length < artifact.knowledgeText.length
+          newKnowledgeText.length < artifactWithFields.knowledgeText.length
             ? newKnowledgeText
-            : artifact.knowledgeText.trim().toLowerCase();
+            : artifactWithFields.knowledgeText.trim().toLowerCase();
         const longer =
-          newKnowledgeText.length >= artifact.knowledgeText.length
+          newKnowledgeText.length >= artifactWithFields.knowledgeText.length
             ? newKnowledgeText
-            : artifact.knowledgeText.trim().toLowerCase();
+            : artifactWithFields.knowledgeText.trim().toLowerCase();
 
         if (shorter.length > 50 && longer.includes(shorter)) {
           const substringRatio = shorter.length / longer.length;
@@ -158,7 +172,9 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
       }
 
       // Check furtherReading URL matches
-      const artifactUrls = (artifact.furtherReading || []).map(normalizeUrl);
+      const artifactUrls = (artifactWithFields.furtherReading || []).map(
+        normalizeUrl
+      );
       const matchingUrls = normalizedNewUrls.filter((url: string) =>
         artifactUrls.some((artifactUrl: string) => {
           // Exact match
@@ -195,10 +211,10 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
           name: artifact.name,
           similarity: maxSimilarity,
           matchReasons,
-          knowledgeText: artifact.knowledgeText,
-          furtherReading: artifact.furtherReading || [],
-          roomName: artifact.room?.name || null,
-          museumName: artifact.room?.museum?.name || null,
+          knowledgeText: artifactWithFields.knowledgeText,
+          furtherReading: artifactWithFields.furtherReading || [],
+          roomName: artifactWithFields.room?.name || null,
+          museumName: artifactWithFields.room?.museum?.name || null,
         });
       }
     }
@@ -260,6 +276,30 @@ app.get('/museums/:id', async (req, res) => {
   }
 });
 
+// GET /museums/by-slug/:slug - Get a single museum by slug
+app.get('/museums/by-slug/:slug', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+
+    // Use findFirst since Prisma doesn't recognize dbgenerated fields in WhereUniqueInput
+    // The slug field has a unique constraint, so this will return at most one result
+    const museum = await prisma.museum.findFirst({
+      where: { slug } as Prisma.MuseumWhereInput,
+    });
+
+    if (!museum) {
+      return res.status(404).json({ error: 'Museum not found' });
+    }
+
+    res.json(museum);
+  } catch (error) {
+    console.error('Error fetching museum by slug:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch museum';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 // GET /admin/rooms - List all rooms with museum info
 app.get('/admin/rooms', async (req, res) => {
   try {
@@ -273,7 +313,7 @@ app.get('/admin/rooms', async (req, res) => {
       where.museumId = museumId;
     }
 
-    const rooms = await prisma.room.findMany({
+    const rooms: RoomResponse[] = await prisma.room.findMany({
       where,
       include: {
         museum: {
@@ -288,14 +328,7 @@ app.get('/admin/rooms', async (req, res) => {
       },
     });
 
-    const response: RoomResponse[] = rooms.map((room) => ({
-      id: room.id,
-      name: room.name,
-      museumId: room.museumId,
-      museumName: room.museum?.name || null,
-      updatedAt: room.updatedAt,
-    }));
-    res.json(response);
+    res.json(rooms);
   } catch (error) {
     console.error('Error fetching rooms:', error);
     const errorMessage =
@@ -347,7 +380,7 @@ app.get('/admin/artifacts', async (req, res) => {
             },
           },
         },
-      },
+      } as Prisma.ArtifactInclude,
       orderBy: {
         id: 'asc',
       },
@@ -357,6 +390,7 @@ app.get('/admin/artifacts', async (req, res) => {
       // Type assertion to work around Prisma type inference issue
       const artifactWithRoom = artifact as typeof artifact & {
         roomId: number;
+        slug: string;
         room: {
           name: string;
           museum: { id: number; name: string } | null;
@@ -365,6 +399,7 @@ app.get('/admin/artifacts', async (req, res) => {
       return {
         id: artifactWithRoom.id,
         name: artifactWithRoom.name,
+        slug: artifactWithRoom.slug,
         roomId: artifactWithRoom.roomId,
         roomName: artifactWithRoom.room?.name || null,
         museumId: artifactWithRoom.room?.museum?.id || null,
@@ -394,7 +429,7 @@ app.post('/museums', async (req, res) => {
       name,
       knowledgeText: knowledgeText || null,
       furtherReading: furtherReading || [],
-    },
+    } as Prisma.MuseumCreateInput,
   });
   res.json(museum);
 });
@@ -553,23 +588,23 @@ app.get('/museums/:museumId/rooms', async (req, res) => {
     where: {
       museumId: museumId,
     },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      museumId: true,
+      createdAt: true,
+    } as Prisma.RoomSelect,
     orderBy: {
       id: 'asc',
     },
   });
 
-  res.json(
-    rooms.map((r) => ({
-      id: r.id,
-      name: r.name,
-      museumId: r.museumId,
-      createdAt: r.createdAt,
-    }))
-  );
+  res.json(rooms);
 });
 
-// GET /museums/:museumId/artifacts-recursive - Get all artifacts from all rooms in a museum (including child rooms)
-app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
+// GET /museums/:museumId/artifacts - Get all artifacts from all rooms in a museum (including child rooms) with slug
+app.get('/museums/:museumId/artifacts', async (req, res) => {
   try {
     const museumId = Number(req.params.museumId);
 
@@ -588,7 +623,7 @@ app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
     // Get all child room IDs recursively for each top-level room
     const getAllChildRoomIds = async (parentId: number): Promise<number[]> => {
       const children = await prisma.room.findMany({
-        where: { parentRoomId: parentId },
+        where: { parentRoomId: parentId } as Prisma.RoomWhereInput,
         select: { id: true },
       });
 
@@ -623,20 +658,96 @@ app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
         roomId: {
           in: allRoomIds,
         },
-      },
+      } as Prisma.ArtifactWhereInput,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        roomId: true,
+        createdAt: true,
+      } as Prisma.ArtifactSelect,
       orderBy: {
         id: 'asc',
       },
     });
 
-    res.json(
-      artifacts.map((a) => ({
-        id: a.id,
-        name: a.name,
-        roomId: a.roomId,
-        createdAt: a.createdAt,
-      }))
-    );
+    res.json(artifacts);
+  } catch (error) {
+    console.error('Error fetching museum artifacts:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch artifacts';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /museums/:museumId/artifacts-recursive - Get all artifacts from all rooms in a museum (including child rooms)
+app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
+  try {
+    const museumId = Number(req.params.museumId);
+
+    if (Number.isNaN(museumId)) {
+      return res.status(400).json({ error: 'Invalid museumId' });
+    }
+
+    // Get all rooms directly attached to the museum
+    const topLevelRooms = await prisma.room.findMany({
+      where: {
+        museumId: museumId,
+      },
+      select: { id: true },
+    });
+
+    // Get all child room IDs recursively for each top-level room
+    const getAllChildRoomIds = async (parentId: number): Promise<number[]> => {
+      const children = await prisma.room.findMany({
+        where: { parentRoomId: parentId } as Prisma.RoomWhereInput,
+        select: { id: true },
+      });
+
+      const childIds = children.map((c) => c.id);
+      const allChildIds = [...childIds];
+
+      // Recursively get children of children
+      for (const childId of childIds) {
+        const grandChildren = await getAllChildRoomIds(childId);
+        allChildIds.push(...grandChildren);
+      }
+
+      return allChildIds;
+    };
+
+    // Collect all room IDs (top-level + all child rooms)
+    const allRoomIds: number[] = [];
+    for (const room of topLevelRooms) {
+      allRoomIds.push(room.id);
+      const childRoomIds = await getAllChildRoomIds(room.id);
+      allRoomIds.push(...childRoomIds);
+    }
+
+    // If no rooms, return empty array
+    if (allRoomIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Get all artifacts from all rooms
+    const artifacts = await prisma.artifact.findMany({
+      where: {
+        roomId: {
+          in: allRoomIds,
+        },
+      } as Prisma.ArtifactWhereInput,
+      select: {
+        id: true,
+        name: true,
+        roomId: true,
+        createdAt: true,
+      } as Prisma.ArtifactSelect,
+      orderBy: {
+        id: 'asc',
+      },
+    });
+
+    res.json(artifacts);
   } catch (error) {
     console.error('Error fetching recursive artifacts for museum:', error);
     const errorMessage =
@@ -657,22 +768,46 @@ app.get('/rooms/:id', async (req, res) => {
 
     const room = await prisma.room.findUnique({
       where: { id },
+      select: {
+        id: true,
+        name: true,
+        museumId: true,
+        parentRoomId: true,
+        knowledgeText: true,
+        furtherReading: true,
+      } as Prisma.RoomSelect,
     });
 
     if (!room) {
       return res.status(404).json({ error: 'Room not found' });
     }
 
-    res.json({
-      id: room.id,
-      name: room.name,
-      museumId: room.museumId,
-      parentRoomId: room.parentRoomId,
-      knowledgeText: room.knowledgeText,
-      furtherReading: room.furtherReading,
-    });
+    res.json(room);
   } catch (error) {
     console.error('Error fetching room:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch room';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /rooms/by-slug/:slug - Get a single room by slug
+app.get('/rooms/by-slug/:slug', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+
+    // Use findFirst since Prisma doesn't recognize dbgenerated fields in WhereUniqueInput
+    const room = await prisma.room.findFirst({
+      where: { slug } as Prisma.RoomWhereInput,
+    });
+
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    res.json(room);
+  } catch (error) {
+    console.error('Error fetching room by slug:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch room';
     res.status(500).json({ error: errorMessage });
@@ -689,19 +824,19 @@ app.get('/rooms/:roomId/artifacts', async (req, res) => {
   const artifacts = await prisma.artifact.findMany({
     where: {
       roomId: roomId,
-    },
+    } as Prisma.ArtifactWhereInput,
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      createdAt: true,
+    } as Prisma.ArtifactSelect,
     orderBy: {
       id: 'asc',
     },
   });
 
-  res.json(
-    artifacts.map((a) => ({
-      id: a.id,
-      name: a.name,
-      createdAt: a.createdAt,
-    }))
-  );
+  res.json(artifacts);
 });
 
 // GET /rooms/:id/children - Get child rooms for a parent room
@@ -715,20 +850,20 @@ app.get('/rooms/:id/children', async (req, res) => {
     const childRooms = await prisma.room.findMany({
       where: {
         parentRoomId: id,
-      },
+      } as Prisma.RoomWhereInput,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        museumId: true,
+        parentRoomId: true,
+      } as Prisma.RoomSelect,
       orderBy: {
         id: 'asc',
       },
     });
 
-    res.json(
-      childRooms.map((r) => ({
-        id: r.id,
-        name: r.name,
-        museumId: r.museumId,
-        parentRoomId: r.parentRoomId,
-      }))
-    );
+    res.json(childRooms);
   } catch (error) {
     console.error('Error fetching child rooms:', error);
     const errorMessage =
@@ -791,17 +926,18 @@ app.patch('/rooms/:id', async (req, res) => {
 
     const room = await prisma.room.update({
       where: { id },
-      data: updateData as any,
+      data: updateData as Prisma.RoomUpdateInput,
+      select: {
+        id: true,
+        name: true,
+        museumId: true,
+        parentRoomId: true,
+        knowledgeText: true,
+        furtherReading: true,
+      } as Prisma.RoomSelect,
     });
 
-    res.json({
-      id: room.id,
-      name: room.name,
-      museumId: room.museumId,
-      parentRoomId: room.parentRoomId,
-      knowledgeText: room.knowledgeText,
-      furtherReading: room.furtherReading,
-    });
+    res.json(room);
   } catch (error) {
     console.error('Error updating room:', error);
     const errorMessage =
@@ -821,7 +957,7 @@ app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
     // Get all child room IDs recursively
     const getAllChildRoomIds = async (parentId: number): Promise<number[]> => {
       const children = await prisma.room.findMany({
-        where: { parentRoomId: parentId },
+        where: { parentRoomId: parentId } as Prisma.RoomWhereInput,
         select: { id: true },
       });
 
@@ -846,20 +982,19 @@ app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
         roomId: {
           in: allRoomIds,
         },
-      },
+      } as Prisma.ArtifactWhereInput,
+      select: {
+        id: true,
+        name: true,
+        roomId: true,
+        createdAt: true,
+      } as Prisma.ArtifactSelect,
       orderBy: {
         id: 'asc',
       },
     });
 
-    res.json(
-      artifacts.map((a) => ({
-        id: a.id,
-        name: a.name,
-        roomId: a.roomId,
-        createdAt: a.createdAt,
-      }))
-    );
+    res.json(artifacts);
   } catch (error) {
     console.error('Error fetching recursive artifacts:', error);
     const errorMessage =
@@ -883,7 +1018,7 @@ app.post('/artifacts', async (req, res) => {
       roomId,
       knowledgeText: knowledgeText || null,
       furtherReading: furtherReading || [],
-    },
+    } as Prisma.ArtifactCreateInput,
   });
 
   res.json(artifact);
@@ -914,21 +1049,45 @@ app.get('/artifacts/:id', async (req, res) => {
 
     const artifact = await prisma.artifact.findUnique({
       where: { id },
+      select: {
+        id: true,
+        name: true,
+        roomId: true,
+        knowledgeText: true,
+        furtherReading: true,
+      } as Prisma.ArtifactSelect,
     });
 
     if (!artifact) {
       return res.status(404).json({ error: 'Artifact not found' });
     }
 
-    res.json({
-      id: artifact.id,
-      name: artifact.name,
-      roomId: artifact.roomId,
-      knowledgeText: artifact.knowledgeText,
-      furtherReading: artifact.furtherReading,
-    });
+    res.json(artifact);
   } catch (error) {
     console.error('Error fetching artifact:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch artifact';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /artifacts/by-slug/:slug - Get a single artifact by slug
+app.get('/artifacts/by-slug/:slug', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+
+    // Use findFirst since Prisma doesn't recognize dbgenerated fields in WhereUniqueInput
+    const artifact = await prisma.artifact.findFirst({
+      where: { slug } as Prisma.ArtifactWhereInput,
+    });
+
+    if (!artifact) {
+      return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    res.json(artifact);
+  } catch (error) {
+    console.error('Error fetching artifact by slug:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifact';
     res.status(500).json({ error: errorMessage });

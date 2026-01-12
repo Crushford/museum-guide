@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,64 +6,67 @@ datasource db {
   provider = "postgresql"
 }
 
-model Museum {
-  id               Int       @id @default(autoincrement())
-  name             String
-  knowledgeText    String?
-  furtherReading   String[]  @default([])
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  rooms            Room[]
-  content          Content[]
-}
-
-model Room {
-  id               Int       @id @default(autoincrement())
-  name             String
-  museumId         Int?      // Optional - only set if top-level room
-  parentRoomId     Int?      // Optional - only set if nested room
-  knowledgeText    String?
-  furtherReading   String[]  @default([])
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  museum           Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)
-  parentRoom       Room?     @relation("RoomHierarchy", fields: [parentRoomId], references: [id], onDelete: Cascade)
-  childRooms       Room[]    @relation("RoomHierarchy")
-  artifacts        Artifact[]
-  content          Content[]
-
-  @@index([museumId])
-  @@index([parentRoomId])
-}
-
 model Artifact {
-  id               Int       @id @default(autoincrement())
-  name             String
-  roomId           Int
-  knowledgeText    String?
-  furtherReading   String[]  @default([])
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  room             Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  content          Content[]
+  id             Int       @id @default(autoincrement())
+  name           String
+  slug           String    @unique @default(dbgenerated("generate_slug(name)"))
+  knowledgeText  String?
+  furtherReading String[]  @default([])
+  roomId         Int
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  room           Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  content        Content[]
 
   @@index([roomId])
+  @@index([slug])
 }
 
 model Content {
-  id          Int      @id @default(autoincrement())
-  text        String
-  type        String?
-  museumId    Int?
-  roomId      Int?
-  artifactId  Int?
-  createdAt   DateTime @default(now())
-
-  museum   Museum?  @relation(fields: [museumId], references: [id], onDelete: Cascade)
-  room     Room?    @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  artifact Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  id         Int       @id @default(autoincrement())
+  text       String
+  type       String?
+  museumId   Int?
+  roomId     Int?
+  artifactId Int?
+  createdAt  DateTime  @default(now())
+  Artifact   Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  Museum     Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  Room       Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
+model Museum {
+  id             Int       @id @default(autoincrement())
+  name           String
+  slug           String    @unique @default(dbgenerated("generate_slug(name)"))
+  knowledgeText  String?
+  furtherReading String[]  @default([])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  rooms          Room[]
+  content        Content[]
+
+  @@index([slug])
+}
+
+model Room {
+  id             Int        @id @default(autoincrement())
+  name           String
+  slug           String    @unique @default(dbgenerated("generate_slug(name)"))
+  knowledgeText  String?
+  furtherReading String[]   @default([])
+  museumId       Int?
+  parentRoomId   Int?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  museum         Museum?    @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  parentRoom     Room?      @relation("RoomToRoom", fields: [parentRoomId], references: [id], onDelete: Cascade)
+  childRooms     Room[]     @relation("RoomToRoom")
+  artifacts       Artifact[]
+  content        Content[]
+
+  @@index([museumId])
+  @@index([parentRoomId])
+  @@index([slug])
+}

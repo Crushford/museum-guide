@@ -2,36 +2,51 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { api } from '../lib/api';
+import { AdminPageLayout } from '../components/shared';
+import { SectionCard } from '../components/shared';
+import { EntityList } from '../components/shared';
+import { EmptyState } from '../components/shared';
+import type { MuseumResponse } from '@repo/types';
 
 export const metadata: Metadata = {
   title: 'Museums',
 };
 
-type Museum = {
-  id: number;
-  name: string;
-};
-
 export default async function Home() {
-  const museums = await api<Museum[]>('/museums');
+  const museums = await api<MuseumResponse[]>('/museums');
 
   return (
-    <main className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Museums</h1>
-        <Button asChild>
+    <AdminPageLayout
+      title="Museum Guide"
+      actions={
+        <Button asChild variant="secondary">
           <Link href="/admin">Admin</Link>
         </Button>
-      </div>
-      <ul className="space-y-2">
-        {museums.map((museum) => (
-          <li key={museum.id}>
-            <Link className="text-blue-600 underline" href={`/${museum.id}`}>
-              {museum.name}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </main>
+      }
+    >
+      <SectionCard
+        title="Select a Museum"
+        subtitle="Choose the museum you want to start exploring"
+      >
+        <EntityList
+          title=""
+          items={museums.map((museum) => {
+            const museumWithSlug = museum as MuseumResponse & { slug: string };
+            return {
+              id: museum.id,
+              name: museum.name,
+              href: `/${museumWithSlug.slug || museum.id}`,
+              typePill: 'MUSEUM' as const,
+            };
+          })}
+          emptyState={
+            <EmptyState
+              title="No museums available"
+              message="There are no museums to display at this time."
+            />
+          }
+        />
+      </SectionCard>
+    </AdminPageLayout>
   );
 }

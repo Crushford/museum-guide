@@ -111,10 +111,10 @@ export function AdminTabsClient({
       id: r.id,
       name: selectedMuseumId
         ? r.name
-        : r.museumName
-          ? `${r.museumName} - ${r.name}`
+        : r.museum?.name
+          ? `${r.museum.name} - ${r.name}`
           : r.name,
-      subtitle: r.museumName ? `Museum: ${r.museumName}` : undefined,
+      subtitle: r.museum?.name ? `Museum: ${r.museum.name}` : undefined,
       href: `/admin/rooms/${r.id}`,
       typePill: 'ROOM',
       parentId: r.museumId,
