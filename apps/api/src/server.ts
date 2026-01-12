@@ -1,5 +1,6 @@
 import express from 'express';
 import { prisma } from '@repo/db';
+import type { Prisma } from '@repo/db';
 import type {
   MuseumResponse,
   RoomResponse,
@@ -260,6 +261,30 @@ app.get('/museums/:id', async (req, res) => {
   }
 });
 
+// GET /museums/by-slug/:slug - Get a single museum by slug
+app.get('/museums/by-slug/:slug', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+
+    // Use findFirst since Prisma doesn't recognize dbgenerated fields in WhereUniqueInput
+    // The slug field has a unique constraint, so this will return at most one result
+    const museum = await prisma.museum.findFirst({
+      where: { slug } as Prisma.MuseumWhereInput,
+    });
+
+    if (!museum) {
+      return res.status(404).json({ error: 'Museum not found' });
+    }
+
+    res.json(museum);
+  } catch (error) {
+    console.error('Error fetching museum by slug:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch museum';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 // GET /admin/rooms - List all rooms with museum info
 app.get('/admin/rooms', async (req, res) => {
   try {
@@ -273,7 +298,7 @@ app.get('/admin/rooms', async (req, res) => {
       where.museumId = museumId;
     }
 
-    const rooms = await prisma.room.findMany({
+    const rooms: RoomResponse[] = await prisma.room.findMany({
       where,
       include: {
         museum: {
@@ -288,14 +313,7 @@ app.get('/admin/rooms', async (req, res) => {
       },
     });
 
-    const response: RoomResponse[] = rooms.map((room) => ({
-      id: room.id,
-      name: room.name,
-      museumId: room.museumId,
-      museumName: room.museum?.name || null,
-      updatedAt: room.updatedAt,
-    }));
-    res.json(response);
+    res.json(rooms);
   } catch (error) {
     console.error('Error fetching rooms:', error);
     const errorMessage =
@@ -357,6 +375,7 @@ app.get('/admin/artifacts', async (req, res) => {
       // Type assertion to work around Prisma type inference issue
       const artifactWithRoom = artifact as typeof artifact & {
         roomId: number;
+        slug: string;
         room: {
           name: string;
           museum: { id: number; name: string } | null;
@@ -365,6 +384,7 @@ app.get('/admin/artifacts', async (req, res) => {
       return {
         id: artifactWithRoom.id,
         name: artifactWithRoom.name,
+        slug: artifactWithRoom.slug,
         roomId: artifactWithRoom.roomId,
         roomName: artifactWithRoom.room?.name || null,
         museumId: artifactWithRoom.room?.museum?.id || null,

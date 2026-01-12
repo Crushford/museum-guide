@@ -10,21 +10,24 @@ type Node = {
   parentId: number | null;
 };
 
+type Museum = {
+  id: number;
+  name: string;
+  slug: string;
+};
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ museum: string }>;
 }): Promise<Metadata> {
-  const { museum: museumId } = await params;
-  const nodeId = Number(museumId);
+  const { museum: museumSlug } = await params;
 
   try {
-    const node = await api<Node>(`/nodes/${nodeId}`);
-    if (node && node.type === 'MUSEUM') {
-      return {
-        title: node.name,
-      };
-    }
+    const museum = await api<Museum>(`/museums/by-slug/${museumSlug}`);
+    return {
+      title: museum.name,
+    };
   } catch {
     // Fall through to default
   }
@@ -77,8 +80,18 @@ export default async function MuseumPage({
 }: {
   params: Promise<{ museum: string }>;
 }) {
-  const { museum: museumId } = await params;
-  const nodeId = Number(museumId);
+  const { museum: museumSlug } = await params;
+
+  // Fetch museum by slug to get the ID
+  const museum = await api<Museum>(`/museums/by-slug/${museumSlug}`).catch(
+    () => null
+  );
+
+  if (!museum) {
+    notFound();
+  }
+
+  const nodeId = museum.id;
 
   const [node, playlist, rooms] = await Promise.all([
     api<Node>(`/nodes/${nodeId}`).catch(() => null),
@@ -123,7 +136,7 @@ export default async function MuseumPage({
               <li key={room.id}>
                 <Link
                   className="text-blue-600 underline hover:text-blue-800 text-lg"
-                  href={`/${museumId}/${room.id}`}
+                  href={`/${museumSlug}/${room.id}`}
                 >
                   {room.name}
                 </Link>
