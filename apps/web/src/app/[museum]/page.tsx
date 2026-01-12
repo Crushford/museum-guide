@@ -16,6 +16,13 @@ type Room = {
   museumId: number | null;
 };
 
+type Artifact = {
+  id: number;
+  name: string;
+  slug: string;
+  roomId: number;
+};
+
 type Content = {
   id: number;
   text: string;
@@ -59,8 +66,9 @@ export default async function MuseumPage({
     notFound();
   }
 
-  const [rooms, content] = await Promise.all([
+  const [rooms, artifacts, content] = await Promise.all([
     api<Room[]>(`/museums/${museum.id}/rooms`).catch(() => []),
+    api<Artifact[]>(`/museums/${museum.id}/artifacts`).catch(() => []),
     api<Content[]>(`/museums/${museum.id}/content`).catch(() => []),
   ]);
 
@@ -114,6 +122,23 @@ export default async function MuseumPage({
             newEntityRoute={null}
             newEntityLabel="Add Room"
             emptyMessage="No rooms yet."
+            allowEdit={false}
+          />
+        )}
+
+        {/* Artifacts */}
+        {artifacts.length > 0 && (
+          <ChildEntityList
+            title="Artifacts"
+            entities={artifacts.map((a) => ({
+              id: a.id,
+              name: a.name,
+              type: 'artifact' as const,
+              href: `/${museumSlug}/artifacts/${a.slug || a.id}`,
+            }))}
+            newEntityRoute={null}
+            newEntityLabel="Add Artifact"
+            emptyMessage="No artifacts yet."
             allowEdit={false}
           />
         )}

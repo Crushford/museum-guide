@@ -603,6 +603,83 @@ app.get('/museums/:museumId/rooms', async (req, res) => {
   res.json(rooms);
 });
 
+// GET /museums/:museumId/artifacts - Get all artifacts from all rooms in a museum (including child rooms) with slug
+app.get('/museums/:museumId/artifacts', async (req, res) => {
+  try {
+    const museumId = Number(req.params.museumId);
+
+    if (Number.isNaN(museumId)) {
+      return res.status(400).json({ error: 'Invalid museumId' });
+    }
+
+    // Get all rooms directly attached to the museum
+    const topLevelRooms = await prisma.room.findMany({
+      where: {
+        museumId: museumId,
+      },
+      select: { id: true },
+    });
+
+    // Get all child room IDs recursively for each top-level room
+    const getAllChildRoomIds = async (parentId: number): Promise<number[]> => {
+      const children = await prisma.room.findMany({
+        where: { parentRoomId: parentId } as Prisma.RoomWhereInput,
+        select: { id: true },
+      });
+
+      const childIds = children.map((c) => c.id);
+      const allChildIds = [...childIds];
+
+      // Recursively get children of children
+      for (const childId of childIds) {
+        const grandChildren = await getAllChildRoomIds(childId);
+        allChildIds.push(...grandChildren);
+      }
+
+      return allChildIds;
+    };
+
+    // Collect all room IDs (top-level + all child rooms)
+    const allRoomIds: number[] = [];
+    for (const room of topLevelRooms) {
+      allRoomIds.push(room.id);
+      const childRoomIds = await getAllChildRoomIds(room.id);
+      allRoomIds.push(...childRoomIds);
+    }
+
+    // If no rooms, return empty array
+    if (allRoomIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Get all artifacts from all rooms
+    const artifacts = await prisma.artifact.findMany({
+      where: {
+        roomId: {
+          in: allRoomIds,
+        },
+      } as Prisma.ArtifactWhereInput,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        roomId: true,
+        createdAt: true,
+      } as Prisma.ArtifactSelect,
+      orderBy: {
+        id: 'asc',
+      },
+    });
+
+    res.json(artifacts);
+  } catch (error) {
+    console.error('Error fetching museum artifacts:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch artifacts';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 // GET /museums/:museumId/artifacts-recursive - Get all artifacts from all rooms in a museum (including child rooms)
 app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
   try {
