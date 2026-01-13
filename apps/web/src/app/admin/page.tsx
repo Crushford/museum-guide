@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { api } from '../../lib/api';
 import { AdminPageLayout } from '../../components/shared';
 import { SectionCard } from '../../components/shared';
 import { AdminTabsClient } from './AdminTabsClient';
+import { Button } from '@/components/ui/button';
+import { Database } from 'lucide-react';
 import type {
   MuseumResponse,
   RoomResponse,
@@ -26,7 +29,17 @@ export default async function AdminPage() {
   ]);
 
   return (
-    <AdminPageLayout title="Admin">
+    <AdminPageLayout
+      title="Admin"
+      actions={
+        <Button asChild variant="secondary">
+          <Link href="/admin/content" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            View Content
+          </Link>
+        </Button>
+      }
+    >
       <SectionCard title="">
         <AdminTabsClient
           museums={museums}
