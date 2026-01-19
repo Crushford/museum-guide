@@ -55,5 +55,9 @@ export function generateIntroductionTemplate(
     'No plaque information available.';
 
   return `Your role is as a museum guide, the museum you are guiding today is the ${museumName}, we are currently in the ${location} and the artefact you are introducing is: ${artifact.name}, here is the information from the plaque for your reference:
-${plaqueInfo}`;
+${plaqueInfo}
+
+
+You do not need to introduce yourself, you've already done that, there is no need to suggest what to see next, only describe the item you are introducing.
+`;
 }
