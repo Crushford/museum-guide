@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   useReactTable,
   getCoreRowModel,
@@ -20,6 +21,19 @@ import {
 import { Button } from '@/components/ui/button';
 import { RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PromptTemplateBox } from '@/components/shared';
+import { generateIntroductionTemplate } from '../_lib/templates';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import type {
+  MuseumResponse,
+  RoomResponse,
+  ArtifactResponse,
+} from '@repo/types';
 
 type ContentRow = {
   id: number;
@@ -32,9 +46,9 @@ type ContentRow = {
 };
 
 type ContentTabsClientProps = {
-  museums: unknown[];
-  rooms: unknown[];
-  artifacts: unknown[];
+  museums: MuseumResponse[];
+  rooms: RoomResponse[];
+  artifacts: ArtifactResponse[];
   content: ContentRow[];
   onRefresh?: () => void;
 };
@@ -190,12 +204,20 @@ function DataTable({
   expandedIds,
   onToggleExpand,
   entityType,
+  museums,
+  rooms,
+  artifacts,
+  onViewTemplate,
 }: {
   data: EntityRow[];
   contentByEntityId: Map<number, ContentRow[]>;
   expandedIds: Set<number>;
   onToggleExpand: (id: number) => void;
   entityType: 'museum' | 'room' | 'artifact';
+  museums: MuseumResponse[];
+  rooms: RoomResponse[];
+  artifacts: ArtifactResponse[];
+  onViewTemplate: (template: string, title: string, artifactId: number) => void;
 }) {
   const columns = useMemo<ColumnDef<EntityRow>[]>(() => {
     const nameColumn: ColumnDef<EntityRow> = {
@@ -205,6 +227,62 @@ function DataTable({
         const value = getValue();
         const formatted = formatCellValue(value);
         return <div className="max-w-xs font-medium">{formatted}</div>;
+      },
+    };
+
+    const museumNameColumn: ColumnDef<EntityRow> = {
+      id: 'museumName',
+      header: 'Museum',
+      cell: ({ row }) => {
+        if (entityType !== 'artifact') {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        const artifactId = row.original.id;
+        const artifact = artifacts.find((a) => a.id === artifactId);
+        if (!artifact) return <span className="text-muted-foreground">—</span>;
+
+        // Museum name should be populated from server
+        const museumName = artifact.museumName;
+
+        return (
+          <div className="max-w-xs">
+            {museumName || <span className="text-muted-foreground">—</span>}
+          </div>
+        );
+      },
+    };
+
+    const roomNameColumn: ColumnDef<EntityRow> = {
+      id: 'roomName',
+      header: 'Room',
+      cell: ({ row }) => {
+        if (entityType !== 'artifact') {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        const artifactId = row.original.id;
+        const artifact = artifacts.find((a) => a.id === artifactId);
+        if (!artifact) return <span className="text-muted-foreground">—</span>;
+
+        // Find the room and parent room
+        const room = rooms.find((r) => r.id === artifact.roomId);
+        if (!room) return <span className="text-muted-foreground">—</span>;
+
+        const parentRoom = artifact.parentRoomName
+          ? rooms.find((r) => r.name === artifact.parentRoomName)
+          : room.parentRoomId
+            ? rooms.find((r) => r.id === room.parentRoomId)
+            : undefined;
+
+        // Format as "parent room / child room" or just "room" if no parent
+        const roomDisplay = parentRoom
+          ? `${parentRoom.name} / ${room.name}`
+          : room.name;
+
+        return (
+          <div className="max-w-xs">
+            {roomDisplay || <span className="text-muted-foreground">—</span>}
+          </div>
+        );
       },
     };
 
@@ -293,14 +371,96 @@ function DataTable({
       },
     };
 
+    const actionsColumn: ColumnDef<EntityRow> = {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => {
+        if (entityType !== 'artifact') {
+          return <span className="text-muted-foreground">—</span>;
+        }
+
+        const artifactId = row.original.id;
+        const artifact = artifacts.find((a) => a.id === artifactId);
+        if (!artifact) return null;
+
+        const room = rooms.find((r) => r.id === artifact.roomId);
+        const museum = museums.find(
+          (m) => m.id === artifact.museumId || m.id === room?.museumId
+        );
+
+        const handleGenerateContent = () => {
+          // TODO: Implement generate content functionality
+          console.log('Generate content for artifact:', artifactId);
+        };
+
+        const handleViewTemplate = () => {
+          // All data is already available in the table
+          const parentRoom = artifact.parentRoomName
+            ? rooms.find((r) => r.name === artifact.parentRoomName)
+            : room
+              ? rooms.find((r) => r.id === room.parentRoomId)
+              : undefined;
+          const template = generateIntroductionTemplate(
+            artifact,
+            room,
+            museum,
+            parentRoom
+          );
+          onViewTemplate(template, `Template for ${artifact.name}`, artifactId);
+        };
+
+        return (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewTemplate();
+              }}
+            >
+              View Template
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleGenerateContent();
+              }}
+            >
+              Generate Content
+            </Button>
+          </div>
+        );
+      },
+    };
+
+    const baseColumns: ColumnDef<EntityRow>[] = [nameColumn];
+
+    // Add museum and room columns only for artifacts
+    if (entityType === 'artifact') {
+      baseColumns.push(museumNameColumn, roomNameColumn);
+    }
+
     return [
-      nameColumn,
+      ...baseColumns,
       knowledgeTextColumn,
       furtherReadingColumn,
       updatedAtColumn,
       contentColumn,
+      actionsColumn,
     ];
-  }, [contentByEntityId, expandedIds, onToggleExpand]);
+  }, [
+    contentByEntityId,
+    expandedIds,
+    onToggleExpand,
+    entityType,
+    museums,
+    rooms,
+    artifacts,
+    onViewTemplate,
+  ]);
 
   const table = useReactTable({
     data: data,
@@ -369,7 +529,35 @@ export function ContentTabsClient({
   content,
   onRefresh,
 }: ContentTabsClientProps) {
-  const [activeTab, setActiveTab] = useState('museums');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab') || 'museums';
+  const [activeTab, setActiveTab] = useState(tabParam);
+
+  // Sync tab state with URL
+  useEffect(() => {
+    const currentTab = searchParams.get('tab') || 'museums';
+    if (currentTab !== activeTab) {
+      setActiveTab(currentTab);
+    }
+  }, [searchParams, activeTab]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === 'museums') {
+      params.delete('tab');
+    } else {
+      params.set('tab', value);
+    }
+    router.push(`/admin/content?${params.toString()}`);
+  };
+  const [selectedTemplateArtifactId, setSelectedTemplateArtifactId] = useState<
+    number | null
+  >(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [selectedTemplateTitle, setSelectedTemplateTitle] =
+    useState<string>('');
   const [expandedMuseumIds, setExpandedMuseumIds] = useState<Set<number>>(
     new Set()
   );
@@ -524,6 +712,16 @@ export function ContentTabsClient({
     setExpanded(new Set());
   };
 
+  const handleViewTemplate = (
+    template: string,
+    title: string,
+    artifactId: number
+  ) => {
+    setSelectedTemplate(template);
+    setSelectedTemplateTitle(title);
+    setSelectedTemplateArtifactId(artifactId);
+  };
+
   const currentData = getCurrentData();
   const currentContentMap = getCurrentContentMap();
   const currentExpandedIds = getCurrentExpandedIds();
@@ -536,7 +734,7 @@ export function ContentTabsClient({
 
   return (
     <div className="space-y-4">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="museums">Museums</TabsTrigger>
@@ -588,6 +786,10 @@ export function ContentTabsClient({
             expandedIds={currentExpandedIds}
             onToggleExpand={handleToggleExpand}
             entityType={entityType}
+            museums={museums}
+            rooms={rooms}
+            artifacts={artifacts}
+            onViewTemplate={handleViewTemplate}
           />
         </TabsContent>
 
@@ -620,6 +822,10 @@ export function ContentTabsClient({
             expandedIds={currentExpandedIds}
             onToggleExpand={handleToggleExpand}
             entityType={entityType}
+            museums={museums}
+            rooms={rooms}
+            artifacts={artifacts}
+            onViewTemplate={handleViewTemplate}
           />
         </TabsContent>
 
@@ -652,9 +858,34 @@ export function ContentTabsClient({
             expandedIds={currentExpandedIds}
             onToggleExpand={handleToggleExpand}
             entityType={entityType}
+            museums={museums}
+            rooms={rooms}
+            artifacts={artifacts}
+            onViewTemplate={handleViewTemplate}
           />
         </TabsContent>
       </Tabs>
+      <Dialog
+        open={!!selectedTemplateArtifactId && !!selectedTemplate}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTemplateArtifactId(null);
+            setSelectedTemplate('');
+            setSelectedTemplateTitle('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedTemplateTitle}</DialogTitle>
+          </DialogHeader>
+          <PromptTemplateBox
+            title=""
+            template={selectedTemplate}
+            helperText="Click Copy to copy this template to your clipboard."
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

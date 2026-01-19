@@ -38,6 +38,10 @@ export type ArtifactResponse = {
   roomName: string | null;
   museumId: number | null;
   museumName: string | null;
+  knowledgeText: string | null;
+  furtherReading: string[];
+  parentRoomId: number | null;
+  parentRoomName: string | null;
 };
 
 // Base Artifact type from Prisma (use this when you don't need flattened fields)

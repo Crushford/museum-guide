@@ -20,6 +20,7 @@ type EntityItem = {
   hasUnsavedChanges?: boolean;
   childrenWithChanges?: ChildWithChanges[];
   typePill?: string;
+  actions?: ReactNode;
 };
 
 type EntityListProps = {
@@ -84,6 +85,14 @@ export function EntityList({
                     </p>
                   )}
                 </div>
+                {item.actions && (
+                  <div
+                    className="flex items-center gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {item.actions}
+                  </div>
+                )}
               </div>
             );
 

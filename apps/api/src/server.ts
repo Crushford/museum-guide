@@ -367,17 +367,72 @@ app.get('/admin/artifacts', async (req, res) => {
       };
     }
 
+    // Fetch all rooms with their museum and parentRoom info to build a lookup map
+    const allRooms = await prisma.room.findMany({
+      select: {
+        id: true,
+        name: true,
+        museumId: true,
+        parentRoomId: true,
+        museum: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // Build a map for quick lookup
+    const roomMap = new Map(allRooms.map((room) => [room.id, room]));
+
+    // Helper function to find museum by traversing up parent room chain
+    const findMuseumForRoom = (
+      roomId: number | null
+    ): { id: number; name: string } | null => {
+      if (!roomId) return null;
+      const room = roomMap.get(roomId);
+      if (!room) {
+        console.log(
+          `[findMuseumForRoom] Room ${roomId} not found in map, depth: ${depth}`
+        );
+        return null;
+      }
+
+      console.log(
+        `[findMuseumForRoom] Checking room ${roomId} (${room.name}), museumId: ${room.museumId}, parentRoomId: ${room.parentRoomId}, depth: ${depth}`
+      );
+
+      // If room has museum directly, return it
+      if (room.museum) {
+        console.log(
+          `[findMuseumForRoom] Found museum directly: ${room.museum.name} (id: ${room.museum.id})`
+        );
+        return room.museum;
+      }
+
+      // Otherwise, traverse up parent room chain
+      if (room.parentRoomId) {
+        console.log(
+          `[findMuseumForRoom] No museum on room ${roomId}, traversing to parent room ${room.parentRoomId}`
+        );
+        return findMuseumForRoom(room.parentRoomId, depth + 1);
+      }
+
+      console.log(
+        `[findMuseumForRoom] Room ${roomId} has no museum and no parent room`
+      );
+      return null;
+    };
+
     const artifacts = await prisma.artifact.findMany({
       where,
       include: {
         room: {
-          include: {
-            museum: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
+          select: {
+            id: true,
+            name: true,
+            parentRoomId: true,
           },
         },
       } as Prisma.ArtifactInclude,
@@ -391,19 +446,37 @@ app.get('/admin/artifacts', async (req, res) => {
       const artifactWithRoom = artifact as typeof artifact & {
         roomId: number;
         slug: string;
+        knowledgeText: string | null;
+        furtherReading: string[];
         room: {
+          id: number;
           name: string;
-          museum: { id: number; name: string } | null;
+          parentRoomId: number | null;
         } | null;
       };
+
+      // Find museum by traversing up parent room chain
+      const museum = artifactWithRoom.room
+        ? findMuseumForRoom(artifactWithRoom.room.id)
+        : null;
+
+      // Get parent room name
+      const parentRoom = artifactWithRoom.room?.parentRoomId
+        ? roomMap.get(artifactWithRoom.room.parentRoomId)
+        : null;
+
       return {
         id: artifactWithRoom.id,
         name: artifactWithRoom.name,
         slug: artifactWithRoom.slug,
         roomId: artifactWithRoom.roomId,
         roomName: artifactWithRoom.room?.name || null,
-        museumId: artifactWithRoom.room?.museum?.id || null,
-        museumName: artifactWithRoom.room?.museum?.name || null,
+        museumId: museum?.id || null,
+        museumName: museum?.name || null,
+        knowledgeText: artifactWithRoom.knowledgeText,
+        furtherReading: artifactWithRoom.furtherReading,
+        parentRoomId: artifactWithRoom.room?.parentRoomId || null,
+        parentRoomName: parentRoom?.name || null,
       };
     });
     res.json(response);
@@ -1204,14 +1277,105 @@ app.get('/admin/content/rooms', async (_req, res) => {
   }
 });
 
-// GET /admin/content/artifacts - Get all artifacts (read-only)
+// GET /admin/content/artifacts - Get all artifacts (read-only) with enriched data
 app.get('/admin/content/artifacts', async (_req, res) => {
   try {
-    const artifacts = await prisma.artifact.findMany({
-      orderBy: { id: 'asc' },
+    // Fetch all rooms with their museum and parentRoom info to build a lookup map
+    const allRooms = await prisma.room.findMany({
+      select: {
+        id: true,
+        name: true,
+        museumId: true,
+        parentRoomId: true,
+        museum: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
+
+    // Build a map for quick lookup
+    const roomMap = new Map(allRooms.map((room) => [room.id, room]));
+
+    // Helper function to find museum by traversing up parent room chain
+    const findMuseumForRoom = (
+      roomId: number | null
+    ): { id: number; name: string } | null => {
+      if (!roomId) return null;
+      const room = roomMap.get(roomId);
+      if (!room) return null;
+
+      // If room has museum directly, return it
+      if (room.museum) {
+        return room.museum;
+      }
+
+      // Otherwise, traverse up parent room chain
+      if (room.parentRoomId) {
+        return findMuseumForRoom(room.parentRoomId);
+      }
+
+      return null;
+    };
+
+    const artifacts = await prisma.artifact.findMany({
+      include: {
+        room: {
+          select: {
+            id: true,
+            name: true,
+            parentRoomId: true,
+          },
+        },
+      } as Prisma.ArtifactInclude,
+      orderBy: {
+        id: 'asc',
+      },
+    });
+
+    const response: ArtifactResponse[] = artifacts.map((artifact) => {
+      // Type assertion to work around Prisma type inference issue
+      const artifactWithRoom = artifact as typeof artifact & {
+        roomId: number;
+        slug: string;
+        knowledgeText: string | null;
+        furtherReading: string[];
+        room: {
+          id: number;
+          name: string;
+          parentRoomId: number | null;
+        } | null;
+      };
+
+      // Find museum by traversing up parent room chain
+      const museum = artifactWithRoom.room
+        ? findMuseumForRoom(artifactWithRoom.room.id)
+        : null;
+
+      // Get parent room name
+      const parentRoom = artifactWithRoom.room?.parentRoomId
+        ? roomMap.get(artifactWithRoom.room.parentRoomId)
+        : null;
+
+      return {
+        id: artifactWithRoom.id,
+        name: artifactWithRoom.name,
+        slug: artifactWithRoom.slug,
+        roomId: artifactWithRoom.roomId,
+        roomName: artifactWithRoom.room?.name || null,
+        museumId: museum?.id || null,
+        museumName: museum?.name || null,
+        knowledgeText: artifactWithRoom.knowledgeText,
+        furtherReading: artifactWithRoom.furtherReading,
+        parentRoomId: artifactWithRoom.room?.parentRoomId || null,
+        parentRoomName: parentRoom?.name || null,
+      };
+    });
+
     res.set('Cache-Control', 'no-store');
-    res.json(artifacts);
+    res.json(response);
   } catch (error) {
     console.error('Error fetching artifacts:', error);
     const errorMessage =

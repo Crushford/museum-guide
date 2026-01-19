@@ -4,7 +4,16 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Tabs } from '../../components/shared';
 import { EmptyState } from '../../components/shared';
+import { PromptTemplateBox } from '../../components/shared';
 import { NodesListClient } from './nodes/NodesListClient';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { generateIntroductionTemplate } from './_lib/templates';
 import type {
   MuseumResponse,
   RoomResponse,
@@ -39,6 +48,12 @@ export function AdminTabsClient({
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(
     roomIdParam ? Number(roomIdParam) : null
   );
+  const [selectedTemplateArtifactId, setSelectedTemplateArtifactId] = useState<
+    number | null
+  >(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [selectedTemplateTitle, setSelectedTemplateTitle] =
+    useState<string>('');
 
   // Validate roomId belongs to museumId
   useEffect(() => {
@@ -93,6 +108,7 @@ export function AdminTabsClient({
     href: string;
     typePill: string;
     parentId: number | null;
+    actions?: React.ReactNode;
   }> = [];
 
   if (tab === 'museums') {
@@ -151,6 +167,33 @@ export function AdminTabsClient({
         subtitle = undefined;
       }
 
+      const artifact = a;
+      const room = rooms.find((r) => r.id === artifact.roomId);
+      const museum = museums.find(
+        (m) => m.id === artifact.museumId || m.id === room?.museumId
+      );
+      const parentRoom = room
+        ? rooms.find((r) => r.id === room.parentRoomId)
+        : undefined;
+
+      const handleGenerateContent = () => {
+        // TODO: Implement generate content functionality
+        console.log('Generate content for artifact:', artifact.id);
+      };
+
+      const handleViewTemplate = () => {
+        // All data is already available in the table
+        const template = generateIntroductionTemplate(
+          artifact,
+          room,
+          museum,
+          parentRoom
+        );
+        setSelectedTemplate(template);
+        setSelectedTemplateTitle(`Introduction Template for ${artifact.name}`);
+        setSelectedTemplateArtifactId(artifact.id);
+      };
+
       return {
         id: a.id,
         name,
@@ -158,6 +201,32 @@ export function AdminTabsClient({
         href: `/admin/artifacts/${a.id}`,
         typePill: 'ARTIFACT',
         parentId: a.roomId,
+        actions: (
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleViewTemplate();
+              }}
+            >
+              View Template
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleGenerateContent();
+              }}
+            >
+              Generate Content
+            </Button>
+          </>
+        ),
       };
     });
   }
@@ -289,6 +358,27 @@ export function AdminTabsClient({
           }
         />
       </div>
+      <Dialog
+        open={!!selectedTemplateArtifactId && !!selectedTemplate}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTemplateArtifactId(null);
+            setSelectedTemplate('');
+            setSelectedTemplateTitle('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedTemplateTitle}</DialogTitle>
+          </DialogHeader>
+          <PromptTemplateBox
+            title=""
+            template={selectedTemplate}
+            helperText="Click Copy to copy this template to your clipboard."
+          />
+        </DialogContent>
+      </Dialog>
     </Tabs>
   );
 }
