@@ -12,7 +12,10 @@
     "build:api": "yarn workspace api build",
     "storybook": "yarn workspace web storybook",
     "build-storybook": "yarn workspace web build-storybook",
-    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\""
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\"",
+    "db:start": "docker-compose up -d",
+    "db:stop": "docker-compose down",
+    "db:logs": "docker-compose logs -f db"
   },
   "devDependencies": {
     "eslint": "^9.39.1",

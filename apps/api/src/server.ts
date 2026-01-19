@@ -1168,6 +1168,86 @@ app.get('/artifacts/:artifactId/content', async (req, res) => {
   res.json(content);
 });
 
+// ============================================================================
+// ADMIN CONTENT ENDPOINTS
+// ============================================================================
+
+// GET /admin/content/museums - Get all museums
+app.get('/admin/content/museums', async (_req, res) => {
+  try {
+    const museums = await prisma.museum.findMany({
+      orderBy: { id: 'asc' },
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json(museums);
+  } catch (error) {
+    console.error('Error fetching museums:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch museums';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /admin/content/rooms - Get all rooms
+app.get('/admin/content/rooms', async (_req, res) => {
+  try {
+    const rooms = await prisma.room.findMany({
+      orderBy: { id: 'asc' },
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json(rooms);
+  } catch (error) {
+    console.error('Error fetching rooms:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch rooms';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /admin/content/artifacts - Get all artifacts (read-only)
+app.get('/admin/content/artifacts', async (_req, res) => {
+  try {
+    const artifacts = await prisma.artifact.findMany({
+      orderBy: { id: 'asc' },
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json(artifacts);
+  } catch (error) {
+    console.error('Error fetching artifacts:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch artifacts';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /admin/content/content - Get all content rows
+app.get('/admin/content/content', async (_req, res) => {
+  try {
+    const content = await prisma.content.findMany({
+      select: {
+        id: true,
+        type: true,
+        text: true,
+        createdAt: true,
+        museumId: true,
+        roomId: true,
+        artifactId: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(content);
+  } catch (error) {
+    console.error('Error fetching content:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch content';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
