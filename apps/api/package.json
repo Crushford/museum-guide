@@ -8,11 +8,15 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@repo/db": "workspace:*",
     "@repo/types": "workspace:*",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
     "express": "^5.2.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^24.10.1",
     "nodemon": "^3.1.11",

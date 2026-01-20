@@ -1,32 +1,100 @@
-import type { Metadata } from 'next';
-import { api } from '../../lib/api';
-import { AdminPageLayout } from '../../components/shared';
-import { SectionCard } from '../../components/shared';
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { AdminPageLayout } from '@/components/shared';
+import { SectionCard } from '@/components/shared';
 import { AdminTabsClient } from './AdminTabsClient';
+import { Button } from '@/components/ui/button';
+import { Database, Loader2 } from 'lucide-react';
 import type {
   MuseumResponse,
   RoomResponse,
   ArtifactResponse,
 } from '@repo/types';
 
-export const metadata: Metadata = {
-  title: 'Admin',
-};
-
-// Use shared types from API
 type Museum = MuseumResponse;
 type Room = RoomResponse;
 type Artifact = ArtifactResponse;
 
-export default async function AdminPage() {
-  const [museums, rooms, artifacts] = await Promise.all([
-    api<Museum[]>('/museums'),
-    api<Room[]>('/admin/rooms'),
-    api<Artifact[]>('/admin/artifacts'),
-  ]);
+export default function AdminPage() {
+  const [museums, setMuseums] = useState<Museum[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [museumsRes, roomsRes, artifactsRes] = await Promise.all([
+        fetch('/api/admin/museums'),
+        fetch('/api/admin/rooms'),
+        fetch('/api/admin/artifacts'),
+      ]);
+
+      if (!museumsRes.ok || !roomsRes.ok || !artifactsRes.ok) {
+        throw new Error('Failed to fetch admin data');
+      }
+
+      const [museumsData, roomsData, artifactsData] = await Promise.all([
+        museumsRes.json(),
+        roomsRes.json(),
+        artifactsRes.json(),
+      ]);
+
+      setMuseums(museumsData);
+      setRooms(roomsData);
+      setArtifacts(artifactsData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <AdminPageLayout title="Admin">
+        <SectionCard title="">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        </SectionCard>
+      </AdminPageLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminPageLayout title="Admin">
+        <SectionCard title="">
+          <div className="text-center py-12">
+            <p className="text-destructive mb-4">{error}</p>
+            <Button onClick={fetchData}>Retry</Button>
+          </div>
+        </SectionCard>
+      </AdminPageLayout>
+    );
+  }
 
   return (
-    <AdminPageLayout title="Admin">
+    <AdminPageLayout
+      title="Admin"
+      actions={
+        <Button asChild variant="secondary">
+          <Link href="/admin/content" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            View Content
+          </Link>
+        </Button>
+      }
+    >
       <SectionCard title="">
         <AdminTabsClient
           museums={museums}

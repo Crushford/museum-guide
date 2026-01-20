@@ -12,6 +12,7 @@ type Item = {
   href: string;
   typePill: string;
   parentId: number | null;
+  actions?: ReactNode;
 };
 
 type ChildWithChanges = {
@@ -104,6 +105,7 @@ export function NodesListClient({
         typePill: item.typePill,
         hasUnsavedChanges: item.hasUnsavedChanges,
         childrenWithChanges: item.childrenWithChanges,
+        actions: item.actions,
       }))}
       primaryAction={primaryAction}
       emptyState={emptyState}
