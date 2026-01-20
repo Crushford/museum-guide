@@ -29,6 +29,9 @@ model Content {
   museumId   Int?
   roomId     Int?
   artifactId Int?
+  llmProvider String
+  model       String
+  prompt      String
   createdAt  DateTime  @default(now())
   Artifact   Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
   Museum     Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)

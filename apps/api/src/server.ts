@@ -1,4 +1,7 @@
+import dotenv from 'dotenv';
+import { resolve } from 'path';
 import express from 'express';
+import cors from 'cors';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
 import type {
@@ -6,9 +9,23 @@ import type {
   RoomResponse,
   ArtifactResponse,
 } from '@repo/types';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+// Load environment variables - check multiple locations
+// First try apps/api/.env, then apps/web/.env.local (for shared keys)
+dotenv.config({ path: resolve(__dirname, '../.env') });
+dotenv.config({ path: resolve(__dirname, '../../web/.env.local') });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Enable CORS for all routes
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 
@@ -1408,6 +1425,253 @@ app.get('/admin/content/content', async (_req, res) => {
     console.error('Error fetching content:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch content';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// ============================================================================
+// CONTENT GENERATION ENDPOINT
+// ============================================================================
+
+// Helper function to generate introduction template (matches frontend logic)
+function generateIntroductionTemplate(
+  artifact: {
+    id: number;
+    name: string;
+    knowledgeText: string | null;
+    roomId: number;
+  },
+  room?: { id: number; name: string; parentRoomId: number | null } | null,
+  museum?: { id: number; name: string } | null,
+  parentRoom?: { id: number; name: string } | null
+): string {
+  const museumName = museum?.name || 'Museum Name';
+  const roomName = room?.name || 'Room Name';
+  const parentRoomName = parentRoom?.name;
+
+  const location = parentRoomName
+    ? `${parentRoomName} - ${roomName}`
+    : roomName;
+
+  const plaqueInfo =
+    artifact.knowledgeText || 'No plaque information available.';
+
+  return `Your role is as a museum guide, the museum you are guiding today is the ${museumName}, we are currently in the ${location} and the artefact you are introducing is: ${artifact.name}, here is the information from the plaque for your reference:
+${plaqueInfo}`;
+}
+
+// POST /generate-content/artefact/:artefactId - Generate content using Gemini
+app.post('/generate-content/artefact/:artefactId', async (req, res) => {
+  const startTime = Date.now();
+  console.log(
+    '[Generate Content] Starting request for artifact:',
+    req.params.artefactId
+  );
+
+  try {
+    const artefactId = Number(req.params.artefactId);
+    console.log('[Generate Content] Parsed artifact ID:', artefactId);
+
+    if (Number.isNaN(artefactId)) {
+      console.error(
+        '[Generate Content] Invalid artifact ID:',
+        req.params.artefactId
+      );
+      return res.status(400).json({ error: 'Invalid artefactId' });
+    }
+
+    // Fetch artifact with related data
+    console.log('[Generate Content] Fetching artifact from database...');
+    const artifact = await prisma.artifact.findUnique({
+      where: { id: artefactId },
+      include: {
+        room: {
+          include: {
+            museum: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            parentRoom: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    console.log('[Generate Content] Artifact fetched:', {
+      id: artifact?.id,
+      name: artifact?.name,
+      hasRoom: !!artifact?.room,
+      hasMuseum: !!artifact?.room?.museum,
+    });
+
+    if (!artifact) {
+      console.error('[Generate Content] Artifact not found:', artefactId);
+      return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    // Extract related entities
+    const room = artifact.room;
+    const museum = room?.museum || null;
+    const parentRoom = room?.parentRoom || null;
+    console.log('[Generate Content] Related entities:', {
+      roomName: room?.name,
+      museumName: museum?.name,
+      parentRoomName: parentRoom?.name,
+    });
+
+    // Generate template
+    console.log('[Generate Content] Generating template...');
+    const template = generateIntroductionTemplate(
+      {
+        id: artifact.id,
+        name: artifact.name,
+        knowledgeText: artifact.knowledgeText,
+        roomId: artifact.roomId,
+      },
+      room,
+      museum,
+      parentRoom
+    );
+
+    console.log(
+      '[Generate Content] Template generated, length:',
+      template.length
+    );
+
+    // Check for API key
+    const apiKey = process.env.GEMINI_API_KEY;
+    console.log('[Generate Content] GEMINI_API_KEY check:', {
+      exists: !!apiKey,
+      length: apiKey?.length || 0,
+      startsWith: apiKey?.substring(0, 10) || 'N/A',
+    });
+
+    if (!apiKey) {
+      console.error('[Generate Content] GEMINI_API_KEY not configured');
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
+
+    // Initialize Gemini client
+    console.log('[Generate Content] Initializing Gemini client...');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // Use gemini-2.5-flash as it's a cheap, non-thinking model
+    const modelName = 'gemini-2.5-flash';
+    const model = genAI.getGenerativeModel({ model: modelName });
+    console.log('[Generate Content] Using model:', modelName);
+
+    // Generate content
+    console.log('[Generate Content] Calling Gemini API...');
+    const geminiStartTime = Date.now();
+    const result = await model.generateContent(template);
+    const response = await result.response;
+    const generatedText = response.text();
+    const geminiDuration = Date.now() - geminiStartTime;
+    console.log('[Generate Content] Gemini API response received:', {
+      duration: `${geminiDuration}ms`,
+      textLength: generatedText.length,
+      preview: generatedText.substring(0, 100) + '...',
+    });
+
+    // Prepare data for database
+    const contentData = {
+      text: generatedText,
+      type: 'introduction',
+      artifactId: artefactId,
+      llmProvider: 'google',
+      model: modelName,
+      prompt: template,
+    };
+    console.log('[Generate Content] Preparing to save content:', {
+      textLength: contentData.text.length,
+      type: contentData.type,
+      artifactId: contentData.artifactId,
+      llmProvider: contentData.llmProvider,
+      model: contentData.model,
+      promptLength: contentData.prompt.length,
+    });
+
+    // Check Prisma client schema
+    console.log('[Generate Content] Checking Prisma Content model fields...');
+    try {
+      // Try to introspect what fields Prisma thinks exist
+      const sampleContent = await prisma.content.findFirst();
+      console.log('[Generate Content] Sample content from DB:', {
+        hasLlmProvider: 'llmProvider' in (sampleContent || {}),
+        hasModel: 'model' in (sampleContent || {}),
+        hasPrompt: 'prompt' in (sampleContent || {}),
+        fields: sampleContent ? Object.keys(sampleContent) : 'no content found',
+      });
+    } catch (introspectError) {
+      console.warn(
+        '[Generate Content] Could not introspect Content model:',
+        introspectError
+      );
+    }
+
+    // Save to Content table
+    console.log('[Generate Content] Saving content to database...');
+    const dbStartTime = Date.now();
+    const content = await prisma.content.create({
+      data: contentData,
+    });
+    const dbDuration = Date.now() - dbStartTime;
+    console.log('[Generate Content] Content saved successfully:', {
+      id: content.id,
+      duration: `${dbDuration}ms`,
+      totalDuration: `${Date.now() - startTime}ms`,
+    });
+
+    res.json(content);
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error('[Generate Content] Error occurred:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      duration: `${duration}ms`,
+    });
+
+    if (error instanceof Error) {
+      console.error('[Generate Content] Error details:', {
+        name: error.name,
+        message: error.message,
+        cause: error.cause,
+      });
+
+      // Log Prisma-specific errors in detail
+      if (
+        error.message.includes('prisma') ||
+        error.message.includes('Invalid')
+      ) {
+        console.error(
+          '[Generate Content] Prisma error detected - checking schema sync...'
+        );
+        console.error(
+          '[Generate Content] Full error:',
+          JSON.stringify(error, null, 2)
+        );
+      }
+    }
+
+    let errorMessage = 'Failed to generate content';
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      // If it's a Prisma error, provide more helpful context
+      if (
+        error.message.includes('prisma') ||
+        error.message.includes('Invalid')
+      ) {
+        errorMessage = `Database error: ${error.message}\n\nThis usually means the Prisma client needs to be regenerated. Run: yarn prisma generate`;
+      }
+    }
+
     res.status(500).json({ error: errorMessage });
   }
 });

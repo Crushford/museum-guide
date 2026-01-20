@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   useReactTable,
@@ -19,15 +19,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PromptTemplateBox } from '@/components/shared';
 import { generateIntroductionTemplate } from '../_lib/templates';
+import { apiPost } from '@/lib/api';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import type {
   MuseumResponse,
@@ -208,6 +210,8 @@ function DataTable({
   rooms,
   artifacts,
   onViewTemplate,
+  onGenerateContent,
+  generatingArtifactIds,
 }: {
   data: EntityRow[];
   contentByEntityId: Map<number, ContentRow[]>;
@@ -218,6 +222,8 @@ function DataTable({
   rooms: RoomResponse[];
   artifacts: ArtifactResponse[];
   onViewTemplate: (template: string, title: string, artifactId: number) => void;
+  onGenerateContent: (artifactId: number) => Promise<void>;
+  generatingArtifactIds: Set<number>;
 }) {
   const columns = useMemo<ColumnDef<EntityRow>[]>(() => {
     const nameColumn: ColumnDef<EntityRow> = {
@@ -388,10 +394,11 @@ function DataTable({
           (m) => m.id === artifact.museumId || m.id === room?.museumId
         );
 
-        const handleGenerateContent = () => {
-          // TODO: Implement generate content functionality
-          console.log('Generate content for artifact:', artifactId);
+        const handleGenerateContent = async () => {
+          await onGenerateContent(artifactId);
         };
+
+        const isGenerating = generatingArtifactIds.has(artifactId);
 
         const handleViewTemplate = () => {
           // All data is already available in the table
@@ -428,8 +435,16 @@ function DataTable({
                 e.stopPropagation();
                 handleGenerateContent();
               }}
+              disabled={isGenerating}
             >
-              Generate Content
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                'Generate Content'
+              )}
             </Button>
           </div>
         );
@@ -460,6 +475,8 @@ function DataTable({
     rooms,
     artifacts,
     onViewTemplate,
+    onGenerateContent,
+    generatingArtifactIds,
   ]);
 
   const table = useReactTable({
@@ -558,6 +575,7 @@ export function ContentTabsClient({
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [selectedTemplateTitle, setSelectedTemplateTitle] =
     useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [expandedMuseumIds, setExpandedMuseumIds] = useState<Set<number>>(
     new Set()
   );
@@ -567,6 +585,9 @@ export function ContentTabsClient({
   const [expandedArtifactIds, setExpandedArtifactIds] = useState<Set<number>>(
     new Set()
   );
+  const [generatingArtifactIds, setGeneratingArtifactIds] = useState<
+    Set<number>
+  >(new Set());
 
   // Build lookup maps for grouping content
   const contentByMuseumId = useMemo(() => {
@@ -722,6 +743,31 @@ export function ContentTabsClient({
     setSelectedTemplateArtifactId(artifactId);
   };
 
+  const handleGenerateContent = useCallback(
+    async (artifactId: number) => {
+      try {
+        setGeneratingArtifactIds((prev) => new Set(prev).add(artifactId));
+        await apiPost(`/generate-content/artefact/${artifactId}`);
+        // Refresh content after successful generation
+        onRefresh?.();
+      } catch (error) {
+        console.error('Error generating content:', error);
+        const errorMsg =
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate content. Please try again.';
+        setErrorMessage(errorMsg);
+      } finally {
+        setGeneratingArtifactIds((prev) => {
+          const next = new Set(prev);
+          next.delete(artifactId);
+          return next;
+        });
+      }
+    },
+    [onRefresh]
+  );
+
   const currentData = getCurrentData();
   const currentContentMap = getCurrentContentMap();
   const currentExpandedIds = getCurrentExpandedIds();
@@ -790,6 +836,8 @@ export function ContentTabsClient({
             rooms={rooms}
             artifacts={artifacts}
             onViewTemplate={handleViewTemplate}
+            onGenerateContent={handleGenerateContent}
+            generatingArtifactIds={generatingArtifactIds}
           />
         </TabsContent>
 
@@ -826,6 +874,8 @@ export function ContentTabsClient({
             rooms={rooms}
             artifacts={artifacts}
             onViewTemplate={handleViewTemplate}
+            onGenerateContent={handleGenerateContent}
+            generatingArtifactIds={generatingArtifactIds}
           />
         </TabsContent>
 
@@ -862,6 +912,8 @@ export function ContentTabsClient({
             rooms={rooms}
             artifacts={artifacts}
             onViewTemplate={handleViewTemplate}
+            onGenerateContent={handleGenerateContent}
+            generatingArtifactIds={generatingArtifactIds}
           />
         </TabsContent>
       </Tabs>
@@ -884,6 +936,49 @@ export function ContentTabsClient({
             template={selectedTemplate}
             helperText="Click Copy to copy this template to your clipboard."
           />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!errorMessage}
+        onOpenChange={(open) => {
+          if (!open) {
+            setErrorMessage(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">
+              Error Generating Content
+            </DialogTitle>
+            <DialogDescription>
+              An error occurred while generating content. See details below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              An error occurred while generating content:
+            </p>
+            <div className="rounded-md bg-muted p-4">
+              <pre className="text-sm whitespace-pre-wrap break-words font-mono">
+                {errorMessage}
+              </pre>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium mb-2">Common solutions:</p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>
+                  Make sure the Prisma client has been regenerated after schema
+                  changes
+                </li>
+                <li>
+                  Check that the database schema matches the Prisma schema
+                </li>
+                <li>Verify that GEMINI_API_KEY is configured correctly</li>
+                <li>Check the server logs for more details</li>
+              </ul>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
