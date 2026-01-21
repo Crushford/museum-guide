@@ -35,6 +35,7 @@ model Content {
   llmProvider String
   model       String
   prompt      String
+  audioUrl    String?
   createdAt  DateTime  @default(now())
   Artifact   Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
   Museum     Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)

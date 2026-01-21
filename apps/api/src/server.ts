@@ -10,6 +10,9 @@ import type {
   ArtifactResponse,
 } from '@repo/types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { mkdir } from 'fs/promises';
+import { existsSync } from 'node:fs';
+import { generateAudioForContent } from './lib/audio';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -36,6 +39,13 @@ app.use(
 );
 
 app.use(express.json());
+
+// Serve static audio files
+const audioDir = resolve(__dirname, '../public/audio');
+if (!existsSync(audioDir)) {
+  mkdir(audioDir, { recursive: true }).catch(console.error);
+}
+app.use('/audio', express.static(audioDir));
 
 // ============================================================================
 // MUSEUM, ROOM, AND ARTIFACT ENDPOINTS
@@ -1640,10 +1650,42 @@ app.post('/generate-content/artefact/:artefactId', async (req, res) => {
     console.log('[Generate Content] Content saved successfully:', {
       id: content.id,
       duration: `${dbDuration}ms`,
-      totalDuration: `${Date.now() - startTime}ms`,
     });
 
-    res.json(content);
+    // Generate audio using ElevenLabs
+    let audioUrl: string | null = null;
+    try {
+      console.log('[Generate Content] Starting audio generation...');
+      audioUrl = await generateAudioForContent(content.id, generatedText, {
+        outputDir: audioDir,
+      });
+
+      // Update content with audio URL
+      await prisma.content.update({
+        where: { id: content.id },
+        data: { audioUrl },
+      });
+
+      console.log('[Generate Content] Content updated with audio URL');
+    } catch (audioError) {
+      console.error('[Generate Content] Error generating audio:', audioError);
+      // Don't fail the entire request if audio generation fails
+      // Content is already saved, audio is optional
+    }
+
+    const totalDuration = Date.now() - startTime;
+    console.log('[Generate Content] Complete:', {
+      contentId: content.id,
+      hasAudio: !!audioUrl,
+      totalDuration: `${totalDuration}ms`,
+    });
+
+    // Return updated content with audioUrl
+    const updatedContent = await prisma.content.findUnique({
+      where: { id: content.id },
+    });
+
+    res.json(updatedContent);
   } catch (error) {
     const duration = Date.now() - startTime;
     console.error('[Generate Content] Error occurred:', {
@@ -1684,6 +1726,187 @@ app.post('/generate-content/artefact/:artefactId', async (req, res) => {
         error.message.includes('Invalid')
       ) {
         errorMessage = `Database error: ${error.message}\n\nThis usually means the Prisma client needs to be regenerated. Run: yarn prisma generate`;
+      }
+    }
+
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// POST /generate-audio/artefact/:artefactId - Generate audio for artifact's content
+app.post('/generate-audio/artefact/:artefactId', async (req, res) => {
+  const startTime = Date.now();
+  console.log(
+    '[Generate Audio] Starting request for artifact:',
+    req.params.artefactId
+  );
+
+  try {
+    const artefactId = Number(req.params.artefactId);
+    console.log('[Generate Audio] Parsed artifact ID:', artefactId);
+
+    if (Number.isNaN(artefactId)) {
+      console.error(
+        '[Generate Audio] Invalid artifact ID:',
+        req.params.artefactId
+      );
+      return res.status(400).json({ error: 'Invalid artefactId' });
+    }
+
+    // Find the most recent content for this artifact
+    console.log('[Generate Audio] Fetching content for artifact...');
+    const content = await prisma.content.findFirst({
+      where: { artifactId: artefactId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!content) {
+      console.error(
+        '[Generate Audio] No content found for artifact:',
+        artefactId
+      );
+      return res
+        .status(404)
+        .json({ error: 'No content found for this artifact' });
+    }
+
+    if (!content.text) {
+      console.error(
+        '[Generate Audio] Content has no text for artifact:',
+        artefactId
+      );
+      return res
+        .status(400)
+        .json({ error: 'Content has no text to generate audio from' });
+    }
+
+    console.log('[Generate Audio] Found content:', {
+      contentId: content.id,
+      textLength: content.text.length,
+    });
+
+    // Generate audio
+    console.log('[Generate Audio] Starting audio generation...');
+    const audioUrl = await generateAudioForContent(content.id, content.text, {
+      outputDir: audioDir,
+    });
+
+    // Update content with audio URL
+    console.log('[Generate Audio] Updating content with audio URL...');
+    const updatedContent = await prisma.content.update({
+      where: { id: content.id },
+      data: { audioUrl },
+    });
+
+    const duration = Date.now() - startTime;
+    console.log('[Generate Audio] Complete:', {
+      contentId: content.id,
+      audioUrl,
+      duration: `${duration}ms`,
+    });
+
+    res.json(updatedContent);
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error('[Generate Audio] Error occurred:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      duration: `${duration}ms`,
+    });
+
+    let errorMessage = 'Failed to generate audio';
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      // If it's an ElevenLabs API key error, provide helpful context
+      if (error.message.includes('ELEVENLABS_API_KEY')) {
+        errorMessage = `${error.message}\n\nMake sure ELEVENLABS_API_KEY is configured in your .env file.`;
+      }
+    }
+
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// POST /generate-audio/content/:contentId - Generate audio for a specific content item
+app.post('/generate-audio/content/:contentId', async (req, res) => {
+  const startTime = Date.now();
+  console.log(
+    '[Generate Audio] Starting request for content:',
+    req.params.contentId
+  );
+
+  try {
+    const contentId = Number(req.params.contentId);
+    console.log('[Generate Audio] Parsed content ID:', contentId);
+
+    if (Number.isNaN(contentId)) {
+      console.error(
+        '[Generate Audio] Invalid content ID:',
+        req.params.contentId
+      );
+      return res.status(400).json({ error: 'Invalid contentId' });
+    }
+
+    // Find the content
+    console.log('[Generate Audio] Fetching content...');
+    const content = await prisma.content.findUnique({
+      where: { id: contentId },
+    });
+
+    if (!content) {
+      console.error('[Generate Audio] Content not found:', contentId);
+      return res.status(404).json({ error: 'Content not found' });
+    }
+
+    if (!content.text) {
+      console.error('[Generate Audio] Content has no text:', contentId);
+      return res
+        .status(400)
+        .json({ error: 'Content has no text to generate audio from' });
+    }
+
+    console.log('[Generate Audio] Found content:', {
+      contentId: content.id,
+      textLength: content.text.length,
+    });
+
+    // Generate audio
+    console.log('[Generate Audio] Starting audio generation...');
+    const audioUrl = await generateAudioForContent(content.id, content.text, {
+      outputDir: audioDir,
+    });
+
+    // Update content with audio URL
+    console.log('[Generate Audio] Updating content with audio URL...');
+    const updatedContent = await prisma.content.update({
+      where: { id: content.id },
+      data: { audioUrl },
+    });
+
+    const duration = Date.now() - startTime;
+    console.log('[Generate Audio] Complete:', {
+      contentId: content.id,
+      audioUrl,
+      duration: `${duration}ms`,
+    });
+
+    res.json(updatedContent);
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error('[Generate Audio] Error occurred:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      duration: `${duration}ms`,
+    });
+
+    let errorMessage = 'Failed to generate audio';
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      // If it's an ElevenLabs API key error, provide helpful context
+      if (error.message.includes('ELEVENLABS_API_KEY')) {
+        errorMessage = `${error.message}\n\nMake sure ELEVENLABS_API_KEY is configured in your .env file.`;
       }
     }
 

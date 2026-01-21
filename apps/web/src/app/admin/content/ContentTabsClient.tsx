@@ -23,7 +23,7 @@ import { RefreshCw, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PromptTemplateBox } from '@/components/shared';
 import { generateIntroductionTemplate } from '../_lib/templates';
-import { apiPost } from '@/lib/api';
+import { apiPost, API_URL } from '@/lib/api';
 import {
   Dialog,
   DialogContent,
@@ -45,6 +45,7 @@ type ContentRow = {
   museumId: number | null;
   roomId: number | null;
   artifactId: number | null;
+  audioUrl: string | null;
 };
 
 type ContentTabsClientProps = {
@@ -110,10 +111,14 @@ function ContentGroupCell({
   items,
   expanded,
   onToggle,
+  onGenerateAudio,
+  generatingAudioContentIds,
 }: {
   items: ContentRow[];
   expanded: boolean;
   onToggle: () => void;
+  onGenerateAudio?: (contentId: number) => Promise<void>;
+  generatingAudioContentIds?: Set<number>;
 }) {
   if (items.length === 0) {
     return <span className="text-muted-foreground">—</span>;
@@ -165,36 +170,85 @@ function ContentGroupCell({
         </Button>
       </div>
       <div className="space-y-3 pl-4 border-l-2 border-border">
-        {items.map((item) => (
-          <details key={item.id} className="group">
-            <summary className="cursor-pointer text-sm font-medium hover:text-primary">
-              <span className="text-muted-foreground">
-                {item.type || '(no type)'}
-              </span>
-              {' • '}
-              <span className="text-muted-foreground">
-                {formatDate(item.createdAt)}
-              </span>
-              {' • '}
-              <span className="text-muted-foreground">ID: {item.id}</span>
-            </summary>
-            <div className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap break-words">
-              {item.text.length > 200 ? (
-                <>
-                  <span>{item.text.slice(0, 200)}...</span>
-                  <details className="mt-1">
-                    <summary className="cursor-pointer text-primary hover:underline">
-                      Show more
-                    </summary>
-                    <div className="mt-1">{item.text.slice(200)}</div>
-                  </details>
-                </>
-              ) : (
-                item.text
-              )}
-            </div>
-          </details>
-        ))}
+        {items.map((item) => {
+          const isGeneratingAudio =
+            generatingAudioContentIds?.has(item.id) || false;
+          const hasAudio = !!item.audioUrl;
+
+          return (
+            <details key={item.id} className="group">
+              <summary className="cursor-pointer text-sm font-medium hover:text-primary">
+                <span className="text-muted-foreground">
+                  {item.type || '(no type)'}
+                </span>
+                {' • '}
+                <span className="text-muted-foreground">
+                  {formatDate(item.createdAt)}
+                </span>
+                {' • '}
+                <span className="text-muted-foreground">ID: {item.id}</span>
+                {hasAudio && (
+                  <>
+                    {' • '}
+                    <span className="text-green-600 dark:text-green-400">
+                      🎵 Audio
+                    </span>
+                  </>
+                )}
+              </summary>
+              <div className="mt-2 space-y-2">
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                  {item.text.length > 200 ? (
+                    <>
+                      <span>{item.text.slice(0, 200)}...</span>
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-primary hover:underline">
+                          Show more
+                        </summary>
+                        <div className="mt-1">{item.text.slice(200)}</div>
+                      </details>
+                    </>
+                  ) : (
+                    item.text
+                  )}
+                </div>
+                {onGenerateAudio && (
+                  <div className="flex items-center gap-2">
+                    {hasAudio && (
+                      <audio
+                        controls
+                        src={`${API_URL}${item.audioUrl}`}
+                        className="h-8"
+                      >
+                        Your browser does not support the audio element.
+                      </audio>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onGenerateAudio(item.id);
+                      }}
+                      disabled={isGeneratingAudio}
+                    >
+                      {isGeneratingAudio ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : hasAudio ? (
+                        'Regenerate Audio'
+                      ) : (
+                        'Generate Audio'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </details>
+          );
+        })}
       </div>
     </div>
   );
@@ -211,7 +265,11 @@ function DataTable({
   artifacts,
   onViewTemplate,
   onGenerateContent,
+  onGenerateAudio,
+  onGenerateAudioForContent,
   generatingArtifactIds,
+  generatingAudioArtifactIds,
+  generatingAudioContentIds,
 }: {
   data: EntityRow[];
   contentByEntityId: Map<number, ContentRow[]>;
@@ -223,7 +281,11 @@ function DataTable({
   artifacts: ArtifactResponse[];
   onViewTemplate: (template: string, title: string, artifactId: number) => void;
   onGenerateContent: (artifactId: number) => Promise<void>;
+  onGenerateAudio: (artifactId: number) => Promise<void>;
+  onGenerateAudioForContent: (contentId: number) => Promise<void>;
   generatingArtifactIds: Set<number>;
+  generatingAudioArtifactIds: Set<number>;
+  generatingAudioContentIds: Set<number>;
 }) {
   const columns = useMemo<ColumnDef<EntityRow>[]>(() => {
     const nameColumn: ColumnDef<EntityRow> = {
@@ -372,6 +434,8 @@ function DataTable({
             items={content}
             expanded={expanded}
             onToggle={() => onToggleExpand(entityId)}
+            onGenerateAudio={onGenerateAudioForContent}
+            generatingAudioContentIds={generatingAudioContentIds}
           />
         );
       },
@@ -398,7 +462,16 @@ function DataTable({
           await onGenerateContent(artifactId);
         };
 
+        const handleGenerateAudio = async () => {
+          await onGenerateAudio(artifactId);
+        };
+
         const isGenerating = generatingArtifactIds.has(artifactId);
+        const isGeneratingAudio = generatingAudioArtifactIds.has(artifactId);
+
+        // Check if content exists for this artifact
+        const artifactContent = contentByEntityId.get(artifactId) || [];
+        const hasContent = artifactContent.length > 0;
 
         const handleViewTemplate = () => {
           // All data is already available in the table
@@ -446,6 +519,26 @@ function DataTable({
                 'Generate Content'
               )}
             </Button>
+            {hasContent && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleGenerateAudio();
+                }}
+                disabled={isGeneratingAudio}
+              >
+                {isGeneratingAudio ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate Audio'
+                )}
+              </Button>
+            )}
           </div>
         );
       },
@@ -476,7 +569,11 @@ function DataTable({
     artifacts,
     onViewTemplate,
     onGenerateContent,
+    onGenerateAudio,
+    onGenerateAudioForContent,
     generatingArtifactIds,
+    generatingAudioArtifactIds,
+    generatingAudioContentIds,
   ]);
 
   const table = useReactTable({
@@ -586,6 +683,12 @@ export function ContentTabsClient({
     new Set()
   );
   const [generatingArtifactIds, setGeneratingArtifactIds] = useState<
+    Set<number>
+  >(new Set());
+  const [generatingAudioArtifactIds, setGeneratingAudioArtifactIds] = useState<
+    Set<number>
+  >(new Set());
+  const [generatingAudioContentIds, setGeneratingAudioContentIds] = useState<
     Set<number>
   >(new Set());
 
@@ -768,6 +871,56 @@ export function ContentTabsClient({
     [onRefresh]
   );
 
+  const handleGenerateAudio = useCallback(
+    async (artifactId: number) => {
+      try {
+        setGeneratingAudioArtifactIds((prev) => new Set(prev).add(artifactId));
+        await apiPost(`/generate-audio/artefact/${artifactId}`);
+        // Refresh content after successful generation
+        onRefresh?.();
+      } catch (error) {
+        console.error('Error generating audio:', error);
+        const errorMsg =
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate audio. Please try again.';
+        setErrorMessage(errorMsg);
+      } finally {
+        setGeneratingAudioArtifactIds((prev) => {
+          const next = new Set(prev);
+          next.delete(artifactId);
+          return next;
+        });
+      }
+    },
+    [onRefresh]
+  );
+
+  const handleGenerateAudioForContent = useCallback(
+    async (contentId: number) => {
+      try {
+        setGeneratingAudioContentIds((prev) => new Set(prev).add(contentId));
+        await apiPost(`/generate-audio/content/${contentId}`);
+        // Refresh content after successful generation
+        onRefresh?.();
+      } catch (error) {
+        console.error('Error generating audio for content:', error);
+        const errorMsg =
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate audio. Please try again.';
+        setErrorMessage(errorMsg);
+      } finally {
+        setGeneratingAudioContentIds((prev) => {
+          const next = new Set(prev);
+          next.delete(contentId);
+          return next;
+        });
+      }
+    },
+    [onRefresh]
+  );
+
   const currentData = getCurrentData();
   const currentContentMap = getCurrentContentMap();
   const currentExpandedIds = getCurrentExpandedIds();
@@ -837,7 +990,11 @@ export function ContentTabsClient({
             artifacts={artifacts}
             onViewTemplate={handleViewTemplate}
             onGenerateContent={handleGenerateContent}
+            onGenerateAudio={handleGenerateAudio}
+            onGenerateAudioForContent={handleGenerateAudioForContent}
             generatingArtifactIds={generatingArtifactIds}
+            generatingAudioArtifactIds={generatingAudioArtifactIds}
+            generatingAudioContentIds={generatingAudioContentIds}
           />
         </TabsContent>
 
@@ -875,7 +1032,11 @@ export function ContentTabsClient({
             artifacts={artifacts}
             onViewTemplate={handleViewTemplate}
             onGenerateContent={handleGenerateContent}
+            onGenerateAudio={handleGenerateAudio}
+            onGenerateAudioForContent={handleGenerateAudioForContent}
             generatingArtifactIds={generatingArtifactIds}
+            generatingAudioArtifactIds={generatingAudioArtifactIds}
+            generatingAudioContentIds={generatingAudioContentIds}
           />
         </TabsContent>
 
@@ -913,7 +1074,11 @@ export function ContentTabsClient({
             artifacts={artifacts}
             onViewTemplate={handleViewTemplate}
             onGenerateContent={handleGenerateContent}
+            onGenerateAudio={handleGenerateAudio}
+            onGenerateAudioForContent={handleGenerateAudioForContent}
             generatingArtifactIds={generatingArtifactIds}
+            generatingAudioArtifactIds={generatingAudioArtifactIds}
+            generatingAudioContentIds={generatingAudioContentIds}
           />
         </TabsContent>
       </Tabs>
