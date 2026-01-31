@@ -13,7 +13,7 @@ type Room = {
   id: number;
   name: string;
   slug: string;
-  museumId: number | null;
+  museumId: number;
   parentRoomId: number | null;
   knowledgeText: string | null;
   furtherReading: string[];
@@ -33,9 +33,9 @@ export async function generateMetadata({
   const { museum: museumSlug, room: roomSlug } = await params;
 
   try {
-    const room = await api<Room>(`/rooms/by-slug/${roomSlug}`).catch(
-      () => null
-    );
+    const room = await api<Room>(
+      `/rooms/by-slug/${roomSlug}?museumSlug=${museumSlug}`
+    ).catch(() => null);
     if (room) {
       return {
         title: room.name,
@@ -67,25 +67,15 @@ export default async function RoomPage({
   }
 
   // Fetch room by slug
-  const room = await api<Room>(`/rooms/by-slug/${roomSlug}`).catch(() => null);
+  const room = await api<Room>(`/rooms/by-slug/${roomSlug}?museumSlug=${museumSlug}`).catch(() => null);
 
   if (!room) {
     notFound();
   }
 
-  // Validate room belongs to museum (directly or through parent room)
+  // Validate room belongs to museum
   if (room.museumId !== museum.id) {
-    // Check if it's a child room
-    if (room.parentRoomId) {
-      const parentRoom = await api<Room>(`/rooms/${room.parentRoomId}`).catch(
-        () => null
-      );
-      if (!parentRoom || parentRoom.museumId !== museum.id) {
-        notFound();
-      }
-    } else {
-      notFound();
-    }
+    notFound();
   }
 
   const [artifacts, childRooms, content] = await Promise.all([

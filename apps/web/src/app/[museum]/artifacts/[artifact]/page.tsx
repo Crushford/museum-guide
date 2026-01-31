@@ -12,7 +12,7 @@ type Room = {
   id: number;
   name: string;
   slug: string;
-  museumId: number | null;
+  museumId: number;
   parentRoomId: number | null;
 };
 
@@ -21,6 +21,7 @@ type Artifact = {
   name: string;
   slug: string;
   roomId: number;
+  museumId: number;
   knowledgeText: string | null;
   furtherReading: string[];
 };
@@ -40,7 +41,7 @@ export async function generateMetadata({
 
   try {
     const artifact = await api<Artifact>(
-      `/artifacts/by-slug/${artifactSlug}`
+      `/artifacts/by-slug/${artifactSlug}?museumSlug=${museumSlug}`
     ).catch(() => null);
     if (artifact) {
       return {
@@ -74,35 +75,22 @@ export default async function ArtifactPage({
 
   // Fetch artifact by slug
   const artifact = await api<Artifact>(
-    `/artifacts/by-slug/${artifactSlug}`
+    `/artifacts/by-slug/${artifactSlug}?museumSlug=${museumSlug}`
   ).catch(() => null);
 
   if (!artifact) {
     notFound();
   }
 
-  // Fetch room to validate artifact belongs to museum
-  const artifactRoom = await api<Room>(`/rooms/${artifact.roomId}`).catch(
-    () => null
-  );
-
-  if (!artifactRoom) {
+  // Validate artifact belongs to museum
+  if (artifact.museumId !== museum.id) {
     notFound();
   }
 
-  // Check if room belongs to museum (directly or through parent)
-  if (artifactRoom.museumId !== museum.id) {
-    if (artifactRoom.parentRoomId) {
-      const parentRoom = await api<Room>(
-        `/rooms/${artifactRoom.parentRoomId}`
-      ).catch(() => null);
-      if (!parentRoom || parentRoom.museumId !== museum.id) {
-        notFound();
-      }
-    } else {
-      notFound();
-    }
-  }
+  // Fetch room for back navigation
+  const artifactRoom = await api<Room>(`/rooms/${artifact.roomId}`).catch(
+    () => null
+  );
 
   const [content] = await Promise.all([
     api<Content[]>(`/artifacts/${artifact.id}/content`).catch(() => []),
