@@ -36,7 +36,7 @@ export type ArtifactResponse = {
   slug: string;
   roomId: number;
   roomName: string | null;
-  museumId: number | null;
+  museumId: number;
   museumName: string | null;
   knowledgeText: string | null;
   furtherReading: string[];

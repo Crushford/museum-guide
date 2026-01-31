@@ -13,14 +13,15 @@
     "storybook": "yarn workspace web storybook",
     "build-storybook": "yarn workspace web build-storybook",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\"",
-    "db:start": "docker-compose up -d",
-    "db:stop": "docker-compose down",
-    "db:logs": "docker-compose logs -f db"
+    "db:start": "docker compose up -d || docker-compose up -d",
+    "db:stop": "docker compose down || docker-compose down",
+    "db:logs": "docker compose logs -f db || docker-compose logs -f db"
   },
   "devDependencies": {
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "prettier": "^3.7.4"
-  }
+  },
+  "packageManager": "yarn@4.9.2+sha512.1fc009bc09d13cfd0e19efa44cbfc2b9cf6ca61482725eb35bbc5e257e093ebf4130db6dfe15d604ff4b79efd8e1e8e99b25fa7d0a6197c9f9826358d4d65c3c"
 }
