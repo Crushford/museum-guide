@@ -12,11 +12,11 @@ model Artifact {
   slug             String
   knowledgeText    String?
   furtherReading   String[]   @default([])
-  roomId           Int
+  roomId           Int?
   museumId         Int
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
-  room             Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  room             Room?      @relation(fields: [roomId], references: [id], onDelete: Cascade)
   museum           Museum     @relation(fields: [museumId], references: [id], onDelete: Cascade)
   content          Content[]
 
