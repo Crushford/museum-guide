@@ -1652,7 +1652,7 @@ app.post('/generate-content/artefact/:artefactId', async (req, res) => {
       duration: `${dbDuration}ms`,
     });
 
-    // Generate audio using ElevenLabs
+    // Generate audio using Google Cloud Text-to-Speech
     let audioUrl: string | null = null;
     try {
       console.log('[Generate Content] Starting audio generation...');
@@ -1818,9 +1818,13 @@ app.post('/generate-audio/artefact/:artefactId', async (req, res) => {
 
     if (error instanceof Error) {
       errorMessage = error.message;
-      // If it's an ElevenLabs API key error, provide helpful context
-      if (error.message.includes('ELEVENLABS_API_KEY')) {
-        errorMessage = `${error.message}\n\nMake sure ELEVENLABS_API_KEY is configured in your .env file.`;
+      // If it's a Google Cloud credentials error, provide helpful context
+      if (
+        error.message.includes('GOOGLE_APPLICATION_CREDENTIALS') ||
+        error.message.includes('credentials') ||
+        error.message.includes('authentication')
+      ) {
+        errorMessage = `${error.message}\n\nMake sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentials are set up correctly.`;
       }
     }
 
@@ -1904,9 +1908,13 @@ app.post('/generate-audio/content/:contentId', async (req, res) => {
 
     if (error instanceof Error) {
       errorMessage = error.message;
-      // If it's an ElevenLabs API key error, provide helpful context
-      if (error.message.includes('ELEVENLABS_API_KEY')) {
-        errorMessage = `${error.message}\n\nMake sure ELEVENLABS_API_KEY is configured in your .env file.`;
+      // If it's a Google Cloud credentials error, provide helpful context
+      if (
+        error.message.includes('GOOGLE_APPLICATION_CREDENTIALS') ||
+        error.message.includes('credentials') ||
+        error.message.includes('authentication')
+      ) {
+        errorMessage = `${error.message}\n\nMake sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentials are set up correctly.`;
       }
     }
 

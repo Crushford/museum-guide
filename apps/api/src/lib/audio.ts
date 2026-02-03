@@ -1,19 +1,12 @@
-import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
+import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { writeFile } from 'fs/promises';
+import { existsSync } from 'node:fs';
 import { resolve } from 'path';
 
 export type AudioGenerationOptions = {
   text: string;
-  voiceId?: string;
-  modelId?: string;
-  outputFormat?:
-    | 'mp3_44100_128'
-    | 'mp3_22050_32'
-    | 'pcm_16000'
-    | 'pcm_22050'
-    | 'pcm_24000'
-    | 'pcm_44100'
-    | 'ulaw_8000';
+  voiceName?: string;
+  languageCode?: string;
   outputDir?: string;
   fileName?: string;
 };
@@ -26,7 +19,7 @@ export type AudioGenerationResult = {
 };
 
 /**
- * Generate audio from text using ElevenLabs API
+ * Generate audio from text using Google Cloud Text-to-Speech API
  * @param options Audio generation options
  * @returns Audio file URL and metadata
  */
@@ -35,43 +28,89 @@ export async function generateAudio(
 ): Promise<AudioGenerationResult> {
   const {
     text,
-    voiceId = 'JBFqnCBsd6RMkjVDRZzb', // Default voice from ElevenLabs docs
-    modelId = 'eleven_multilingual_v2',
-    outputFormat = 'mp3_44100_128',
+    voiceName = 'en-AU-Standard-B', // Australian English, Standard voice B
+    languageCode = 'en-AU',
     outputDir,
     fileName,
   } = options;
 
-  const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
-  if (!elevenLabsApiKey) {
-    throw new Error('ELEVENLABS_API_KEY not configured');
-  }
-
   const startTime = Date.now();
-  const elevenlabs = new ElevenLabsClient({
-    apiKey: elevenLabsApiKey,
+
+  // Initialize Google Cloud Text-to-Speech client
+  // Uses GOOGLE_APPLICATION_CREDENTIALS env var or default application credentials
+  // Default credentials are automatically detected from:
+  // 1. GOOGLE_APPLICATION_CREDENTIALS environment variable
+  // 2. gcloud auth application-default login credentials
+  // 3. Google Cloud environment (if running on GCP)
+
+  // Log credential detection for debugging
+  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const homeDir = process.env.HOME || process.env.USERPROFILE;
+  const defaultCredentialsPath = homeDir
+    ? `${homeDir}/.config/gcloud/application_default_credentials.json`
+    : null;
+
+  console.log('[Audio Generation] Credential detection:', {
+    hasEnvVar: !!credentialsPath,
+    envVarPath: credentialsPath || 'not set',
+    defaultPath: defaultCredentialsPath,
+    defaultPathExists: defaultCredentialsPath
+      ? existsSync(defaultCredentialsPath)
+      : false,
   });
 
-  console.log('[Audio Generation] Calling ElevenLabs API...', {
-    voiceId,
-    modelId,
-    outputFormat,
+  const client = new TextToSpeechClient();
+
+  console.log('[Audio Generation] Initializing Google Cloud TTS client...', {
+    hasCredentialsEnv: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    voiceName,
+    languageCode,
     textLength: text.length,
   });
 
-  // Generate audio
-  const audio = await elevenlabs.textToSpeech.convert(voiceId, {
-    text,
-    modelId,
-    outputFormat,
-  });
+  // Construct the request
+  const request = {
+    input: { text },
+    voice: {
+      name: voiceName,
+      languageCode: languageCode,
+    },
+    audioConfig: {
+      audioEncoding: 'MP3' as const,
+      sampleRateHertz: 24000,
+    },
+  };
 
-  // Convert audio stream to buffer
-  const chunks: Uint8Array[] = [];
-  for await (const chunk of audio) {
-    chunks.push(chunk);
+  // Generate audio
+  let response;
+  try {
+    [response] = await client.synthesizeSpeech(request);
+  } catch (error) {
+    console.error('[Audio Generation] Google Cloud TTS API error:', error);
+    // Provide helpful error messages for common credential issues
+    if (error instanceof Error) {
+      if (
+        error.message.includes('Could not load the default credentials') ||
+        error.message.includes('authentication') ||
+        error.message.includes('credentials')
+      ) {
+        throw new Error(
+          `Google Cloud authentication failed: ${error.message}\n\n` +
+            `Make sure you have authenticated with: gcloud auth application-default login\n` +
+            `Or set GOOGLE_APPLICATION_CREDENTIALS to your service account key file path.`
+        );
+      }
+      throw error;
+    }
+    throw error;
   }
-  const audioBuffer = Buffer.concat(chunks);
+
+  if (!response.audioContent) {
+    throw new Error('No audio content returned from Google Cloud TTS');
+  }
+
+  // Convert audio content to buffer
+  const audioBuffer = Buffer.from(response.audioContent);
 
   // Determine output directory and filename
   const finalOutputDir = outputDir || resolve(__dirname, '../../public/audio');
