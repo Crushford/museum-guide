@@ -7,19 +7,22 @@ datasource db {
 }
 
 model Artifact {
-  id             Int       @id @default(autoincrement())
-  name           String
-  slug           String    @unique @default(dbgenerated("generate_slug(name)"))
-  knowledgeText  String?
-  furtherReading String[]  @default([])
-  roomId         Int
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  room           Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  content        Content[]
+  id               Int        @id @default(autoincrement())
+  name             String
+  slug             String
+  knowledgeText    String?
+  furtherReading   String[]   @default([])
+  roomId           Int
+  museumId         Int
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  room             Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  museum           Museum     @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  content          Content[]
 
+  @@unique([slug, museumId])
   @@index([roomId])
-  @@index([slug])
+  @@index([museumId])
 }
 
 model Content {
@@ -41,13 +44,14 @@ model Content {
 model Museum {
   id             Int       @id @default(autoincrement())
   name           String
-  slug           String    @unique @default(dbgenerated("generate_slug(name)"))
+  slug           String    @unique
   knowledgeText  String?
   furtherReading String[]  @default([])
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   rooms          Room[]
+  artifacts      Artifact[]
   content        Content[]
 
   @@index([slug])
@@ -56,20 +60,20 @@ model Museum {
 model Room {
   id             Int        @id @default(autoincrement())
   name           String
-  slug           String    @unique @default(dbgenerated("generate_slug(name)"))
+  slug           String
   knowledgeText  String?
   furtherReading String[]   @default([])
-  museumId       Int?
+  museumId       Int
   parentRoomId   Int?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
-  museum         Museum?    @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  museum         Museum     @relation(fields: [museumId], references: [id], onDelete: Cascade)
   parentRoom     Room?      @relation("RoomToRoom", fields: [parentRoomId], references: [id], onDelete: Cascade)
   childRooms     Room[]     @relation("RoomToRoom")
   artifacts       Artifact[]
   content        Content[]
 
+  @@unique([slug, museumId])
   @@index([museumId])
   @@index([parentRoomId])
-  @@index([slug])
 }

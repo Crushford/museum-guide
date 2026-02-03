@@ -12,9 +12,17 @@ import type {
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Load environment variables - check multiple locations
-// First try apps/api/.env, then apps/web/.env.local (for shared keys)
+dotenv.config({ path: resolve(__dirname, '../../../.env') });
 dotenv.config({ path: resolve(__dirname, '../.env') });
 dotenv.config({ path: resolve(__dirname, '../../web/.env.local') });
+
+function generateSlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -517,6 +525,7 @@ app.post('/museums', async (req, res) => {
   const museum = await prisma.museum.create({
     data: {
       name,
+      slug: generateSlug(name),
       knowledgeText: knowledgeText || null,
       furtherReading: furtherReading || [],
     } as Prisma.MuseumCreateInput,
@@ -625,31 +634,23 @@ app.post('/rooms', async (req, res) => {
     return res.status(400).json({ error: 'name is required' });
   }
 
-  if (!museumId && !parentRoomId) {
-    return res.status(400).json({
-      error: 'Either museumId or parentRoomId is required',
-    });
-  }
-
-  if (museumId && parentRoomId) {
-    return res.status(400).json({
-      error: 'Cannot set both museumId and parentRoomId',
-    });
+  if (!museumId) {
+    return res.status(400).json({ error: 'museumId is required' });
   }
 
   const roomData: {
     name: string;
-    museumId?: number | null;
+    slug: string;
+    museumId: number;
     parentRoomId?: number | null;
     knowledgeText?: string | null;
     furtherReading?: string[];
   } = {
     name,
+    slug: generateSlug(name),
+    museumId,
   };
 
-  if (museumId) {
-    roomData.museumId = museumId;
-  }
   if (parentRoomId) {
     roomData.parentRoomId = parentRoomId;
   }
@@ -881,15 +882,18 @@ app.get('/rooms/:id', async (req, res) => {
   }
 });
 
-// GET /rooms/by-slug/:slug - Get a single room by slug
+// GET /rooms/by-slug/:slug - Get a single room by slug (scoped by museumSlug query param)
 app.get('/rooms/by-slug/:slug', async (req, res) => {
   try {
     const slug = req.params.slug;
+    const museumSlug = req.query.museumSlug as string | undefined;
 
-    // Use findFirst since Prisma doesn't recognize dbgenerated fields in WhereUniqueInput
-    const room = await prisma.room.findFirst({
-      where: { slug } as Prisma.RoomWhereInput,
-    });
+    const where: any = { slug };
+    if (museumSlug) {
+      where.museum = { slug: museumSlug };
+    }
+
+    const room = await prisma.room.findFirst({ where });
 
     if (!room) {
       return res.status(404).json({ error: 'Room not found' });
@@ -1102,13 +1106,21 @@ app.post('/artifacts', async (req, res) => {
     return res.status(400).json({ error: 'name and roomId are required' });
   }
 
+  // Look up the room to get its museumId
+  const room = await prisma.room.findUnique({ where: { id: roomId } });
+  if (!room) {
+    return res.status(400).json({ error: 'Room not found' });
+  }
+
   const artifact = await prisma.artifact.create({
     data: {
       name,
+      slug: generateSlug(name),
       roomId,
+      museumId: room.museumId,
       knowledgeText: knowledgeText || null,
       furtherReading: furtherReading || [],
-    } as Prisma.ArtifactCreateInput,
+    } as Prisma.ArtifactUncheckedCreateInput,
   });
 
   res.json(artifact);
@@ -1161,15 +1173,18 @@ app.get('/artifacts/:id', async (req, res) => {
   }
 });
 
-// GET /artifacts/by-slug/:slug - Get a single artifact by slug
+// GET /artifacts/by-slug/:slug - Get a single artifact by slug (scoped by museumSlug query param)
 app.get('/artifacts/by-slug/:slug', async (req, res) => {
   try {
     const slug = req.params.slug;
+    const museumSlug = req.query.museumSlug as string | undefined;
 
-    // Use findFirst since Prisma doesn't recognize dbgenerated fields in WhereUniqueInput
-    const artifact = await prisma.artifact.findFirst({
-      where: { slug } as Prisma.ArtifactWhereInput,
-    });
+    const where: any = { slug };
+    if (museumSlug) {
+      where.museum = { slug: museumSlug };
+    }
+
+    const artifact = await prisma.artifact.findFirst({ where });
 
     if (!artifact) {
       return res.status(404).json({ error: 'Artifact not found' });
