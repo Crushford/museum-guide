@@ -67,7 +67,9 @@ export default async function RoomPage({
   }
 
   // Fetch room by slug
-  const room = await api<Room>(`/rooms/by-slug/${roomSlug}?museumSlug=${museumSlug}`).catch(() => null);
+  const room = await api<Room>(
+    `/rooms/by-slug/${roomSlug}?museumSlug=${museumSlug}`
+  ).catch(() => null);
 
   if (!room) {
     notFound();

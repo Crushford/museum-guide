@@ -14,19 +14,15 @@ model Artifact {
   furtherReading   String[]   @default([])
   roomId           Int
   museumId         Int
-  parentArtifactId Int?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   room             Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
   museum           Museum     @relation(fields: [museumId], references: [id], onDelete: Cascade)
-  parentArtifact   Artifact?  @relation("ArtifactToArtifact", fields: [parentArtifactId], references: [id], onDelete: Cascade)
-  childArtifacts   Artifact[] @relation("ArtifactToArtifact")
   content          Content[]
 
   @@unique([slug, museumId])
   @@index([roomId])
   @@index([museumId])
-  @@index([parentArtifactId])
 }
 
 model Content {

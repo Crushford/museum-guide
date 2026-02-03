@@ -1100,8 +1100,7 @@ app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
 });
 
 app.post('/artifacts', async (req, res) => {
-  const { name, roomId, parentArtifactId, knowledgeText, furtherReading } =
-    req.body;
+  const { name, roomId, knowledgeText, furtherReading } = req.body;
 
   if (!name || !roomId) {
     return res.status(400).json({ error: 'name and roomId are required' });
@@ -1119,10 +1118,9 @@ app.post('/artifacts', async (req, res) => {
       slug: generateSlug(name),
       roomId,
       museumId: room.museumId,
-      parentArtifactId: parentArtifactId || null,
       knowledgeText: knowledgeText || null,
       furtherReading: furtherReading || [],
-    } as Prisma.ArtifactCreateInput,
+    } as Prisma.ArtifactUncheckedCreateInput,
   });
 
   res.json(artifact);
@@ -1197,38 +1195,6 @@ app.get('/artifacts/by-slug/:slug', async (req, res) => {
     console.error('Error fetching artifact by slug:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifact';
-    res.status(500).json({ error: errorMessage });
-  }
-});
-
-// GET /artifacts/:id/children - Get child artifacts for a parent artifact
-app.get('/artifacts/:id/children', async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid artifact ID' });
-    }
-
-    const childArtifacts = await prisma.artifact.findMany({
-      where: { parentArtifactId: id },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        roomId: true,
-        museumId: true,
-        parentArtifactId: true,
-      },
-      orderBy: { id: 'asc' },
-    });
-
-    res.json(childArtifacts);
-  } catch (error) {
-    console.error('Error fetching child artifacts:', error);
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'Failed to fetch child artifacts';
     res.status(500).json({ error: errorMessage });
   }
 });
