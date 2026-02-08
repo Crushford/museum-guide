@@ -176,8 +176,39 @@ export async function searchWikidata(
     return [];
   }
 
-  // Filter results that look like museums based on description
-  const museumKeywords = ['museum', 'gallery', 'collection', 'exhibition', 'art'];
+  // Keywords that indicate a museum-like entity
+  const museumKeywords = ['museum', 'gallery', 'collection', 'exhibition', 'art center', 'art centre'];
+
+  // Keywords that indicate non-museum entities (articles, publications, etc.)
+  const excludeKeywords = [
+    'article',
+    'journal',
+    'publication',
+    'book',
+    'paper',
+    'magazine',
+    'newspaper',
+    'periodical',
+    'dissertation',
+    'thesis',
+    'scholarly',
+    'scientific article',
+    'academic',
+    'wikimedia',
+    'wikipedia',
+    'category',
+    'template',
+    'taxon',
+    'species',
+    'genus',
+    'song',
+    'album',
+    'film',
+    'movie',
+    'television',
+    'tv series',
+    'video game',
+  ];
 
   const results: WikidataSearchResult[] = data.search
     .map((item: { id: string; label: string; description?: string }) => ({
@@ -186,9 +217,20 @@ export async function searchWikidata(
       description: item.description,
     }))
     .filter((item: WikidataSearchResult) => {
-      // Include if description contains museum-related keywords
       const desc = (item.description || '').toLowerCase();
-      return museumKeywords.some(keyword => desc.includes(keyword));
+      const label = item.label.toLowerCase();
+
+      // Exclude if description matches any exclude keywords
+      if (excludeKeywords.some(keyword => desc.includes(keyword))) {
+        return false;
+      }
+
+      // Include if label or description contains museum-related keywords
+      const hasMuseumKeyword =
+        museumKeywords.some(keyword => label.includes(keyword)) ||
+        museumKeywords.some(keyword => desc.includes(keyword));
+
+      return hasMuseumKeyword;
     });
 
   console.log(`[Wikidata Search] Found ${results.length} museum-like results`);
