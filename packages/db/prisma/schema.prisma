@@ -9,7 +9,7 @@ datasource db {
 model Artifact {
   id               Int        @id @default(autoincrement())
   name             String
-  slug             String
+  slug             String     @default(dbgenerated())
   knowledgeText    String?
   furtherReading   String[]   @default([])
   roomId           Int?
@@ -67,7 +67,7 @@ model Museum {
 model Room {
   id             Int        @id @default(autoincrement())
   name           String
-  slug           String
+  slug           String     @default(dbgenerated())
   knowledgeText  String?
   furtherReading String[]   @default([])
   museumId       Int
