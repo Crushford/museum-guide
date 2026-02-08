@@ -13,6 +13,14 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'node:fs';
 import { generateAudioForContent } from './lib/audio';
+import {
+  queryWikidata,
+  buildMuseumQuery,
+  extractQId,
+  parseCoordinates,
+  parseLocationLabels,
+  SUPPORTED_CITIES,
+} from './lib/wikidata';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -269,14 +277,40 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
   }
 });
 
-// GET /museums - List all museums
-app.get('/museums', async (_req, res) => {
+// GET /cities - Get list of available cities from SUPPORTED_CITIES
+app.get('/cities', (_req, res) => {
   try {
-    const museums: MuseumResponse[] = await prisma.museum.findMany({
-      orderBy: {
-        id: 'asc',
-      },
-    });
+    // Return the keys from SUPPORTED_CITIES, sorted alphabetically
+    const cities = Object.keys(SUPPORTED_CITIES).sort();
+    res.json(cities);
+  } catch (error) {
+    console.error('Error fetching cities:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch cities';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /museums - List all museums
+app.get('/museums', async (req, res) => {
+  try {
+    const citySlug = req.query.citySlug as string | undefined;
+
+    let museums: MuseumResponse[];
+    if (citySlug) {
+      // Use raw SQL query until Prisma client is regenerated with citySlug field
+      museums = (await prisma.$queryRaw`
+        SELECT * FROM "Museum" 
+        WHERE "citySlug" = ${citySlug}
+        ORDER BY id ASC
+      `) as MuseumResponse[];
+    } else {
+      museums = await prisma.museum.findMany({
+        orderBy: {
+          id: 'asc',
+        },
+      });
+    }
     res.json(museums);
   } catch (error) {
     console.error('Error fetching museums:', error);
@@ -1243,7 +1277,7 @@ app.get('/artifacts/by-slug/:slug', async (req, res) => {
 });
 
 app.post('/content', async (req, res) => {
-  const { text, type, museumId, roomId, artifactId } = req.body;
+  const { text, type, museumId, roomId, artifactId, llmProvider, model, prompt } = req.body;
 
   if (!text) {
     return res.status(400).json({ error: 'text is required' });
@@ -1265,6 +1299,9 @@ app.post('/content', async (req, res) => {
       museumId,
       roomId,
       artifactId,
+      llmProvider: llmProvider || 'manual',
+      model: model || 'manual',
+      prompt: prompt || '',
     },
   });
 
@@ -1512,7 +1549,7 @@ function generateIntroductionTemplate(
     id: number;
     name: string;
     knowledgeText: string | null;
-    roomId: number;
+    roomId: number | null;
   },
   room?: { id: number; name: string; parentRoomId: number | null } | null,
   museum?: { id: number; name: string } | null,
@@ -1746,7 +1783,7 @@ app.post('/generate-content/artefact/:artefactId', async (req, res) => {
       console.error('[Generate Content] Error details:', {
         name: error.name,
         message: error.message,
-        cause: error.cause,
+        cause: (error as unknown as { cause?: unknown }).cause,
       });
 
       // Log Prisma-specific errors in detail
@@ -1969,6 +2006,142 @@ app.post('/generate-audio/content/:contentId', async (req, res) => {
     res.status(500).json({ error: errorMessage });
   }
 });
+
+// ============================================================================
+// WIKIDATA SEEDING ENDPOINT
+// ============================================================================
+
+const handleSeedMuseums = async (
+  req: express.Request,
+  res: express.Response
+) => {
+  const { city } = req.params;
+
+  // Validate city slug
+  if (!SUPPORTED_CITIES[city]) {
+    return res.status(400).json({
+      error: `City "${city}" is not supported. Supported cities: ${Object.keys(SUPPORTED_CITIES).join(', ')}`,
+    });
+  }
+
+  const cityQId = SUPPORTED_CITIES[city];
+
+  try {
+    // Build and execute SPARQL query
+    const sparqlQuery = buildMuseumQuery(cityQId);
+    const results = await queryWikidata(sparqlQuery);
+
+    let inserted = 0;
+    let updated = 0;
+
+    // Process each result
+    for (const binding of results) {
+      const museumUri = binding.museum?.value;
+      const museumLabel = binding.museumLabel?.value;
+      const coordStr = binding.coord?.value;
+      const imageStr = binding.image?.value;
+      const wikipediaStr = binding.wikipedia?.value;
+      const locationLabelsStr = binding.locationLabels?.value;
+
+      if (!museumUri || !museumLabel) {
+        console.warn('Skipping museum with missing URI or label:', binding);
+        continue;
+      }
+
+      const wikidataId = extractQId(museumUri);
+      if (!wikidataId) {
+        console.warn('Failed to extract Q-id from URI:', museumUri);
+        continue;
+      }
+
+      // Parse data
+      const coordinates = parseCoordinates(coordStr);
+      const locationTags = parseLocationLabels(locationLabelsStr);
+
+      // Store image URL as-is from Wikidata (no extraction needed)
+      const image = imageStr || null;
+
+      // Upsert museum - preserve existing knowledgeText and furtherReading
+      // Note: slug is a generated column in PostgreSQL, so we don't set it
+      try {
+        // Check if museum exists to get accurate insert/update counts
+        const existing = await prisma.museum.findUnique({
+          where: { wikidataId } as any,
+          select: { id: true },
+        });
+
+        await prisma.museum.upsert({
+          where: { wikidataId } as any,
+          update: {
+            // Update Wikidata-sourced fields (Wikidata is source of truth)
+            name: museumLabel,
+            citySlug: city,
+            wikipediaUrl: wikipediaStr || null,
+            coordinates: coordinates ? coordinates : null,
+            image,
+            locationTags,
+            // Preserve user-edited fields - don't overwrite
+            knowledgeText: undefined,
+            furtherReading: undefined,
+          } as any,
+          create: {
+            name: museumLabel,
+            wikidataId,
+            citySlug: city,
+            wikipediaUrl: wikipediaStr || null,
+            coordinates: coordinates ? coordinates : null,
+            image,
+            locationTags,
+            knowledgeText: null,
+            furtherReading: [],
+          } as any,
+        });
+
+        if (existing) {
+          updated++;
+        } else {
+          inserted++;
+        }
+      } catch (error) {
+        console.error(`Error upserting museum ${wikidataId}:`, error);
+        // Continue with other museums even if one fails
+      }
+    }
+
+    // Get total count for this city
+    const total = await prisma.museum.count({
+      where: { citySlug: city } as any,
+    });
+
+    res.json({
+      city,
+      inserted,
+      updated,
+      total,
+    });
+  } catch (error) {
+    console.error('Error seeding museums:', error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to seed museums from Wikidata';
+
+    // Return 502 for Wikidata service errors
+    if (
+      errorMessage.includes('Wikidata') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('query')
+    ) {
+      return res.status(502).json({
+        error: `Wikidata service error: ${errorMessage}`,
+      });
+    }
+
+    res.status(500).json({ error: errorMessage });
+  }
+};
+
+app.post('/api/seed-museums/:city', handleSeedMuseums);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

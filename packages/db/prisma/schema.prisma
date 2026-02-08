@@ -45,9 +45,15 @@ model Content {
 model Museum {
   id             Int       @id @default(autoincrement())
   name           String
-  slug           String    @unique
+  slug           String    @unique @default(dbgenerated())
   knowledgeText  String?
   furtherReading String[]  @default([])
+  wikidataId     String?   @unique
+  citySlug       String?
+  wikipediaUrl   String?
+  coordinates    Json?
+  image          String?
+  locationTags   String[]  @default([])
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -55,7 +61,7 @@ model Museum {
   artifacts      Artifact[]
   content        Content[]
 
-  @@index([slug])
+  @@index([citySlug])
 }
 
 model Room {
