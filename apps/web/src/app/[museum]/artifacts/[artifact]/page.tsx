@@ -7,6 +7,7 @@ import { AdminPageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { EntityDetailsForm } from '../../../../app/admin/shared/EntityDetailsForm';
 import { Button } from '@/components/ui/button';
+import { Globe, ExternalLink } from 'lucide-react';
 
 type Room = {
   id: number;
@@ -24,6 +25,8 @@ type Artifact = {
   museumId: number;
   knowledgeText: string | null;
   furtherReading: string[];
+  wikimediaImageUrl: string | null;
+  wikipediaUrl: string | null;
 };
 
 type Content = {
@@ -111,8 +114,8 @@ export default async function ArtifactPage({
       title={artifact.name}
       actions={
         <Button asChild variant="secondary" size="sm">
-          <Link href={`/${museumSlug}/rooms/${artifactRoom.slug}`}>
-            Back to Room
+          <Link href={artifactRoom ? `/${museumSlug}/rooms/${artifactRoom.slug}` : `/${museumSlug}`}>
+            {artifactRoom ? 'Back to Room' : 'Back to Museum'}
           </Link>
         </Button>
       }
@@ -120,13 +123,42 @@ export default async function ArtifactPage({
       <div className="space-y-6">
         {/* Artifact Details */}
         <SectionCard title="About">
-          <EntityDetailsForm
-            id={artifact.id}
-            name={artifact.name}
-            knowledgeText={artifactWithKnowledgeText.knowledgeText}
-            furtherReading={artifactWithKnowledgeText.furtherReading || []}
-            allowEdit={false}
-          />
+          <div className="space-y-4">
+            {/* Image */}
+            {artifact.wikimediaImageUrl && (
+              <div className="relative aspect-square w-full max-w-md overflow-hidden rounded-lg bg-muted">
+                <img
+                  src={artifact.wikimediaImageUrl}
+                  alt={artifact.name}
+                  className="object-cover w-full h-full"
+                />
+              </div>
+            )}
+
+            <EntityDetailsForm
+              id={artifact.id}
+              name={artifact.name}
+              knowledgeText={artifactWithKnowledgeText.knowledgeText}
+              furtherReading={artifactWithKnowledgeText.furtherReading || []}
+              allowEdit={false}
+            />
+
+            {/* Wikipedia Link */}
+            {artifact.wikipediaUrl && (
+              <div className="pt-2">
+                <a
+                  href={artifact.wikipediaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                >
+                  <Globe className="h-4 w-4" />
+                  View on Wikipedia
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
+          </div>
         </SectionCard>
 
         {/* Artifact Main Content */}
