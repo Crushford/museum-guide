@@ -323,7 +323,7 @@ app.get('/cities/stats', async (_req, res) => {
 // MUSEUM SEARCH API - Search-first flow
 // ============================================================================
 
-// GET /api/museums/search - Search Wikidata for museums by name
+// GET /api/museums/search - Search both database and Wikidata for museums
 app.get('/api/museums/search', async (req, res) => {
   try {
     const query = req.query.q as string;
@@ -334,17 +334,88 @@ app.get('/api/museums/search', async (req, res) => {
       });
     }
 
-    console.log(`[Museum Search] Searching for: "${query}"`);
-    const results = await searchWikidata(query.trim(), 15);
+    const searchTerm = query.trim();
+    console.log(`[Museum Search] Searching for: "${searchTerm}"`);
+
+    // Search database first (case-insensitive)
+    const localMuseums = await prisma.museum.findMany({
+      where: {
+        name: {
+          contains: searchTerm,
+          mode: 'insensitive',
+        },
+      },
+      take: 5,
+      orderBy: { name: 'asc' },
+    });
+
+    const localResults = localMuseums.map((museum) => ({
+      qid: museum.wikidataId || `local-${museum.id}`,
+      label: museum.name,
+      description: museum.citySlug
+        ? `Museum in ${museum.citySlug}`
+        : 'Museum in your collection',
+      isLocal: true,
+      slug: museum.slug,
+    }));
+
+    console.log(`[Museum Search] Found ${localResults.length} local results`);
+
+    // Search Wikidata
+    const wikidataResults = await searchWikidata(searchTerm, 10);
+
+    // Filter out Wikidata results that are already in local results
+    const localQids = new Set(
+      localMuseums.map((m) => m.wikidataId).filter(Boolean)
+    );
+    const filteredWikidataResults = wikidataResults
+      .filter((r) => !localQids.has(r.qid))
+      .map((r) => ({ ...r, isLocal: false }));
+
+    console.log(
+      `[Museum Search] Found ${filteredWikidataResults.length} Wikidata results (after filtering)`
+    );
 
     res.json({
-      query: query.trim(),
-      results,
+      query: searchTerm,
+      local: localResults,
+      wikidata: filteredWikidataResults,
     });
   } catch (error) {
     console.error('Error searching museums:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to search museums';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /api/museums/search/wikidata - Search Wikidata only (for explicit search button)
+app.get('/api/museums/search/wikidata', async (req, res) => {
+  try {
+    const query = req.query.q as string;
+
+    if (!query || query.trim().length < 2) {
+      return res.status(400).json({
+        error: 'Search query must be at least 2 characters',
+      });
+    }
+
+    const searchTerm = query.trim();
+    console.log(`[Wikidata Search] Searching for: "${searchTerm}"`);
+
+    // Search Wikidata only
+    const wikidataResults = await searchWikidata(searchTerm, 10);
+
+    console.log(`[Wikidata Search] Found ${wikidataResults.length} results`);
+
+    res.json({
+      query: searchTerm,
+      results: wikidataResults,
+    });
+  } catch (error) {
+    console.error('Error searching Wikidata:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to search Wikidata';
     res.status(500).json({ error: errorMessage });
   }
 });

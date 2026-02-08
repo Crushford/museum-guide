@@ -32,6 +32,16 @@ yarn format
 - `packages/db` - Prisma database package
 - `packages/types` - Shared TypeScript types
 
+## Configuration
+
+### App Name
+
+The application name is stored in `apps/web/src/lib/constants.ts` as `APP_NAME`. This allows the name to be easily changed in one place if we decide on a different name later. Import and use it anywhere the app name is displayed:
+
+```typescript
+import { APP_NAME } from '@/lib/constants';
+```
+
 ## UI Guidelines
 
 See [docs/ui-guidelines.md](./docs/ui-guidelines.md) for component usage and styling guidelines.
