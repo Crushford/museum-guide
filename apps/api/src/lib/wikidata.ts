@@ -2,7 +2,7 @@
  * Wikidata Query Service utilities
  */
 
-export { buildMuseumQuery } from './sparql-queries';
+export { buildMuseumQuery, buildArtifactsQuery } from './sparql-queries';
 
 const WIKIDATA_QUERY_SERVICE_URL = 'https://query.wikidata.org/sparql';
 const WIKIDATA_API_URL = 'https://www.wikidata.org/w/api.php';
@@ -33,7 +33,7 @@ export const SUPPORTED_CITIES: Record<string, string> = {
 /**
  * Execute a SPARQL query against Wikidata Query Service with retry logic
  */
-export async function queryWikidata(sparqlQuery: string): Promise<WikidataBinding[]> {
+export async function queryWikidata<T = WikidataBinding>(sparqlQuery: string): Promise<T[]> {
   const url = `${WIKIDATA_QUERY_SERVICE_URL}?query=${encodeURIComponent(
     sparqlQuery
   )}&format=json`;
@@ -344,4 +344,133 @@ export async function isMuseum(qid: string): Promise<boolean> {
   // For now, we trust the search filtering
   // A more robust check would verify P31 (instance-of) claims
   return true;
+}
+
+// ============================================================================
+// WIKIPEDIA SUMMARY API
+// ============================================================================
+
+export interface WikipediaSummary {
+  title: string;
+  extract: string;
+  description?: string;
+  thumbnail?: {
+    source: string;
+    width: number;
+    height: number;
+  };
+}
+
+/**
+ * Fetch a summary from Wikipedia REST API.
+ * Works with both English and German Wikipedia URLs.
+ *
+ * @param wikipediaUrl - Full Wikipedia URL (e.g., https://en.wikipedia.org/wiki/Altes_Museum)
+ */
+export async function fetchWikipediaSummary(
+  wikipediaUrl: string
+): Promise<WikipediaSummary | null> {
+  try {
+    // Parse the Wikipedia URL to extract language and title
+    const url = new URL(wikipediaUrl);
+    const lang = url.hostname.split('.')[0]; // 'en' or 'de'
+    const title = decodeURIComponent(url.pathname.replace('/wiki/', ''));
+
+    if (!lang || !title) {
+      console.warn('[Wikipedia] Could not parse URL:', wikipediaUrl);
+      return null;
+    }
+
+    // Use Wikipedia REST API summary endpoint
+    const apiUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+    console.log(`[Wikipedia] Fetching summary: ${title} (${lang})`);
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'MuseumGuide/1.0 (museum-guide@example.com)',
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`[Wikipedia] Summary fetch failed: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+
+    return {
+      title: data.title,
+      extract: data.extract || '',
+      description: data.description,
+      thumbnail: data.thumbnail,
+    };
+  } catch (error) {
+    console.error('[Wikipedia] Error fetching summary:', error);
+    return null;
+  }
+}
+
+// ============================================================================
+// ARTIFACT QUERY RESULTS
+// ============================================================================
+
+export interface WikidataArtifactBinding {
+  item?: { value: string };
+  itemLabel?: { value: string };
+  itemDescription?: { value: string };
+  image?: { value: string };
+  article?: { value: string };
+}
+
+export interface ArtifactFromWikidata {
+  qid: string;
+  label: string;
+  description?: string;
+  image?: string;
+  wikipediaUrl?: string;
+}
+
+/**
+ * Parse artifact query results from Wikidata SPARQL
+ */
+export function parseArtifactResults(
+  bindings: WikidataArtifactBinding[]
+): ArtifactFromWikidata[] {
+  const seen = new Set<string>();
+  const results: ArtifactFromWikidata[] = [];
+
+  for (const binding of bindings) {
+    const itemUri = binding.item?.value;
+    if (!itemUri) continue;
+
+    const qid = extractQId(itemUri);
+    if (!qid || seen.has(qid)) continue;
+    seen.add(qid);
+
+    const label = binding.itemLabel?.value;
+    if (!label || label === qid) continue; // Skip items without proper labels
+
+    // Get Wikipedia URL - prefer English
+    let wikipediaUrl = binding.article?.value;
+    if (wikipediaUrl && !wikipediaUrl.includes('en.wikipedia.org')) {
+      // Keep German as fallback
+    }
+
+    // Get image URL (convert to Commons file path if needed)
+    let image = binding.image?.value;
+    if (image && !image.startsWith('http')) {
+      image = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(image)}`;
+    }
+
+    results.push({
+      qid,
+      label,
+      description: binding.itemDescription?.value,
+      image,
+      wikipediaUrl,
+    });
+  }
+
+  return results;
 }

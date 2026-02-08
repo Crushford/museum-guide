@@ -16,10 +16,14 @@ import { generateAudioForContent } from './lib/audio';
 import {
   queryWikidata,
   buildMuseumQuery,
+  buildArtifactsQuery,
   extractQId,
   SUPPORTED_CITIES,
   searchWikidata,
   fetchWikidataEntity,
+  fetchWikipediaSummary,
+  parseArtifactResults,
+  type WikidataArtifactBinding,
 } from './lib/wikidata';
 
 // Load environment variables - check multiple locations
@@ -529,6 +533,289 @@ app.post('/api/museums/select/:qid', async (req, res) => {
 
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to select museum';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// ============================================================================
+// MUSEUM HYDRATION ENDPOINTS
+// ============================================================================
+
+const HYDRATION_CACHE_DAYS = 7;
+
+function isRecentlyHydrated(timestamp: Date | null): boolean {
+  if (!timestamp) return false;
+  const daysSince = (Date.now() - timestamp.getTime()) / (1000 * 60 * 60 * 24);
+  return daysSince < HYDRATION_CACHE_DAYS;
+}
+
+// POST /api/museums/:slug/hydrate - Hydrate museum details from Wikidata/Wikipedia
+app.post('/api/museums/:slug/hydrate', async (req, res) => {
+  const { slug } = req.params;
+  const force = req.query.force === '1';
+
+  try {
+    console.log(`[Museum Hydrate] Starting hydration for: ${slug}`);
+
+    // Find museum by slug
+    const museum = await prisma.museum.findFirst({
+      where: { slug },
+    });
+
+    if (!museum) {
+      return res.status(404).json({
+        error: 'Museum not found. Use /search to find and add museums.',
+      });
+    }
+
+    // Check cache unless force refresh
+    if (!force && isRecentlyHydrated(museum.museumHydratedAt)) {
+      console.log(`[Museum Hydrate] Using cached data for: ${museum.name}`);
+      return res.json({
+        cached: true,
+        museum: {
+          id: museum.id,
+          name: museum.name,
+          slug: museum.slug,
+          description: museum.description,
+          wikipediaSummary: museum.wikipediaSummary,
+          wikipediaUrl: museum.wikipediaUrl,
+          image: museum.image,
+          coordinates: museum.coordinates,
+          officialWebsite: museum.officialWebsite,
+          museumHydratedAt: museum.museumHydratedAt,
+        },
+      });
+    }
+
+    // Require wikidataId to hydrate
+    if (!museum.wikidataId) {
+      return res.status(400).json({
+        error: 'Museum missing wikidataId. Cannot hydrate from Wikidata.',
+      });
+    }
+
+    console.log(`[Museum Hydrate] Fetching from Wikidata: ${museum.wikidataId}`);
+
+    // Fetch details from Wikidata
+    const details = await fetchWikidataEntity(museum.wikidataId);
+    if (!details) {
+      return res.status(502).json({
+        error: 'Failed to fetch museum details from Wikidata',
+      });
+    }
+
+    // Fetch Wikipedia summary if we have a URL
+    let wikipediaSummary: string | null = null;
+    const wikipediaUrl = details.wikipediaUrl || museum.wikipediaUrl;
+    if (wikipediaUrl) {
+      console.log(`[Museum Hydrate] Fetching Wikipedia summary...`);
+      const summary = await fetchWikipediaSummary(wikipediaUrl);
+      if (summary) {
+        wikipediaSummary = summary.extract;
+      }
+    }
+
+    // Update museum with hydrated data
+    const updatedMuseum = await prisma.museum.update({
+      where: { id: museum.id },
+      data: {
+        description: details.description || museum.description,
+        wikipediaSummary: wikipediaSummary || museum.wikipediaSummary,
+        wikipediaUrl: wikipediaUrl || museum.wikipediaUrl,
+        image: details.image || museum.image,
+        coordinates: details.coordinates ?? museum.coordinates ?? undefined,
+        officialWebsite: details.officialWebsite || museum.officialWebsite,
+        locationTags: details.locationLabels.length > 0 ? details.locationLabels : museum.locationTags,
+        museumHydratedAt: new Date(),
+      } as any,
+    });
+
+    console.log(`[Museum Hydrate] Successfully hydrated: ${museum.name}`);
+
+    res.json({
+      cached: false,
+      museum: {
+        id: updatedMuseum.id,
+        name: updatedMuseum.name,
+        slug: updatedMuseum.slug,
+        description: updatedMuseum.description,
+        wikipediaSummary: updatedMuseum.wikipediaSummary,
+        wikipediaUrl: updatedMuseum.wikipediaUrl,
+        image: updatedMuseum.image,
+        coordinates: updatedMuseum.coordinates,
+        officialWebsite: updatedMuseum.officialWebsite,
+        museumHydratedAt: updatedMuseum.museumHydratedAt,
+      },
+    });
+  } catch (error) {
+    console.error(`[Museum Hydrate] Error:`, error);
+
+    // Return 502 for Wikidata/Wikipedia service errors
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to hydrate museum';
+    if (
+      errorMessage.includes('Wikidata') ||
+      errorMessage.includes('Wikipedia') ||
+      errorMessage.includes('timeout')
+    ) {
+      return res.status(502).json({ error: errorMessage });
+    }
+
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// POST /api/museums/:slug/hydrate-artifacts - Hydrate artifacts from Wikidata
+app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
+  const { slug } = req.params;
+  const force = req.query.force === '1';
+
+  try {
+    console.log(`[Artifact Hydrate] Starting hydration for museum: ${slug}`);
+
+    // Find museum by slug
+    const museum = await prisma.museum.findFirst({
+      where: { slug },
+    });
+
+    if (!museum) {
+      return res.status(404).json({
+        error: 'Museum not found. Use /search to find and add museums.',
+      });
+    }
+
+    // Check cache unless force refresh
+    if (!force && isRecentlyHydrated(museum.artifactsHydratedAt)) {
+      console.log(`[Artifact Hydrate] Using cached data for: ${museum.name}`);
+      const artifacts = await prisma.artifact.findMany({
+        where: { museumId: museum.id },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          wikidataId: true,
+          wikipediaUrl: true,
+          wikimediaImageUrl: true,
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      return res.json({
+        cached: true,
+        museumId: museum.id,
+        artifacts,
+        artifactsHydratedAt: museum.artifactsHydratedAt,
+      });
+    }
+
+    // Require wikidataId to hydrate
+    if (!museum.wikidataId) {
+      return res.status(400).json({
+        error: 'Museum missing wikidataId. Cannot hydrate artifacts from Wikidata.',
+      });
+    }
+
+    console.log(`[Artifact Hydrate] Querying Wikidata for artifacts of: ${museum.wikidataId}`);
+
+    // Query Wikidata for artifacts
+    const sparqlQuery = buildArtifactsQuery(museum.wikidataId);
+    const bindings = await queryWikidata<WikidataArtifactBinding>(sparqlQuery);
+    const artifactsFromWikidata = parseArtifactResults(bindings);
+
+    console.log(`[Artifact Hydrate] Found ${artifactsFromWikidata.length} artifacts with Wikipedia pages`);
+
+    // Upsert artifacts
+    let upserted = 0;
+    const artifactResults: any[] = [];
+
+    for (const artifact of artifactsFromWikidata) {
+      try {
+        // Check if artifact exists by wikidataId
+        const existing = await prisma.artifact.findUnique({
+          where: { wikidataId: artifact.qid },
+        });
+
+        if (existing) {
+          // Update existing artifact
+          const updated = await prisma.artifact.update({
+            where: { wikidataId: artifact.qid },
+            data: {
+              name: artifact.label,
+              wikipediaUrl: artifact.wikipediaUrl || existing.wikipediaUrl,
+              wikimediaImageUrl: artifact.image || existing.wikimediaImageUrl,
+            } as any,
+          });
+          artifactResults.push({
+            id: updated.id,
+            name: updated.name,
+            slug: updated.slug,
+            wikidataId: artifact.qid,
+            wikipediaUrl: updated.wikipediaUrl,
+            wikimediaImageUrl: updated.wikimediaImageUrl,
+          });
+        } else {
+          // Create new artifact
+          const created = await prisma.artifact.create({
+            data: {
+              name: artifact.label,
+              museumId: museum.id,
+              wikidataId: artifact.qid,
+              wikipediaUrl: artifact.wikipediaUrl || null,
+              wikimediaImageUrl: artifact.image || null,
+              knowledgeText: artifact.description || null,
+              furtherReading: artifact.wikipediaUrl ? [artifact.wikipediaUrl] : [],
+            } as any,
+          });
+          artifactResults.push({
+            id: created.id,
+            name: created.name,
+            slug: created.slug,
+            wikidataId: artifact.qid,
+            wikipediaUrl: created.wikipediaUrl,
+            wikimediaImageUrl: created.wikimediaImageUrl,
+          });
+          upserted++;
+        }
+      } catch (artifactError: any) {
+        // Handle slug collision - skip this artifact
+        if (artifactError?.code === 'P2002') {
+          console.warn(`[Artifact Hydrate] Skipping duplicate: ${artifact.label}`);
+        } else {
+          console.error(`[Artifact Hydrate] Error upserting ${artifact.label}:`, artifactError);
+        }
+      }
+    }
+
+    // Update museum's artifactsHydratedAt timestamp
+    await prisma.museum.update({
+      where: { id: museum.id },
+      data: { artifactsHydratedAt: new Date() } as any,
+    });
+
+    console.log(`[Artifact Hydrate] Successfully hydrated ${upserted} new artifacts for: ${museum.name}`);
+
+    res.json({
+      cached: false,
+      museumId: museum.id,
+      artifacts: artifactResults,
+      newArtifacts: upserted,
+      artifactsHydratedAt: new Date(),
+    });
+  } catch (error) {
+    console.error(`[Artifact Hydrate] Error:`, error);
+
+    // Return 502 for Wikidata service errors
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to hydrate artifacts';
+    if (
+      errorMessage.includes('Wikidata') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('query')
+    ) {
+      return res.status(502).json({ error: errorMessage });
+    }
+
     res.status(500).json({ error: errorMessage });
   }
 });

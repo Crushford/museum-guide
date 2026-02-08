@@ -7,13 +7,16 @@ datasource db {
 }
 
 model Artifact {
-  id               Int        @id @default(autoincrement())
-  name             String
-  slug             String     @default(dbgenerated())
-  knowledgeText    String?
-  furtherReading   String[]   @default([])
-  roomId           Int?
-  museumId         Int
+  id                 Int        @id @default(autoincrement())
+  name               String
+  slug               String     @default(dbgenerated())
+  knowledgeText      String?
+  furtherReading     String[]   @default([])
+  wikidataId         String?    @unique
+  wikipediaUrl       String?
+  wikimediaImageUrl  String?
+  roomId             Int?
+  museumId           Int
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   room             Room?      @relation(fields: [roomId], references: [id], onDelete: Cascade)
@@ -43,19 +46,24 @@ model Content {
 }
 
 model Museum {
-  id             Int       @id @default(autoincrement())
-  name           String
-  slug           String    @unique @default(dbgenerated())
-  knowledgeText  String?
-  furtherReading String[]  @default([])
-  wikidataId     String?   @unique
-  citySlug       String?
-  wikipediaUrl   String?
-  coordinates    Json?
-  image          String?
-  locationTags   String[]  @default([])
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                   Int       @id @default(autoincrement())
+  name                 String
+  slug                 String    @unique @default(dbgenerated())
+  knowledgeText        String?
+  furtherReading       String[]  @default([])
+  wikidataId           String?   @unique
+  citySlug             String?
+  wikipediaUrl         String?
+  coordinates          Json?
+  image                String?
+  locationTags         String[]  @default([])
+  description          String?
+  wikipediaSummary     String?
+  officialWebsite      String?
+  museumHydratedAt     DateTime?
+  artifactsHydratedAt  DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   rooms          Room[]
   artifacts      Artifact[]

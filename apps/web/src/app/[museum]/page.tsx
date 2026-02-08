@@ -4,10 +4,13 @@ import { notFound } from 'next/navigation';
 import type { MuseumResponse } from '@repo/types';
 import { AdminPageLayout } from '../../components/shared';
 import { SectionCard } from '../../components/shared';
-import { EntityDetailsForm } from '../../app/admin/shared/EntityDetailsForm';
 import { ChildEntityList } from '../../app/admin/shared/ChildEntityList';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import {
+  MuseumDetailsHydration,
+  ArtifactsHydration,
+} from './MuseumHydration';
 
 type Room = {
   id: number;
@@ -66,6 +69,12 @@ export default async function MuseumPage({
     notFound();
   }
 
+  // Cast to include optional fields
+  const museumData = museum as MuseumResponse & {
+    image?: string;
+    wikipediaUrl?: string;
+  };
+
   const [rooms, artifacts, content] = await Promise.all([
     api<Room[]>(`/museums/${museum.id}/rooms`).catch(() => []),
     api<Artifact[]>(`/museums/${museum.id}/artifacts`).catch(() => []),
@@ -75,11 +84,6 @@ export default async function MuseumPage({
   // Find intro content (type 'intro' or first content item)
   const intro = content.find((c) => c.type === 'intro') || content[0];
   const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
-
-  const museumWithKnowledgeText = museum as MuseumResponse & {
-    knowledgeText: string | null;
-    furtherReading: string[];
-  };
 
   return (
     <AdminPageLayout
@@ -91,18 +95,14 @@ export default async function MuseumPage({
       }
     >
       <div className="space-y-6">
-        {/* Museum Details */}
-        <SectionCard title="About">
-          <EntityDetailsForm
-            id={museum.id}
-            name={museum.name}
-            knowledgeText={museumWithKnowledgeText.knowledgeText}
-            furtherReading={museumWithKnowledgeText.furtherReading || []}
-            allowEdit={false}
-          />
-        </SectionCard>
+        {/* Museum Details - Hydrated from Wikipedia */}
+        <MuseumDetailsHydration
+          museumSlug={museumSlug}
+          initialImage={museumData.image}
+          initialWikipediaUrl={museumData.wikipediaUrl}
+        />
 
-        {/* Intro Content */}
+        {/* Intro Content (if exists from LLM generation) */}
         {intro && intro.text.trim() && (
           <SectionCard title="Introduction">
             <p className="text-primary leading-relaxed">{intro.text}</p>
@@ -126,22 +126,15 @@ export default async function MuseumPage({
           />
         )}
 
-        {/* Artifacts */}
-        {artifacts.length > 0 && (
-          <ChildEntityList
-            title="Artifacts"
-            entities={artifacts.map((a) => ({
-              id: a.id,
-              name: a.name,
-              type: 'artifact' as const,
-              href: `/${museumSlug}/artifacts/${a.slug || a.id}`,
-            }))}
-            newEntityRoute={null}
-            newEntityLabel="Add Artifact"
-            emptyMessage="No artifacts yet."
-            allowEdit={false}
-          />
-        )}
+        {/* Artifacts - Hydrated from Wikipedia */}
+        <ArtifactsHydration
+          museumSlug={museumSlug}
+          existingArtifacts={artifacts.map((a) => ({
+            id: a.id,
+            name: a.name,
+            slug: a.slug,
+          }))}
+        />
 
         {/* Follow-up Content */}
         {followups.length > 0 && (
