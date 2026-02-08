@@ -2,6 +2,8 @@
  * Wikidata Query Service utilities
  */
 
+export { buildMuseumQuery } from './sparql-queries';
+
 const WIKIDATA_QUERY_SERVICE_URL = 'https://query.wikidata.org/sparql';
 
 interface WikidataValue {
@@ -11,10 +13,6 @@ interface WikidataValue {
 export interface WikidataBinding {
   museum?: WikidataValue;
   museumLabel?: WikidataValue;
-  coord?: WikidataValue;
-  image?: WikidataValue;
-  wikipedia?: WikidataValue;
-  locationLabels?: WikidataValue;
 }
 
 const QUERY_TIMEOUT_MS = 60000; // 60 seconds
@@ -28,6 +26,7 @@ const RATE_LIMIT_RETRY_DELAY_MS = 10000; // 10 seconds for 429
 export const SUPPORTED_CITIES: Record<string, string> = {
   berlin: 'Q64',
   amsterdam: 'Q9899',
+  brisbane: 'Q34932'
 };
 
 /**
@@ -120,94 +119,10 @@ export async function queryWikidata(sparqlQuery: string): Promise<WikidataBindin
 }
 
 /**
- * Build SPARQL query for museums in a city
- */
-export function buildMuseumQuery(cityQId: string): string {
-  return `#title: Museums (one row per museum, requires Wikipedia page, one image)
-SELECT
-  ?museum
-  ?museumLabel
-  (SAMPLE(?coord) AS ?coord)
-  (SAMPLE(?image) AS ?image)
-  (SAMPLE(?wikipedia) AS ?wikipedia)
-  (GROUP_CONCAT(DISTINCT ?locLabel; SEPARATOR="|") AS ?locationLabels)
-WHERE {
-  ?museum wdt:P31/wdt:P279* wd:Q33506 .
-  ?museum wdt:P131 wd:${cityQId} .
-  FILTER NOT EXISTS { ?museum wdt:P582 ?endTime . }
-
-  OPTIONAL { ?museum wdt:P625 ?coord . }
-  OPTIONAL { ?museum wdt:P18  ?image . }
-
-  OPTIONAL {
-    ?enwiki schema:about ?museum ;
-      schema:isPartOf <https://en.wikipedia.org/> .
-  }
-  OPTIONAL {
-    ?dewiki schema:about ?museum ;
-      schema:isPartOf <https://de.wikipedia.org/> .
-  }
-  BIND(COALESCE(?enwiki, ?dewiki) AS ?wikipedia)
-  FILTER(BOUND(?wikipedia))
-
-  OPTIONAL {
-    ?museum wdt:P131 ?loc .
-    OPTIONAL { ?loc rdfs:label ?locLabelDe . FILTER(LANG(?locLabelDe) = "de") }
-    OPTIONAL { ?loc rdfs:label ?locLabelEn . FILTER(LANG(?locLabelEn) = "en") }
-    BIND(COALESCE(?locLabelDe, ?locLabelEn) AS ?locLabel)
-  }
-
-  SERVICE wikibase:label {
-    bd:serviceParam wikibase:language "de,en".
-  }
-}
-GROUP BY ?museum ?museumLabel
-ORDER BY ?museumLabel
-LIMIT 200`;
-}
-
-/**
  * Extract Q-id from Wikidata URI
  * Example: "http://www.wikidata.org/entity/Q123" -> "Q123"
  */
 export function extractQId(uri: string): string | null {
   const match = uri.match(/\/Q(\d+)$/);
   return match ? `Q${match[1]}` : null;
-}
-
-/**
- * Parse coordinates from Wikidata Point format
- * Example: "Point(13.4050 52.5200)" -> { lat: 52.5200, lng: 13.4050 }
- * Supports negative coordinates: "Point(-74.0060 40.7128)"
- */
-export function parseCoordinates(coordStr: string | undefined): {
-  lat: number;
-  lng: number;
-} | null {
-  if (!coordStr) return null;
-
-  const match = coordStr.match(/Point\(([-\d.]+)\s+([-\d.]+)\)/);
-  if (!match) return null;
-
-  const lng = parseFloat(match[1]);
-  const lat = parseFloat(match[2]);
-
-  if (isNaN(lat) || isNaN(lng)) return null;
-
-  return { lat, lng };
-}
-
-/**
- * Parse location labels string into array
- */
-export function parseLocationLabels(
-  locationLabelsStr: string | undefined
-): string[] {
-  if (!locationLabelsStr) return [];
-
-  return locationLabelsStr
-    .split('|')
-    .map((label) => label.trim())
-    .filter((label) => label.length > 0)
-    .filter((value, index, self) => self.indexOf(value) === index); // deduplicate
 }

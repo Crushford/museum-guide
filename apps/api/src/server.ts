@@ -17,8 +17,6 @@ import {
   queryWikidata,
   buildMuseumQuery,
   extractQId,
-  parseCoordinates,
-  parseLocationLabels,
   SUPPORTED_CITIES,
 } from './lib/wikidata';
 
@@ -287,6 +285,34 @@ app.get('/cities', (_req, res) => {
     console.error('Error fetching cities:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch cities';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /cities/stats - Get museum counts per city
+app.get('/cities/stats', async (_req, res) => {
+  try {
+    const supportedCities = Object.keys(SUPPORTED_CITIES).sort();
+
+    // Get counts for each city
+    const stats = await Promise.all(
+      supportedCities.map(async (city) => {
+        const count = await prisma.museum.count({
+          where: { citySlug: city },
+        });
+        return {
+          city,
+          museumCount: count,
+          lastSeeded: null as string | null, // Could be added later with a separate table
+        };
+      })
+    );
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching city stats:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch city stats';
     res.status(500).json({ error: errorMessage });
   }
 });
@@ -2038,10 +2064,6 @@ const handleSeedMuseums = async (
     for (const binding of results) {
       const museumUri = binding.museum?.value;
       const museumLabel = binding.museumLabel?.value;
-      const coordStr = binding.coord?.value;
-      const imageStr = binding.image?.value;
-      const wikipediaStr = binding.wikipedia?.value;
-      const locationLabelsStr = binding.locationLabels?.value;
 
       if (!museumUri || !museumLabel) {
         console.warn('Skipping museum with missing URI or label:', binding);
@@ -2054,53 +2076,50 @@ const handleSeedMuseums = async (
         continue;
       }
 
-      // Parse data
-      const coordinates = parseCoordinates(coordStr);
-      const locationTags = parseLocationLabels(locationLabelsStr);
-
-      // Store image URL as-is from Wikidata (no extraction needed)
-      const image = imageStr || null;
-
       // Upsert museum - preserve existing knowledgeText and furtherReading
       // Note: slug is a generated column in PostgreSQL, so we don't set it
       try {
-        // Check if museum exists to get accurate insert/update counts
-        const existing = await prisma.museum.findUnique({
+        // Check if museum exists by wikidataId
+        const existingByWikidataId = await prisma.museum.findUnique({
           where: { wikidataId } as any,
           select: { id: true },
         });
 
-        await prisma.museum.upsert({
-          where: { wikidataId } as any,
-          update: {
-            // Update Wikidata-sourced fields (Wikidata is source of truth)
-            name: museumLabel,
-            citySlug: city,
-            wikipediaUrl: wikipediaStr || null,
-            coordinates: coordinates ? coordinates : null,
-            image,
-            locationTags,
-            // Preserve user-edited fields - don't overwrite
-            knowledgeText: undefined,
-            furtherReading: undefined,
-          } as any,
-          create: {
-            name: museumLabel,
-            wikidataId,
-            citySlug: city,
-            wikipediaUrl: wikipediaStr || null,
-            coordinates: coordinates ? coordinates : null,
-            image,
-            locationTags,
-            knowledgeText: null,
-            furtherReading: [],
-          } as any,
-        });
-
-        if (existing) {
+        if (existingByWikidataId) {
+          // Museum exists, update it
+          await prisma.museum.update({
+            where: { wikidataId } as any,
+            data: {
+              name: museumLabel,
+              citySlug: city,
+            } as any,
+          });
           updated++;
         } else {
-          inserted++;
+          // Museum doesn't exist, try to create it
+          try {
+            await prisma.museum.create({
+              data: {
+                name: museumLabel,
+                wikidataId,
+                citySlug: city,
+                knowledgeText: null,
+                furtherReading: [],
+              } as any,
+            });
+            inserted++;
+          } catch (createError: any) {
+            // Handle slug collision (P2002 = unique constraint violation)
+            if (createError?.code === 'P2002' && createError?.meta?.modelName === 'Museum') {
+              // Slug collision - a museum with a similar name already exists
+              // This can happen when Wikidata has multiple entries for similar museums
+              console.warn(
+                `Skipping museum ${wikidataId} (${museumLabel}): slug collision with existing museum`
+              );
+            } else {
+              throw createError;
+            }
+          }
         }
       } catch (error) {
         console.error(`Error upserting museum ${wikidataId}:`, error);
