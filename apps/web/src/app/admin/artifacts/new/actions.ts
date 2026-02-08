@@ -18,6 +18,11 @@ type ArtifactData = {
 };
 
 export async function createArtifactWithRoom(data: ArtifactData) {
+  // museumId is now required for artifacts
+  if (!data.museumId || typeof data.museumId !== 'number') {
+    throw new Error('museumId is required for artifacts');
+  }
+
   let roomId: number | null = null;
 
   // If parentId is provided, use it directly
@@ -25,12 +30,6 @@ export async function createArtifactWithRoom(data: ArtifactData) {
     roomId = data.parentId;
   } else if (data.parentName) {
     // Need to find or create the room
-    // museumId is REQUIRED when creating a new room (a room must have a museum as parent)
-    if (!data.museumId || typeof data.museumId !== 'number') {
-      throw new Error(
-        'museumId is required when creating a new room. A room must have a museum as its parent.'
-      );
-    }
     const museumId = data.museumId;
 
     // First, try to find existing room by name within the museum
@@ -95,14 +94,7 @@ export async function createArtifactWithRoom(data: ArtifactData) {
         );
       }
     }
-  } else {
-    throw new Error('Either parentId or parentName must be provided');
   }
-
-  if (!roomId) {
-    throw new Error('Failed to determine room ID');
-  }
-
   // Now create the artifact
   const response = await fetch(`${API_URL}/artifacts`, {
     method: 'POST',
@@ -111,7 +103,8 @@ export async function createArtifactWithRoom(data: ArtifactData) {
     },
     body: JSON.stringify({
       name: data.name,
-      roomId: roomId,
+      museumId: data.museumId,
+      roomId: roomId || null,
       knowledgeText: data.knowledgeText || null,
       furtherReading: data.furtherReading || [],
     }),
