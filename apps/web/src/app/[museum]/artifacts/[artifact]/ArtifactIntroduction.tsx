@@ -214,7 +214,7 @@ export function ArtifactIntroduction({
         )}
 
         {/* Introduction Text */}
-        <p className="text-primary leading-relaxed">{content.text}</p>
+        <p className="text-primary leading-relaxed whitespace-pre-wrap">{content.text}</p>
 
         {/* Generation Progress (when regenerating) */}
         {isGenerating && (
