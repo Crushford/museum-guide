@@ -2347,6 +2347,156 @@ app.post('/generate-content/artefact/:artefactId', async (req, res) => {
   }
 });
 
+// GET /generate-content/artefact/:artefactId/stream - Stream content generation using SSE
+app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
+  const startTime = Date.now();
+  console.log(
+    '[Generate Content Stream] Starting request for artifact:',
+    req.params.artefactId
+  );
+
+  // Set up SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders();
+
+  const sendEvent = (event: string, data: unknown) => {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const artefactId = Number(req.params.artefactId);
+
+    if (Number.isNaN(artefactId)) {
+      sendEvent('error', { error: 'Invalid artefactId' });
+      res.end();
+      return;
+    }
+
+    // Fetch artifact with related data
+    sendEvent('status', { step: 'loading', message: 'Loading artifact data...' });
+
+    const artifact = await prisma.artifact.findUnique({
+      where: { id: artefactId },
+      include: {
+        room: {
+          include: {
+            museum: { select: { id: true, name: true } },
+            parentRoom: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    if (!artifact) {
+      sendEvent('error', { error: 'Artifact not found' });
+      res.end();
+      return;
+    }
+
+    const room = artifact.room;
+    const museum = room?.museum || null;
+    const parentRoom = room?.parentRoom || null;
+
+    // Generate template
+    const template = generateIntroductionTemplate(
+      {
+        id: artifact.id,
+        name: artifact.name,
+        knowledgeText: artifact.knowledgeText,
+        roomId: artifact.roomId,
+      },
+      room,
+      museum,
+      parentRoom
+    );
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      sendEvent('error', { error: 'GEMINI_API_KEY not configured' });
+      res.end();
+      return;
+    }
+
+    // Initialize Gemini and start streaming
+    sendEvent('status', { step: 'generating', message: 'Sending prompt to LLM...' });
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const modelName = 'gemini-2.5-flash';
+    const model = genAI.getGenerativeModel({ model: modelName });
+
+    // Use streaming API
+    const result = await model.generateContentStream(template);
+
+    let fullText = '';
+
+    // Stream chunks to client
+    for await (const chunk of result.stream) {
+      const chunkText = chunk.text();
+      fullText += chunkText;
+      sendEvent('chunk', { text: chunkText });
+    }
+
+    console.log('[Generate Content Stream] Streaming complete, text length:', fullText.length);
+
+    // Save to database
+    sendEvent('status', { step: 'saving', message: 'Saving content...' });
+
+    const content = await prisma.content.create({
+      data: {
+        text: fullText,
+        type: 'introduction',
+        artifactId: artefactId,
+        llmProvider: 'google',
+        model: modelName,
+        prompt: template,
+      },
+    });
+
+    // Generate audio
+    sendEvent('status', { step: 'audio', message: 'Generating audio with text-to-speech...' });
+
+    let audioUrl: string | null = null;
+    try {
+      audioUrl = await generateAudioForContent(content.id, fullText, {
+        outputDir: audioDir,
+      });
+
+      await prisma.content.update({
+        where: { id: content.id },
+        data: { audioUrl },
+      });
+    } catch (audioError) {
+      console.error('[Generate Content Stream] Audio generation failed:', audioError);
+      // Continue without audio
+    }
+
+    // Send final complete event
+    const finalContent = await prisma.content.findUnique({
+      where: { id: content.id },
+    });
+
+    const totalDuration = Date.now() - startTime;
+    console.log('[Generate Content Stream] Complete:', {
+      contentId: content.id,
+      hasAudio: !!audioUrl,
+      totalDuration: `${totalDuration}ms`,
+    });
+
+    sendEvent('complete', { content: finalContent });
+    res.end();
+  } catch (error) {
+    console.error('[Generate Content Stream] Error:', error);
+    sendEvent('error', {
+      error: error instanceof Error ? error.message : 'Failed to generate content',
+    });
+    res.end();
+  }
+});
+
 // POST /generate-audio/artefact/:artefactId - Generate audio for artifact's content
 app.post('/generate-audio/artefact/:artefactId', async (req, res) => {
   const startTime = Date.now();

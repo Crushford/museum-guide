@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Loader2, Volume2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/shared';
@@ -13,7 +13,7 @@ type ContentItem = {
   audioUrl: string | null;
 };
 
-type GenerationStep = 'idle' | 'sending-to-llm' | 'generating-audio' | 'done';
+type GenerationStep = 'idle' | 'loading' | 'generating' | 'saving' | 'audio' | 'done';
 
 interface ArtifactIntroductionProps {
   artifactId: number;
@@ -26,33 +26,77 @@ export function ArtifactIntroduction({
 }: ArtifactIntroductionProps) {
   const [content, setContent] = useState<ContentItem | null>(initialContent);
   const [generationStep, setGenerationStep] = useState<GenerationStep>('idle');
+  const [streamingText, setStreamingText] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   const isGenerating = generationStep !== 'idle' && generationStep !== 'done';
 
-  // Simulate step progression (the API does both in one call)
-  useEffect(() => {
-    if (generationStep === 'sending-to-llm') {
-      const timer = setTimeout(() => {
-        setGenerationStep('generating-audio');
-      }, 3000); // After 3 seconds, assume LLM is done and TTS is starting
-      return () => clearTimeout(timer);
-    }
-  }, [generationStep]);
-
   const handleGenerateIntroduction = useCallback(async () => {
-    setGenerationStep('sending-to-llm');
+    // Clean up any existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    setGenerationStep('loading');
+    setStreamingText('');
+    setStatusMessage('Loading artifact data...');
     setError(null);
 
     try {
-      const response = await apiPost<ContentItem>(
-        `/generate-content/artefact/${artifactId}`
+      const eventSource = new EventSource(
+        `${API_URL}/generate-content/artefact/${artifactId}/stream`
       );
-      setContent(response);
-      setGenerationStep('done');
+      eventSourceRef.current = eventSource;
+
+      eventSource.addEventListener('status', (event) => {
+        const data = JSON.parse(event.data);
+        setGenerationStep(data.step as GenerationStep);
+        setStatusMessage(data.message);
+      });
+
+      eventSource.addEventListener('chunk', (event) => {
+        const data = JSON.parse(event.data);
+        setStreamingText((prev) => prev + data.text);
+      });
+
+      eventSource.addEventListener('complete', (event) => {
+        const data = JSON.parse(event.data);
+        setContent(data.content);
+        setGenerationStep('done');
+        setStreamingText('');
+        eventSource.close();
+        eventSourceRef.current = null;
+      });
+
+      eventSource.addEventListener('error', (event) => {
+        // Check if it's a custom error event or connection error
+        if (event instanceof MessageEvent) {
+          const data = JSON.parse(event.data);
+          setError(data.error);
+        } else {
+          setError('Connection error. Please try again.');
+        }
+        setGenerationStep('idle');
+        eventSource.close();
+        eventSourceRef.current = null;
+      });
+
+      // Handle connection errors
+      eventSource.onerror = () => {
+        if (eventSource.readyState === EventSource.CLOSED) {
+          // Normal close, ignore
+          return;
+        }
+        setError('Connection error. Please try again.');
+        setGenerationStep('idle');
+        eventSource.close();
+        eventSourceRef.current = null;
+      };
     } catch (err) {
-      console.error('Error generating introduction:', err);
+      console.error('Error setting up stream:', err);
       setError(
         err instanceof Error ? err.message : 'Failed to generate introduction'
       );
@@ -81,16 +125,52 @@ export function ArtifactIntroduction({
     }
   }, [content]);
 
-  const getGenerationStepText = () => {
+  const getStepIcon = () => {
     switch (generationStep) {
-      case 'sending-to-llm':
-        return 'Sending prompt to LLM...';
-      case 'generating-audio':
-        return 'Generating audio with text-to-speech...';
+      case 'loading':
+      case 'saving':
+        return '📋';
+      case 'generating':
+        return '🤖';
+      case 'audio':
+        return '🔊';
       default:
-        return 'Generating...';
+        return '⏳';
     }
   };
+
+  // Show streaming UI when generating (before we have final content)
+  if (isGenerating && !content) {
+    return (
+      <SectionCard title="Introduction">
+        <div className="space-y-4">
+          {error && (
+            <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+          )}
+
+          {/* Status indicator */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+            <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+            <div>
+              <p className="text-primary font-medium">
+                {getStepIcon()} {statusMessage}
+              </p>
+            </div>
+          </div>
+
+          {/* Streaming text display */}
+          {streamingText && (
+            <div className="relative">
+              <p className="text-primary leading-relaxed whitespace-pre-wrap">
+                {streamingText}
+                <span className="inline-block w-2 h-5 bg-primary animate-pulse ml-1" />
+              </p>
+            </div>
+          )}
+        </div>
+      </SectionCard>
+    );
+  }
 
   // No content yet - show generate button
   if (!content) {
@@ -100,28 +180,12 @@ export function ArtifactIntroduction({
           {error && (
             <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
           )}
-          {isGenerating ? (
-            <div className="flex items-center gap-3 py-2">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <div>
-                <p className="text-primary font-medium">{getGenerationStepText()}</p>
-                <p className="text-sm text-muted-foreground">
-                  {generationStep === 'sending-to-llm'
-                    ? 'Creating an introduction based on artifact information...'
-                    : 'Converting the introduction to audio...'}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <p className="text-muted-foreground">
-                No introduction has been generated for this artifact yet.
-              </p>
-              <Button onClick={handleGenerateIntroduction}>
-                Generate Introduction
-              </Button>
-            </>
-          )}
+          <p className="text-muted-foreground">
+            No introduction has been generated for this artifact yet.
+          </p>
+          <Button onClick={handleGenerateIntroduction}>
+            Generate Introduction
+          </Button>
         </div>
       </SectionCard>
     );
@@ -152,18 +216,26 @@ export function ArtifactIntroduction({
         {/* Introduction Text */}
         <p className="text-primary leading-relaxed">{content.text}</p>
 
-        {/* Generation Progress */}
+        {/* Generation Progress (when regenerating) */}
         {isGenerating && (
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-            <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
-            <div>
-              <p className="text-primary font-medium">{getGenerationStepText()}</p>
-              <p className="text-sm text-muted-foreground">
-                {generationStep === 'sending-to-llm'
-                  ? 'Creating an introduction based on artifact information...'
-                  : 'Converting the introduction to audio...'}
-              </p>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+              <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+              <div>
+                <p className="text-primary font-medium">
+                  {getStepIcon()} {statusMessage}
+                </p>
+              </div>
             </div>
+            {streamingText && (
+              <div className="p-3 rounded-lg border border-primary/20 bg-primary/5">
+                <p className="text-sm text-muted-foreground mb-2">New introduction:</p>
+                <p className="text-primary leading-relaxed whitespace-pre-wrap">
+                  {streamingText}
+                  <span className="inline-block w-2 h-5 bg-primary animate-pulse ml-1" />
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -178,7 +250,7 @@ export function ArtifactIntroduction({
             {isGenerating ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                {getGenerationStepText()}
+                Generating...
               </>
             ) : (
               <>
