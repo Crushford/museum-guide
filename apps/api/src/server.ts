@@ -18,6 +18,8 @@ import {
   buildMuseumQuery,
   extractQId,
   SUPPORTED_CITIES,
+  searchWikidata,
+  fetchWikidataEntity,
 } from './lib/wikidata';
 
 // Load environment variables - check multiple locations
@@ -313,6 +315,149 @@ app.get('/cities/stats', async (_req, res) => {
     console.error('Error fetching city stats:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch city stats';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// ============================================================================
+// MUSEUM SEARCH API - Search-first flow
+// ============================================================================
+
+// GET /api/museums/search - Search Wikidata for museums by name
+app.get('/api/museums/search', async (req, res) => {
+  try {
+    const query = req.query.q as string;
+
+    if (!query || query.trim().length < 2) {
+      return res.status(400).json({
+        error: 'Search query must be at least 2 characters',
+      });
+    }
+
+    console.log(`[Museum Search] Searching for: "${query}"`);
+    const results = await searchWikidata(query.trim(), 15);
+
+    res.json({
+      query: query.trim(),
+      results,
+    });
+  } catch (error) {
+    console.error('Error searching museums:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to search museums';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// POST /api/museums/select/:qid - Select and enrich a museum by QID
+app.post('/api/museums/select/:qid', async (req, res) => {
+  const { qid } = req.params;
+
+  // Validate QID format
+  if (!/^Q\d+$/.test(qid)) {
+    return res.status(400).json({
+      error: `Invalid QID format: ${qid}. Expected format: Q followed by numbers (e.g., Q33506)`,
+    });
+  }
+
+  try {
+    console.log(`[Museum Select] Selecting museum: ${qid}`);
+
+    // Check if museum already exists in DB
+    const existingMuseum = await prisma.museum.findUnique({
+      where: { wikidataId: qid },
+    });
+
+    if (existingMuseum) {
+      console.log(`[Museum Select] Museum already exists: ${existingMuseum.name} (${qid})`);
+
+      // Check if we need to enrich (missing key fields)
+      const needsEnrichment =
+        !existingMuseum.wikipediaUrl &&
+        !existingMuseum.image &&
+        !existingMuseum.coordinates;
+
+      if (needsEnrichment) {
+        console.log(`[Museum Select] Enriching existing museum...`);
+        const details = await fetchWikidataEntity(qid);
+
+        if (details) {
+          await prisma.museum.update({
+            where: { wikidataId: qid },
+            data: {
+              wikipediaUrl: details.wikipediaUrl || existingMuseum.wikipediaUrl,
+              image: details.image || existingMuseum.image,
+              coordinates: details.coordinates
+                ? details.coordinates
+                : (existingMuseum.coordinates as { lat: number; lng: number } | null) ?? undefined,
+              locationTags:
+                existingMuseum.locationTags.length > 0
+                  ? existingMuseum.locationTags
+                  : details.locationLabels,
+            },
+          });
+        }
+      }
+
+      return res.json({
+        created: false,
+        museum: {
+          id: existingMuseum.id,
+          qid,
+          slug: existingMuseum.slug,
+          name: existingMuseum.name,
+        },
+      });
+    }
+
+    // Museum doesn't exist - fetch details from Wikidata and create
+    console.log(`[Museum Select] Fetching details from Wikidata...`);
+    const details = await fetchWikidataEntity(qid);
+
+    if (!details) {
+      return res.status(404).json({
+        error: `Museum not found on Wikidata: ${qid}`,
+      });
+    }
+
+    // Create the museum
+    console.log(`[Museum Select] Creating museum: ${details.label}`);
+    const museum = await prisma.museum.create({
+      data: {
+        name: details.label,
+        wikidataId: qid,
+        wikipediaUrl: details.wikipediaUrl || null,
+        image: details.image || null,
+        coordinates: details.coordinates ?? undefined,
+        locationTags: details.locationLabels || [],
+        knowledgeText: null,
+        furtherReading: [],
+      },
+    });
+
+    console.log(`[Museum Select] Created museum: ${museum.name} (id: ${museum.id})`);
+
+    res.json({
+      created: true,
+      museum: {
+        id: museum.id,
+        qid,
+        slug: museum.slug,
+        name: museum.name,
+      },
+    });
+  } catch (error: any) {
+    console.error(`Error selecting museum ${qid}:`, error);
+
+    // Handle slug collision
+    if (error?.code === 'P2002' && error?.meta?.modelName === 'Museum') {
+      return res.status(409).json({
+        error: 'A museum with a similar name already exists',
+      });
+    }
+
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to select museum';
     res.status(500).json({ error: errorMessage });
   }
 });

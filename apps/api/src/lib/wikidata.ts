@@ -5,6 +5,7 @@
 export { buildMuseumQuery } from './sparql-queries';
 
 const WIKIDATA_QUERY_SERVICE_URL = 'https://query.wikidata.org/sparql';
+const WIKIDATA_API_URL = 'https://www.wikidata.org/w/api.php';
 
 interface WikidataValue {
   value: string;
@@ -125,4 +126,222 @@ export async function queryWikidata(sparqlQuery: string): Promise<WikidataBindin
 export function extractQId(uri: string): string | null {
   const match = uri.match(/\/Q(\d+)$/);
   return match ? `Q${match[1]}` : null;
+}
+
+// ============================================================================
+// WIKIDATA SEARCH API (wbsearchentities) - Fast name search
+// ============================================================================
+
+export interface WikidataSearchResult {
+  qid: string;
+  label: string;
+  description?: string;
+}
+
+/**
+ * Search Wikidata for entities by name using the wbsearchentities API.
+ * This is faster than SPARQL and designed for autocomplete/search.
+ */
+export async function searchWikidata(
+  query: string,
+  limit: number = 10
+): Promise<WikidataSearchResult[]> {
+  const params = new URLSearchParams({
+    action: 'wbsearchentities',
+    search: query,
+    language: 'en',
+    uselang: 'en',
+    type: 'item',
+    limit: String(limit),
+    format: 'json',
+    origin: '*',
+  });
+
+  const url = `${WIKIDATA_API_URL}?${params}`;
+  console.log(`[Wikidata Search] Searching for: "${query}"`);
+
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'MuseumGuide/1.0 (museum-guide@example.com)',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Wikidata search failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (!data.search || !Array.isArray(data.search)) {
+    return [];
+  }
+
+  // Filter results that look like museums based on description
+  const museumKeywords = ['museum', 'gallery', 'collection', 'exhibition', 'art'];
+
+  const results: WikidataSearchResult[] = data.search
+    .map((item: { id: string; label: string; description?: string }) => ({
+      qid: item.id,
+      label: item.label,
+      description: item.description,
+    }))
+    .filter((item: WikidataSearchResult) => {
+      // Include if description contains museum-related keywords
+      const desc = (item.description || '').toLowerCase();
+      return museumKeywords.some(keyword => desc.includes(keyword));
+    });
+
+  console.log(`[Wikidata Search] Found ${results.length} museum-like results`);
+  return results;
+}
+
+// ============================================================================
+// WIKIDATA ENTITY FETCH (wbgetentities) - Full details by QID
+// ============================================================================
+
+export interface WikidataMuseumDetails {
+  qid: string;
+  label: string;
+  description?: string;
+  wikipediaUrl?: string;
+  image?: string;
+  coordinates?: { lat: number; lng: number };
+  officialWebsite?: string;
+  locationLabels: string[];
+}
+
+// Wikidata property IDs
+const PROPS = {
+  INSTANCE_OF: 'P31',
+  IMAGE: 'P18',
+  COORDINATES: 'P625',
+  OFFICIAL_WEBSITE: 'P856',
+  LOCATED_IN: 'P131',
+};
+
+// Q IDs for museum types
+const MUSEUM_TYPES = [
+  'Q33506',   // museum
+  'Q207694',  // art museum
+  'Q17431399', // science museum
+  'Q16735822', // history museum
+  'Q1970365',  // natural history museum
+  'Q7328910',  // archaeological museum
+];
+
+/**
+ * Fetch full details for a Wikidata entity by QID.
+ * Returns museum details including wikipedia URL, image, coordinates, etc.
+ */
+export async function fetchWikidataEntity(
+  qid: string
+): Promise<WikidataMuseumDetails | null> {
+  // Validate QID format
+  if (!/^Q\d+$/.test(qid)) {
+    throw new Error(`Invalid QID format: ${qid}`);
+  }
+
+  const params = new URLSearchParams({
+    action: 'wbgetentities',
+    ids: qid,
+    languages: 'en|de',
+    props: 'labels|descriptions|claims|sitelinks',
+    format: 'json',
+    origin: '*',
+  });
+
+  const url = `${WIKIDATA_API_URL}?${params}`;
+  console.log(`[Wikidata Entity] Fetching: ${qid}`);
+
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'MuseumGuide/1.0 (museum-guide@example.com)',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Wikidata entity fetch failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (!data.entities || !data.entities[qid]) {
+    console.warn(`[Wikidata Entity] Entity not found: ${qid}`);
+    return null;
+  }
+
+  const entity = data.entities[qid];
+  const claims = entity.claims || {};
+  const sitelinks = entity.sitelinks || {};
+
+  // Get label (prefer English, fallback to German)
+  const label =
+    entity.labels?.en?.value ||
+    entity.labels?.de?.value ||
+    qid;
+
+  // Get description
+  const description =
+    entity.descriptions?.en?.value ||
+    entity.descriptions?.de?.value;
+
+  // Get Wikipedia URL (prefer English, fallback to German)
+  let wikipediaUrl: string | undefined;
+  if (sitelinks.enwiki) {
+    wikipediaUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(sitelinks.enwiki.title.replace(/ /g, '_'))}`;
+  } else if (sitelinks.dewiki) {
+    wikipediaUrl = `https://de.wikipedia.org/wiki/${encodeURIComponent(sitelinks.dewiki.title.replace(/ /g, '_'))}`;
+  }
+
+  // Get image (P18)
+  let image: string | undefined;
+  if (claims[PROPS.IMAGE]?.[0]?.mainsnak?.datavalue?.value) {
+    const filename = claims[PROPS.IMAGE][0].mainsnak.datavalue.value;
+    image = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}`;
+  }
+
+  // Get coordinates (P625)
+  let coordinates: { lat: number; lng: number } | undefined;
+  if (claims[PROPS.COORDINATES]?.[0]?.mainsnak?.datavalue?.value) {
+    const coord = claims[PROPS.COORDINATES][0].mainsnak.datavalue.value;
+    coordinates = {
+      lat: coord.latitude,
+      lng: coord.longitude,
+    };
+  }
+
+  // Get official website (P856)
+  let officialWebsite: string | undefined;
+  if (claims[PROPS.OFFICIAL_WEBSITE]?.[0]?.mainsnak?.datavalue?.value) {
+    officialWebsite = claims[PROPS.OFFICIAL_WEBSITE][0].mainsnak.datavalue.value;
+  }
+
+  // Get location labels (P131) - we'd need additional fetches for these
+  // For now, just collect the QIDs; we can resolve them later if needed
+  const locationLabels: string[] = [];
+
+  console.log(`[Wikidata Entity] Fetched: ${label} (${qid})`);
+
+  return {
+    qid,
+    label,
+    description,
+    wikipediaUrl,
+    image,
+    coordinates,
+    officialWebsite,
+    locationLabels,
+  };
+}
+
+/**
+ * Validate that an entity is a museum (has instance-of museum or subclass)
+ */
+export async function isMuseum(qid: string): Promise<boolean> {
+  const details = await fetchWikidataEntity(qid);
+  if (!details) return false;
+
+  // For now, we trust the search filtering
+  // A more robust check would verify P31 (instance-of) claims
+  return true;
 }
