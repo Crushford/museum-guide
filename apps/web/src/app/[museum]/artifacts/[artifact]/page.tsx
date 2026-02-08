@@ -8,6 +8,7 @@ import { SectionCard } from '../../../../components/shared';
 import { EntityDetailsForm } from '../../../../app/admin/shared/EntityDetailsForm';
 import { Button } from '@/components/ui/button';
 import { Globe, ExternalLink } from 'lucide-react';
+import { ArtifactIntroduction } from './ArtifactIntroduction';
 
 type Room = {
   id: number;
@@ -33,6 +34,7 @@ type Content = {
   id: number;
   text: string;
   type: string | null;
+  audioUrl: string | null;
 };
 
 export async function generateMetadata({
@@ -161,12 +163,11 @@ export default async function ArtifactPage({
           </div>
         </SectionCard>
 
-        {/* Artifact Main Content */}
-        {artifactMain && artifactMain.text.trim() && (
-          <SectionCard>
-            <p className="text-primary leading-relaxed">{artifactMain.text}</p>
-          </SectionCard>
-        )}
+        {/* Introduction Section */}
+        <ArtifactIntroduction
+          artifactId={artifact.id}
+          initialContent={artifactMain && artifactMain.text.trim() ? artifactMain : null}
+        />
 
         {/* Q&A Items */}
         {qaItems.length > 0 && (
