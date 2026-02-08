@@ -22,6 +22,7 @@ import {
   searchWikidata,
   fetchWikidataEntity,
   fetchWikipediaSummary,
+  fetchWikipediaSummaryWithTranslation,
   parseArtifactResults,
   type WikidataArtifactBinding,
 } from './lib/wikidata';
@@ -2494,6 +2495,31 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
       error: error instanceof Error ? error.message : 'Failed to generate content',
     });
     res.end();
+  }
+});
+
+// GET /wikipedia/summary - Fetch Wikipedia summary for a given URL (with English preference and translation)
+app.get('/wikipedia/summary', async (req, res) => {
+  try {
+    const url = req.query.url as string;
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    // Use the version that prefers English and translates if needed
+    const summary = await fetchWikipediaSummaryWithTranslation(url);
+
+    if (!summary) {
+      return res.status(404).json({ error: 'Summary not found' });
+    }
+
+    res.json(summary);
+  } catch (error) {
+    console.error('[Wikipedia Summary] Error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to fetch summary',
+    });
   }
 });
 

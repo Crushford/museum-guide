@@ -5,10 +5,18 @@ import { notFound } from 'next/navigation';
 import type { MuseumResponse } from '@repo/types';
 import { AdminPageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
-import { EntityDetailsForm } from '../../../../app/admin/shared/EntityDetailsForm';
 import { Button } from '@/components/ui/button';
 import { Globe, ExternalLink } from 'lucide-react';
 import { ArtifactIntroduction } from './ArtifactIntroduction';
+import { WikipediaSummaryDisplay } from './WikipediaSummaryDisplay';
+
+type WikipediaSummary = {
+  extract: string;
+  title: string;
+  translated?: boolean;
+  originalLanguage?: string;
+  originalExtract?: string;
+};
 
 type Room = {
   id: number;
@@ -97,19 +105,20 @@ export default async function ArtifactPage({
     () => null
   );
 
-  const [content] = await Promise.all([
+  // Fetch content and Wikipedia summary in parallel
+  const [content, wikipediaSummary] = await Promise.all([
     api<Content[]>(`/artifacts/${artifact.id}/content`).catch(() => []),
+    artifact.wikipediaUrl
+      ? api<WikipediaSummary>(
+          `/wikipedia/summary?url=${encodeURIComponent(artifact.wikipediaUrl)}`
+        ).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   const artifactMain =
     content.find((c) => c.type === 'artifactMain') || content[0];
   const qaItems = content.filter((c) => c.type === 'qa').slice(0, 3);
   const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
-
-  const artifactWithKnowledgeText = artifact as Artifact & {
-    knowledgeText: string | null;
-    furtherReading: string[];
-  };
 
   return (
     <AdminPageLayout
@@ -123,51 +132,66 @@ export default async function ArtifactPage({
       }
     >
       <div className="space-y-6">
-        {/* Artifact Details */}
-        <SectionCard title="About">
-          <div className="space-y-4">
-            {/* Image */}
-            {artifact.wikimediaImageUrl && (
-              <div className="relative aspect-square w-full max-w-md overflow-hidden rounded-lg bg-muted">
-                <img
-                  src={artifact.wikimediaImageUrl}
-                  alt={artifact.name}
-                  className="object-cover w-full h-full"
+        {/* Two-column layout for About and Introduction */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Artifact Details - Left */}
+          <SectionCard title="About">
+            <div className="space-y-4">
+              {/* Image */}
+              {artifact.wikimediaImageUrl && (
+                <div className="overflow-hidden rounded-lg bg-muted inline-block">
+                  <img
+                    src={artifact.wikimediaImageUrl}
+                    alt={artifact.name}
+                    className="max-w-sm max-h-96 object-contain"
+                  />
+                </div>
+              )}
+
+              {/* Wikipedia Summary */}
+              {wikipediaSummary?.extract && (
+                <WikipediaSummaryDisplay
+                  extract={wikipediaSummary.extract}
+                  translated={wikipediaSummary.translated}
+                  originalLanguage={wikipediaSummary.originalLanguage}
+                  originalExtract={wikipediaSummary.originalExtract}
                 />
-              </div>
-            )}
+              )}
 
-            <EntityDetailsForm
-              id={artifact.id}
-              name={artifact.name}
-              knowledgeText={artifactWithKnowledgeText.knowledgeText}
-              furtherReading={artifactWithKnowledgeText.furtherReading || []}
-              allowEdit={false}
-            />
+              {/* Plaque Information */}
+              {artifact.knowledgeText && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Plaque Information</h4>
+                  <p className="text-primary leading-relaxed whitespace-pre-wrap">
+                    {artifact.knowledgeText}
+                  </p>
+                </div>
+              )}
 
-            {/* Wikipedia Link */}
-            {artifact.wikipediaUrl && (
-              <div className="pt-2">
-                <a
-                  href={artifact.wikipediaUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                >
-                  <Globe className="h-4 w-4" />
-                  View on Wikipedia
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-            )}
-          </div>
-        </SectionCard>
+              {/* Wikipedia Link */}
+              {artifact.wikipediaUrl && (
+                <div className="pt-2">
+                  <a
+                    href={artifact.wikipediaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                  >
+                    <Globe className="h-4 w-4" />
+                    View on Wikipedia
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
+            </div>
+          </SectionCard>
 
-        {/* Introduction Section */}
-        <ArtifactIntroduction
-          artifactId={artifact.id}
-          initialContent={artifactMain && artifactMain.text.trim() ? artifactMain : null}
-        />
+          {/* Introduction Section - Right */}
+          <ArtifactIntroduction
+            artifactId={artifact.id}
+            initialContent={artifactMain && artifactMain.text.trim() ? artifactMain : null}
+          />
+        </div>
 
         {/* Q&A Items */}
         {qaItems.length > 0 && (

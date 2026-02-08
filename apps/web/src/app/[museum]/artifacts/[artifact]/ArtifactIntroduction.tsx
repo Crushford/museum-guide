@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { Loader2, Volume2, RefreshCw } from 'lucide-react';
+import { Loader2, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/shared';
-import { apiPost, API_URL } from '@/lib/api';
+import { API_URL } from '@/lib/api';
 
 type ContentItem = {
   id: number;
@@ -28,7 +28,6 @@ export function ArtifactIntroduction({
   const [generationStep, setGenerationStep] = useState<GenerationStep>('idle');
   const [streamingText, setStreamingText] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
-  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -104,40 +103,6 @@ export function ArtifactIntroduction({
     }
   }, [artifactId]);
 
-  const handleGenerateAudio = useCallback(async () => {
-    if (!content) return;
-
-    setIsGeneratingAudio(true);
-    setError(null);
-
-    try {
-      const response = await apiPost<ContentItem>(
-        `/generate-audio/content/${content.id}`
-      );
-      setContent(response);
-    } catch (err) {
-      console.error('Error generating audio:', err);
-      setError(
-        err instanceof Error ? err.message : 'Failed to generate audio'
-      );
-    } finally {
-      setIsGeneratingAudio(false);
-    }
-  }, [content]);
-
-  const getStepIcon = () => {
-    switch (generationStep) {
-      case 'loading':
-      case 'saving':
-        return '📋';
-      case 'generating':
-        return '🤖';
-      case 'audio':
-        return '🔊';
-      default:
-        return '⏳';
-    }
-  };
 
   // Show streaming UI when generating (before we have final content)
   if (isGenerating && !content) {
@@ -152,9 +117,7 @@ export function ArtifactIntroduction({
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
             <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
             <div>
-              <p className="text-primary font-medium">
-                {getStepIcon()} {statusMessage}
-              </p>
+              <p className="text-primary font-medium">{statusMessage}</p>
             </div>
           </div>
 
@@ -215,74 +178,6 @@ export function ArtifactIntroduction({
 
         {/* Introduction Text */}
         <p className="text-primary leading-relaxed whitespace-pre-wrap">{content.text}</p>
-
-        {/* Generation Progress (when regenerating) */}
-        {isGenerating && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
-              <div>
-                <p className="text-primary font-medium">
-                  {getStepIcon()} {statusMessage}
-                </p>
-              </div>
-            </div>
-            {streamingText && (
-              <div className="p-3 rounded-lg border border-primary/20 bg-primary/5">
-                <p className="text-sm text-muted-foreground mb-2">New introduction:</p>
-                <p className="text-primary leading-relaxed whitespace-pre-wrap">
-                  {streamingText}
-                  <span className="inline-block w-2 h-5 bg-primary animate-pulse ml-1" />
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-2 pt-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleGenerateIntroduction}
-            disabled={isGenerating}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Regenerate Introduction
-              </>
-            )}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleGenerateAudio}
-            disabled={isGeneratingAudio || isGenerating}
-          >
-            {isGeneratingAudio ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Generating Audio...
-              </>
-            ) : content.audioUrl ? (
-              <>
-                <Volume2 className="h-4 w-4 mr-2" />
-                Regenerate Audio
-              </>
-            ) : (
-              <>
-                <Volume2 className="h-4 w-4 mr-2" />
-                Generate Audio
-              </>
-            )}
-          </Button>
-        </div>
       </div>
     </SectionCard>
   );

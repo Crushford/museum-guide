@@ -2,6 +2,8 @@
  * Wikidata Query Service utilities
  */
 
+import { TranslationServiceClient } from '@google-cloud/translate';
+
 export { buildMuseumQuery, buildArtifactsQuery } from './sparql-queries';
 
 const WIKIDATA_QUERY_SERVICE_URL = 'https://query.wikidata.org/sparql';
@@ -401,6 +403,9 @@ export interface WikipediaSummary {
     width: number;
     height: number;
   };
+  translated?: boolean;
+  originalLanguage?: string;
+  originalExtract?: string;
 }
 
 /**
@@ -449,6 +454,220 @@ export async function fetchWikipediaSummary(
     };
   } catch (error) {
     console.error('[Wikipedia] Error fetching summary:', error);
+    return null;
+  }
+}
+
+/**
+ * Translate text using Google Cloud Translation API
+ * Uses the same authentication as Text-to-Speech (GOOGLE_APPLICATION_CREDENTIALS or gcloud auth)
+ */
+async function translateText(
+  text: string,
+  targetLang: string = 'en'
+): Promise<string | null> {
+  try {
+    // Initialize Google Cloud Translation client
+    // Uses GOOGLE_APPLICATION_CREDENTIALS env var or default application credentials
+    const client = new TranslationServiceClient();
+
+    // Get the project ID from environment or use a default
+    const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
+
+    if (!projectId) {
+      console.warn('[Translation] GOOGLE_CLOUD_PROJECT not configured');
+      return null;
+    }
+
+    const location = 'global';
+    const parent = `projects/${projectId}/locations/${location}`;
+
+    console.log('[Translation] Translating text...', {
+      textLength: text.length,
+      targetLang,
+      projectId,
+    });
+
+    const [response] = await client.translateText({
+      parent,
+      contents: [text],
+      targetLanguageCode: targetLang,
+      mimeType: 'text/plain',
+    });
+
+    const translatedText = response.translations?.[0]?.translatedText;
+
+    if (translatedText) {
+      console.log('[Translation] Translation successful', {
+        originalLength: text.length,
+        translatedLength: translatedText.length,
+      });
+      return translatedText;
+    }
+
+    console.warn('[Translation] No translation returned');
+    return null;
+  } catch (error) {
+    console.error('[Translation] Error:', error);
+
+    // Provide helpful error messages for common credential issues
+    if (error instanceof Error) {
+      if (
+        error.message.includes('Could not load the default credentials') ||
+        error.message.includes('authentication') ||
+        error.message.includes('credentials')
+      ) {
+        console.error(
+          '[Translation] Authentication failed. Make sure you have authenticated with:\n' +
+            '  gcloud auth application-default login\n' +
+            'Or set GOOGLE_APPLICATION_CREDENTIALS to your service account key file path.'
+        );
+      }
+    }
+
+    return null;
+  }
+}
+
+/**
+ * Get English Wikipedia URL from a non-English Wikipedia URL via Wikidata
+ */
+async function getEnglishWikipediaUrl(
+  wikipediaUrl: string
+): Promise<string | null> {
+  try {
+    const url = new URL(wikipediaUrl);
+    const lang = url.hostname.split('.')[0];
+
+    // Already English
+    if (lang === 'en') {
+      return wikipediaUrl;
+    }
+
+    const title = decodeURIComponent(url.pathname.replace('/wiki/', ''));
+
+    // Use Wikipedia API to get Wikidata item
+    const apiUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageprops&format=json&origin=*`;
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'MuseumGuide/1.0 (museum-guide@example.com)',
+      },
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const pages = data.query?.pages;
+    const pageId = Object.keys(pages || {})[0];
+    const wikidataId = pages?.[pageId]?.pageprops?.wikibase_item;
+
+    if (!wikidataId) return null;
+
+    // Now fetch Wikidata entity to get English sitelink
+    const wdResponse = await fetch(
+      `${WIKIDATA_API_URL}?action=wbgetentities&ids=${wikidataId}&props=sitelinks&format=json&origin=*`,
+      {
+        headers: {
+          'User-Agent': 'MuseumGuide/1.0 (museum-guide@example.com)',
+        },
+      }
+    );
+
+    if (!wdResponse.ok) return null;
+
+    const wdData = await wdResponse.json();
+    const englishTitle = wdData.entities?.[wikidataId]?.sitelinks?.enwiki?.title;
+
+    if (englishTitle) {
+      return `https://en.wikipedia.org/wiki/${encodeURIComponent(englishTitle.replace(/ /g, '_'))}`;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[Wikipedia] Error getting English URL:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetch Wikipedia summary, preferring English, with translation fallback
+ */
+// Map language codes to display names
+const LANGUAGE_NAMES: Record<string, string> = {
+  de: 'German',
+  fr: 'French',
+  es: 'Spanish',
+  it: 'Italian',
+  pt: 'Portuguese',
+  nl: 'Dutch',
+  ru: 'Russian',
+  ja: 'Japanese',
+  zh: 'Chinese',
+  ko: 'Korean',
+  ar: 'Arabic',
+  pl: 'Polish',
+  sv: 'Swedish',
+  uk: 'Ukrainian',
+};
+
+export async function fetchWikipediaSummaryWithTranslation(
+  wikipediaUrl: string
+): Promise<WikipediaSummary | null> {
+  try {
+    const url = new URL(wikipediaUrl);
+    const originalLang = url.hostname.split('.')[0];
+
+    // If not English, try to find English version first
+    if (originalLang !== 'en') {
+      console.log(`[Wikipedia] Original URL is ${originalLang}, looking for English version...`);
+      const englishUrl = await getEnglishWikipediaUrl(wikipediaUrl);
+
+      if (englishUrl) {
+        console.log('[Wikipedia] Found English version, fetching...');
+        const englishSummary = await fetchWikipediaSummary(englishUrl);
+        if (englishSummary) {
+          return englishSummary;
+        }
+      }
+    }
+
+    // Fetch original language summary
+    console.log(`[Wikipedia] Fetching ${originalLang} summary...`);
+    const summary = await fetchWikipediaSummary(wikipediaUrl);
+
+    if (!summary) {
+      return null;
+    }
+
+    // If already English, return as-is
+    if (originalLang === 'en') {
+      return summary;
+    }
+
+    // Translate if not English
+    console.log(`[Wikipedia] Translating ${originalLang} summary to English...`);
+    const originalExtract = summary.extract;
+    const translatedExtract = await translateText(summary.extract, 'en');
+
+    if (translatedExtract) {
+      return {
+        ...summary,
+        extract: translatedExtract,
+        translated: true,
+        originalLanguage: LANGUAGE_NAMES[originalLang] || originalLang.toUpperCase(),
+        originalExtract: originalExtract,
+      };
+    }
+
+    // Return original if translation fails (better than nothing)
+    console.log('[Wikipedia] Translation failed, returning original');
+    return {
+      ...summary,
+      originalLanguage: LANGUAGE_NAMES[originalLang] || originalLang.toUpperCase(),
+    };
+  } catch (error) {
+    console.error('[Wikipedia] Error in fetchWikipediaSummaryWithTranslation:', error);
     return null;
   }
 }

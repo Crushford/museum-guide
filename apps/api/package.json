@@ -10,6 +10,7 @@
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.32.0",
     "@google-cloud/text-to-speech": "^6.4.0",
+    "@google-cloud/translate": "^9.3.0",
     "@google/generative-ai": "^0.24.1",
     "@repo/db": "workspace:*",
     "@repo/types": "workspace:*",

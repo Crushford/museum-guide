@@ -7,21 +7,23 @@ datasource db {
 }
 
 model Artifact {
-  id                 Int        @id @default(autoincrement())
-  name               String
-  slug               String     @default(dbgenerated())
-  knowledgeText      String?
-  furtherReading     String[]   @default([])
-  wikidataId         String?    @unique
-  wikipediaUrl       String?
-  wikimediaImageUrl  String?
-  roomId             Int?
-  museumId           Int
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  room             Room?      @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  museum           Museum     @relation(fields: [museumId], references: [id], onDelete: Cascade)
-  content          Content[]
+  id                    Int        @id @default(autoincrement())
+  name                  String
+  slug                  String     @default(dbgenerated())
+  knowledgeText         String?
+  furtherReading        String[]   @default([])
+  wikidataId            String?    @unique
+  wikipediaUrl          String?
+  wikimediaImageUrl     String?
+  wikipediaSummary      String?
+  wikipediaSummaryLang  String?    // Original language code (e.g., "de", "en")
+  roomId                Int?
+  museumId              Int
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  room                  Room?      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  museum                Museum     @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  content               Content[]
 
   @@unique([slug, museumId])
   @@index([roomId])
