@@ -7,18 +7,23 @@ datasource db {
 }
 
 model Artifact {
-  id               Int        @id @default(autoincrement())
-  name             String
-  slug             String
-  knowledgeText    String?
-  furtherReading   String[]   @default([])
-  roomId           Int
-  museumId         Int
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  room             Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  museum           Museum     @relation(fields: [museumId], references: [id], onDelete: Cascade)
-  content          Content[]
+  id                    Int        @id @default(autoincrement())
+  name                  String
+  slug                  String     @default(dbgenerated())
+  knowledgeText         String?
+  furtherReading        String[]   @default([])
+  wikidataId            String?    @unique
+  wikipediaUrl          String?
+  wikimediaImageUrl     String?
+  wikipediaSummary      String?
+  wikipediaSummaryLang  String?    // Original language code (e.g., "de", "en")
+  roomId                Int?
+  museumId              Int
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  room                  Room?      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  museum                Museum     @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  content               Content[]
 
   @@unique([slug, museumId])
   @@index([roomId])
@@ -35,6 +40,7 @@ model Content {
   llmProvider String
   model       String
   prompt      String
+  audioUrl    String?
   createdAt  DateTime  @default(now())
   Artifact   Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
   Museum     Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)
@@ -42,25 +48,36 @@ model Content {
 }
 
 model Museum {
-  id             Int       @id @default(autoincrement())
-  name           String
-  slug           String    @unique
-  knowledgeText  String?
-  furtherReading String[]  @default([])
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                   Int       @id @default(autoincrement())
+  name                 String
+  slug                 String    @unique @default(dbgenerated())
+  knowledgeText        String?
+  furtherReading       String[]  @default([])
+  wikidataId           String?   @unique
+  citySlug             String?
+  wikipediaUrl         String?
+  coordinates          Json?
+  image                String?
+  locationTags         String[]  @default([])
+  description          String?
+  wikipediaSummary     String?
+  officialWebsite      String?
+  museumHydratedAt     DateTime?
+  artifactsHydratedAt  DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   rooms          Room[]
   artifacts      Artifact[]
   content        Content[]
 
-  @@index([slug])
+  @@index([citySlug])
 }
 
 model Room {
   id             Int        @id @default(autoincrement())
   name           String
-  slug           String
+  slug           String     @default(dbgenerated())
   knowledgeText  String?
   furtherReading String[]   @default([])
   museumId       Int

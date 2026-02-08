@@ -5,8 +5,18 @@ import { notFound } from 'next/navigation';
 import type { MuseumResponse } from '@repo/types';
 import { AdminPageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
-import { EntityDetailsForm } from '../../../../app/admin/shared/EntityDetailsForm';
 import { Button } from '@/components/ui/button';
+import { Globe, ExternalLink } from 'lucide-react';
+import { ArtifactIntroduction } from './ArtifactIntroduction';
+import { WikipediaSummaryDisplay } from './WikipediaSummaryDisplay';
+
+type WikipediaSummary = {
+  extract: string;
+  title: string;
+  translated?: boolean;
+  originalLanguage?: string;
+  originalExtract?: string;
+};
 
 type Room = {
   id: number;
@@ -24,12 +34,15 @@ type Artifact = {
   museumId: number;
   knowledgeText: string | null;
   furtherReading: string[];
+  wikimediaImageUrl: string | null;
+  wikipediaUrl: string | null;
 };
 
 type Content = {
   id: number;
   text: string;
   type: string | null;
+  audioUrl: string | null;
 };
 
 export async function generateMetadata({
@@ -92,8 +105,14 @@ export default async function ArtifactPage({
     () => null
   );
 
-  const [content] = await Promise.all([
+  // Fetch content and Wikipedia summary in parallel
+  const [content, wikipediaSummary] = await Promise.all([
     api<Content[]>(`/artifacts/${artifact.id}/content`).catch(() => []),
+    artifact.wikipediaUrl
+      ? api<WikipediaSummary>(
+          `/wikipedia/summary?url=${encodeURIComponent(artifact.wikipediaUrl)}`
+        ).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   const artifactMain =
@@ -101,40 +120,78 @@ export default async function ArtifactPage({
   const qaItems = content.filter((c) => c.type === 'qa').slice(0, 3);
   const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
 
-  const artifactWithKnowledgeText = artifact as Artifact & {
-    knowledgeText: string | null;
-    furtherReading: string[];
-  };
-
   return (
     <AdminPageLayout
       title={artifact.name}
       actions={
         <Button asChild variant="secondary" size="sm">
-          <Link href={`/${museumSlug}/rooms/${artifactRoom.slug}`}>
-            Back to Room
+          <Link href={artifactRoom ? `/${museumSlug}/rooms/${artifactRoom.slug}` : `/${museumSlug}`}>
+            {artifactRoom ? 'Back to Room' : 'Back to Museum'}
           </Link>
         </Button>
       }
     >
       <div className="space-y-6">
-        {/* Artifact Details */}
-        <SectionCard title="About">
-          <EntityDetailsForm
-            id={artifact.id}
-            name={artifact.name}
-            knowledgeText={artifactWithKnowledgeText.knowledgeText}
-            furtherReading={artifactWithKnowledgeText.furtherReading || []}
-            allowEdit={false}
-          />
-        </SectionCard>
+        {/* Two-column layout for About and Introduction */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Artifact Details - Left */}
+          <SectionCard title="About">
+            <div className="space-y-4">
+              {/* Image */}
+              {artifact.wikimediaImageUrl && (
+                <div className="overflow-hidden rounded-lg bg-muted inline-block">
+                  <img
+                    src={artifact.wikimediaImageUrl}
+                    alt={artifact.name}
+                    className="max-w-sm max-h-96 object-contain"
+                  />
+                </div>
+              )}
 
-        {/* Artifact Main Content */}
-        {artifactMain && artifactMain.text.trim() && (
-          <SectionCard>
-            <p className="text-primary leading-relaxed">{artifactMain.text}</p>
+              {/* Wikipedia Summary */}
+              {wikipediaSummary?.extract && (
+                <WikipediaSummaryDisplay
+                  extract={wikipediaSummary.extract}
+                  translated={wikipediaSummary.translated}
+                  originalLanguage={wikipediaSummary.originalLanguage}
+                  originalExtract={wikipediaSummary.originalExtract}
+                />
+              )}
+
+              {/* Plaque Information */}
+              {artifact.knowledgeText && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Plaque Information</h4>
+                  <p className="text-primary leading-relaxed whitespace-pre-wrap">
+                    {artifact.knowledgeText}
+                  </p>
+                </div>
+              )}
+
+              {/* Wikipedia Link */}
+              {artifact.wikipediaUrl && (
+                <div className="pt-2">
+                  <a
+                    href={artifact.wikipediaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                  >
+                    <Globe className="h-4 w-4" />
+                    View on Wikipedia
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
+            </div>
           </SectionCard>
-        )}
+
+          {/* Introduction Section - Right */}
+          <ArtifactIntroduction
+            artifactId={artifact.id}
+            initialContent={artifactMain && artifactMain.text.trim() ? artifactMain : null}
+          />
+        </div>
 
         {/* Q&A Items */}
         {qaItems.length > 0 && (
