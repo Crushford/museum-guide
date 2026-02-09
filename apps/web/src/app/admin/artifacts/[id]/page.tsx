@@ -141,19 +141,10 @@ export default async function ArtifactEditPage({
       .catch(() => null);
   }
 
-  // Get museum - either directly from room or from parent room
-  let parentMuseum: Museum | null = null;
-  if (parentRoom?.museumId) {
-    // Room is directly attached to a museum
-    parentMuseum = await api<Museum>(`/museums/${parentRoom.museumId}`).catch(
-      () => null
-    );
-  } else if (parentRoom?.parentRoomId && parentParentRoom?.museumId) {
-    // Room is a child room - get parent room's museum
-    parentMuseum = await api<Museum>(
-      `/museums/${parentParentRoom.museumId}`
-    ).catch(() => null);
-  }
+  // Get museum directly from the artifact's museumId
+  const parentMuseum: Museum | null = await api<Museum>(
+    `/museums/${artifact.museumId}`
+  ).catch(() => null);
 
   const handleSave = async (data: {
     name: string;

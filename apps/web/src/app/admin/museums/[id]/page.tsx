@@ -6,12 +6,15 @@ import { EditPageClient } from '../../shared/EditPageClient';
 import { updateMuseum } from '../../shared/actions';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
 import { deleteMuseum } from './actions';
+import { SectionCard } from '../../../../components/shared';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { ExternalLink } from 'lucide-react';
 
 type Museum = {
   id: number;
   name: string;
+  slug: string;
   knowledgeText: string | null;
   furtherReading: string[];
 };
@@ -24,6 +27,12 @@ type Room = {
 type Artifact = {
   id: number;
   name: string;
+};
+
+type ContentItem = {
+  id: number;
+  text: string;
+  type: string | null;
 };
 
 async function getMuseumHierarchy(museumId: number): Promise<string[]> {
@@ -75,14 +84,17 @@ export default async function MuseumEditPage({
     redirect('/admin');
   }
 
-  const [museum, rooms, artifacts] = await Promise.all([
+  const [museum, rooms, artifacts, content, museums] = await Promise.all([
     api<Museum>(`/museums/${nodeId}`),
     api<Room[]>(`/museums/${nodeId}/rooms`).catch(() => []),
     api<Artifact[]>(`/museums/${nodeId}/artifacts-recursive`).catch(() => []),
+    api<ContentItem[]>(`/museums/${nodeId}/content`).catch(() => []),
+    api<Museum[]>(`/museums`).catch(() => []),
   ]);
 
-  // Get all museums for potential parent selection (not needed for museums, but for consistency)
-  const museums = await api<Museum[]>(`/museums`).catch(() => []);
+  // Find intro content and followups (same as public page)
+  const intro = content.find((c) => c.type === 'intro') || content[0];
+  const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
 
   const handleSave = async (data: {
     name: string;
@@ -103,9 +115,17 @@ export default async function MuseumEditPage({
         { label: museum.name },
       ]}
       actions={
-        <Button asChild size="sm">
-          <Link href="/admin">Back to Admin</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild size="sm" variant="secondary">
+            <Link href={`/${museum.slug}`}>
+              View Public Page
+              <ExternalLink className="ml-1 h-3 w-3" />
+            </Link>
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/admin">Back to Admin</Link>
+          </Button>
+        </div>
       }
     >
       <div className="space-y-6">
@@ -122,6 +142,30 @@ export default async function MuseumEditPage({
           museums={museums}
           onSave={handleSave}
         />
+        {/* Generated Content */}
+        {intro && intro.text.trim() && (
+          <SectionCard title="Introduction">
+            <p className="text-primary leading-relaxed">{intro.text}</p>
+          </SectionCard>
+        )}
+
+        {followups.length > 0 && (
+          <SectionCard title="Explore Next">
+            <div className="space-y-4">
+              {followups.map((followup) => {
+                if (!followup.text.trim()) return null;
+                return (
+                  <div key={followup.id}>
+                    <p className="text-primary leading-relaxed">
+                      {followup.text}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </SectionCard>
+        )}
+
         <div className="flex justify-end pt-4">
           <DeleteEntityButton
             entityType="museum"
