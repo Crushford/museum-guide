@@ -4,37 +4,18 @@ import { checkSpendLimit } from './cost-tracker';
 import { recordUsage } from './cost-tracker';
 import { traceGeneration } from '../telemetry/langfuse';
 import { generateAudioForContent } from '../audio';
+import { buildIntroductionPrompt } from './prompt-templates';
 
 const PROMPT_VERSION = '1.0';
-
-export function buildIntroductionPrompt(
-  artifact: { name: string; knowledgeText: string | null },
-  room?: { name: string; parentRoom?: { name: string } | null } | null,
-  museum?: { name: string } | null
-): string {
-  const museumName = museum?.name || 'Museum Name';
-  const roomName = room?.name || 'Room Name';
-  const parentRoomName = room?.parentRoom?.name;
-
-  const location = parentRoomName
-    ? `${parentRoomName} - ${roomName}`
-    : roomName;
-
-  const plaqueInfo =
-    artifact.knowledgeText || 'No plaque information available.';
-
-  return `Your role is as a museum guide, the museum you are guiding today is the ${museumName}, we are currently in the ${location} and the artefact you are introducing is: ${artifact.name}, here is the information from the plaque for your reference:
-${plaqueInfo}`;
-}
 
 export async function fetchArtifactWithRelations(artifactId: number) {
   return prisma.artifact.findUnique({
     where: { id: artifactId },
     include: {
+      museum: { select: { id: true, name: true, wikipediaSummary: true } },
       room: {
         include: {
-          museum: { select: { id: true, name: true } },
-          parentRoom: { select: { id: true, name: true } },
+          parentRoom: { select: { id: true, name: true, museumId: true } },
         },
       },
     },
@@ -74,10 +55,17 @@ export async function generateIntroduction(
   if (!artifact) throw new Error('Artifact not found');
 
   const room = artifact.room;
-  const museum = room?.museum || null;
+  const museum = artifact.museum || null;
 
   // 3. Build prompt
-  const prompt = buildIntroductionPrompt(artifact, room, museum);
+  const prompt = buildIntroductionPrompt({
+    artifactName: artifact.name,
+    plaqueText: artifact.knowledgeText,
+    museumName: museum?.name ?? null,
+    roomName: room?.name ?? null,
+    parentRoomName: room?.parentRoom?.name ?? null,
+    museumSummary: museum?.wikipediaSummary ?? null,
+  });
 
   // 4. Generate
   const provider = createProvider(providerName);

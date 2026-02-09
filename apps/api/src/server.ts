@@ -18,6 +18,7 @@ import {
   SpendLimitError,
 } from './lib/llm/generate-content';
 import { createProvider } from './lib/llm';
+import { buildIntroductionPrompt } from './lib/llm/prompt-templates';
 import { getMonthlySpendEur } from './lib/llm/cost-tracker';
 import { initLangfuse } from './lib/telemetry/langfuse';
 import {
@@ -2073,33 +2074,6 @@ app.get('/admin/content/content', async (_req, res) => {
 // CONTENT GENERATION ENDPOINT
 // ============================================================================
 
-// Helper function to generate introduction template (matches frontend logic)
-function generateIntroductionTemplate(
-  artifact: {
-    id: number;
-    name: string;
-    knowledgeText: string | null;
-    roomId: number | null;
-  },
-  room?: { id: number; name: string; parentRoomId: number | null } | null,
-  museum?: { id: number; name: string } | null,
-  parentRoom?: { id: number; name: string } | null
-): string {
-  const museumName = museum?.name || 'Museum Name';
-  const roomName = room?.name || 'Room Name';
-  const parentRoomName = parentRoom?.name;
-
-  const location = parentRoomName
-    ? `${parentRoomName} - ${roomName}`
-    : roomName;
-
-  const plaqueInfo =
-    artifact.knowledgeText || 'No plaque information available.';
-
-  return `Your role is as a museum guide, the museum you are guiding today is the ${museumName}, we are currently in the ${location} and the artefact you are introducing is: ${artifact.name}, here is the information from the plaque for your reference:
-${plaqueInfo}`;
-}
-
 // POST /generate-content/artefact/:artefactId - Generate content using Gemini
 app.post('/generate-content/artefact/:artefactId', async (req, res) => {
   const startTime = Date.now();
@@ -2125,18 +2099,20 @@ app.post('/generate-content/artefact/:artefactId', async (req, res) => {
     const artifact = await prisma.artifact.findUnique({
       where: { id: artefactId },
       include: {
+        museum: {
+          select: {
+            id: true,
+            name: true,
+            wikipediaSummary: true,
+          },
+        },
         room: {
           include: {
-            museum: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
             parentRoom: {
               select: {
                 id: true,
                 name: true,
+                museumId: true,
               },
             },
           },
@@ -2158,7 +2134,7 @@ app.post('/generate-content/artefact/:artefactId', async (req, res) => {
 
     // Extract related entities
     const room = artifact.room;
-    const museum = room?.museum || null;
+    const museum = artifact.museum || null;
     const parentRoom = room?.parentRoom || null;
     console.log('[Generate Content] Related entities:', {
       roomName: room?.name,
@@ -2168,17 +2144,14 @@ app.post('/generate-content/artefact/:artefactId', async (req, res) => {
 
     // Generate template
     console.log('[Generate Content] Generating template...');
-    const template = generateIntroductionTemplate(
-      {
-        id: artifact.id,
-        name: artifact.name,
-        knowledgeText: artifact.knowledgeText,
-        roomId: artifact.roomId,
-      },
-      room,
-      museum,
-      parentRoom
-    );
+    const template = buildIntroductionPrompt({
+      artifactName: artifact.name,
+      plaqueText: artifact.knowledgeText,
+      museumName: museum?.name ?? null,
+      roomName: room?.name ?? null,
+      parentRoomName: parentRoom?.name ?? null,
+      museumSummary: museum?.wikipediaSummary ?? null,
+    });
 
     console.log(
       '[Generate Content] Template generated, length:',
@@ -2386,10 +2359,16 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
     const artifact = await prisma.artifact.findUnique({
       where: { id: artefactId },
       include: {
+        museum: {
+          select: {
+            id: true,
+            name: true,
+            wikipediaSummary: true,
+          },
+        },
         room: {
           include: {
-            museum: { select: { id: true, name: true } },
-            parentRoom: { select: { id: true, name: true } },
+            parentRoom: { select: { id: true, name: true, museumId: true } },
           },
         },
       },
@@ -2402,21 +2381,18 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
     }
 
     const room = artifact.room;
-    const museum = room?.museum || null;
+    const museum = artifact.museum || null;
     const parentRoom = room?.parentRoom || null;
 
     // Generate template
-    const template = generateIntroductionTemplate(
-      {
-        id: artifact.id,
-        name: artifact.name,
-        knowledgeText: artifact.knowledgeText,
-        roomId: artifact.roomId,
-      },
-      room,
-      museum,
-      parentRoom
-    );
+    const template = buildIntroductionPrompt({
+      artifactName: artifact.name,
+      plaqueText: artifact.knowledgeText,
+      museumName: museum?.name ?? null,
+      roomName: room?.name ?? null,
+      parentRoomName: parentRoom?.name ?? null,
+      museumSummary: museum?.wikipediaSummary ?? null,
+    });
 
     const providerName = req.query.provider === 'openai' ? 'openai' : 'google';
 

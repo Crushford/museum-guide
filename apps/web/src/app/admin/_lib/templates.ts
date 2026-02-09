@@ -33,31 +33,46 @@ export function generateIntroductionTemplate(
   parentRoom?: RoomResponse // For nested rooms
 ): string {
   const museumName =
-    museum?.name ||
-    ('museumName' in artifact ? artifact.museumName : null) ||
-    'Museum Name';
+    museum?.name || ('museumName' in artifact ? artifact.museumName : null);
   const roomName =
-    room?.name ||
-    ('roomName' in artifact ? artifact.roomName : null) ||
-    'Room Name';
+    room?.name || ('roomName' in artifact ? artifact.roomName : null);
 
-  // Check if artifact has parentRoomName field (from ArtifactResponse)
   const parentRoomName =
     parentRoom?.name ||
     ('parentRoomName' in artifact ? artifact.parentRoomName : null);
 
-  const location = parentRoomName
+  const location = parentRoomName && roomName
     ? `${parentRoomName} - ${roomName}`
-    : roomName;
+    : roomName || parentRoomName || null;
 
   const plaqueInfo =
-    ('knowledgeText' in artifact ? artifact.knowledgeText : null) ||
-    'No plaque information available.';
+    'knowledgeText' in artifact ? artifact.knowledgeText : null;
 
-  return `Your role is as a museum guide, the museum you are guiding today is the ${museumName}, we are currently in the ${location} and the artefact you are introducing is: ${artifact.name}, here is the information from the plaque for your reference:
-${plaqueInfo}
+  const museumSummary = museum?.wikipediaSummary || null;
 
+  const lines: string[] = [`Artifact: ${artifact.name}`];
 
-You do not need to introduce yourself, you've already done that, there is no need to suggest what to see next, only describe the item you are introducing.
-`;
+  if (museumName) {
+    lines.push(`Museum: ${museumName}`);
+  }
+
+  if (location) {
+    lines.push(`Room: ${location}`);
+  }
+
+  if (museumSummary) {
+    lines.push(`Museum summary (Wikipedia): ${museumSummary}`);
+  }
+
+  if (plaqueInfo) {
+    lines.push(`Plaque text: ${plaqueInfo}`);
+  }
+
+  return (
+    'Write a concise spoken introduction for the artifact described below. ' +
+    'Aim for 260–320 words (about 2 minutes). ' +
+    'Start immediately with the artifact; no greetings, no self-introductions, and do not say "welcome". ' +
+    'Do not mention being a guide, and do not include stage directions or gestures.\n\n' +
+    `Context:\n${lines.map((line) => `- ${line}`).join('\n')}`
+  );
 }

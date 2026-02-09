@@ -30,7 +30,9 @@ Rules:
 - Do not wrap JSON in markdown.
 - Do not include any extra keys.
 - All strings must be plain text (no HTML).
-- The "text" field is the museum guide narration.
+- The "text" field is the artifact introduction.
+- Do not include greetings, self-introductions, or the word "welcome".
+- Do not include stage directions or gestures.
 
 ${TAGGING_INSTRUCTIONS}`;
 
