@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { Suspense, useState, useMemo, useEffect } from 'react';
 import { api, apiPost } from '../../lib/api';
 import { AdminPageLayout } from '../../components/shared';
 import { SectionCard } from '../../components/shared';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import type { MuseumResponse } from '@repo/types';
 import { useSearchParams } from 'next/navigation';
 
-export default function BrowsePage() {
+function BrowsePageContent() {
   const searchParams = useSearchParams();
   const [selectedCity, setSelectedCity] = useState<string | null>(
     searchParams.get('city')
@@ -248,5 +248,21 @@ export default function BrowsePage() {
         )}
       </div>
     </AdminPageLayout>
+  );
+}
+
+export default function BrowsePage() {
+  return (
+    <Suspense
+      fallback={
+        <AdminPageLayout title="Browse Museums">
+          <div className="text-center py-12 text-muted-foreground">
+            Loading browse page...
+          </div>
+        </AdminPageLayout>
+      }
+    >
+      <BrowsePageContent />
+    </Suspense>
   );
 }

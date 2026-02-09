@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { Loader2, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/shared';
@@ -36,6 +36,11 @@ export function ArtifactIntroduction({
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const preferredProvider = useMemo(() => {
+    if (typeof window === 'undefined') return 'google';
+    const stored = localStorage.getItem('preferred-llm-provider');
+    return stored === 'google' || stored === 'openai' ? stored : 'google';
+  }, []);
 
   const isGenerating = generationStep !== 'idle' && generationStep !== 'done';
 
@@ -52,7 +57,7 @@ export function ArtifactIntroduction({
 
     try {
       const eventSource = new EventSource(
-        `${API_URL}/generate-content/artefact/${artifactId}/stream`
+        `${API_URL}/generate-content/artefact/${artifactId}/stream?provider=${preferredProvider}`
       );
       eventSourceRef.current = eventSource;
 
@@ -107,7 +112,7 @@ export function ArtifactIntroduction({
       );
       setGenerationStep('idle');
     }
-  }, [artifactId]);
+  }, [artifactId, preferredProvider]);
 
   // Show streaming UI when generating (before we have final content)
   if (isGenerating && !content) {

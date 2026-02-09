@@ -34,6 +34,11 @@ export function ArtifactContentInspector({
   const [content, setContent] = useState<ContentItem[]>(initialContent);
   const [generating, setGenerating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [preferredProvider] = useState<'google' | 'openai'>(() => {
+    if (typeof window === 'undefined') return 'google';
+    const stored = localStorage.getItem('preferred-llm-provider');
+    return stored === 'google' || stored === 'openai' ? stored : 'google';
+  });
 
   const handleGenerate = async (provider: 'google' | 'openai') => {
     setGenerating(provider);
@@ -83,18 +88,27 @@ export function ArtifactContentInspector({
           <div className="flex gap-2">
             <Button
               size="sm"
-              onClick={() => handleGenerate('google')}
+              onClick={() => handleGenerate(preferredProvider)}
               disabled={generating !== null}
             >
-              {generating === 'google' ? 'Generating...' : 'Generate (Google)'}
+              {generating === preferredProvider
+                ? 'Generating...'
+                : `Generate (${preferredProvider === 'google' ? 'Google' : 'OpenAI'})`}
             </Button>
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => handleGenerate('openai')}
+              onClick={() =>
+                handleGenerate(
+                  preferredProvider === 'google' ? 'openai' : 'google'
+                )
+              }
               disabled={generating !== null}
             >
-              {generating === 'openai' ? 'Generating...' : 'Generate (OpenAI)'}
+              {generating ===
+              (preferredProvider === 'google' ? 'openai' : 'google')
+                ? 'Generating...'
+                : `Generate (${preferredProvider === 'google' ? 'OpenAI' : 'Google'})`}
             </Button>
           </div>
         </div>
@@ -154,22 +168,27 @@ export function ArtifactContentInspector({
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => handleGenerate('google')}
+                    onClick={() => handleGenerate(preferredProvider)}
                     disabled={generating !== null}
                   >
-                    {generating === 'google'
+                    {generating === preferredProvider
                       ? 'Generating...'
-                      : 'Regenerate (Google)'}
+                      : `Regenerate (${preferredProvider === 'google' ? 'Google' : 'OpenAI'})`}
                   </Button>
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => handleGenerate('openai')}
+                    onClick={() =>
+                      handleGenerate(
+                        preferredProvider === 'google' ? 'openai' : 'google'
+                      )
+                    }
                     disabled={generating !== null}
                   >
-                    {generating === 'openai'
+                    {generating ===
+                    (preferredProvider === 'google' ? 'openai' : 'google')
                       ? 'Generating...'
-                      : 'Regenerate (OpenAI)'}
+                      : `Regenerate (${preferredProvider === 'google' ? 'OpenAI' : 'Google'})`}
                   </Button>
                 </div>
               )}

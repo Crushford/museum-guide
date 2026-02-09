@@ -17,6 +17,7 @@ import {
   generateIntroduction,
   SpendLimitError,
 } from './lib/llm/generate-content';
+import { createProvider } from './lib/llm';
 import { getMonthlySpendEur } from './lib/llm/cost-tracker';
 import { initLangfuse } from './lib/telemetry/langfuse';
 import {
@@ -2417,37 +2418,50 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
       parentRoom
     );
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      sendEvent('error', { error: 'GEMINI_API_KEY not configured' });
-      res.end();
-      return;
-    }
+    const providerName = req.query.provider === 'openai' ? 'openai' : 'google';
 
-    // Initialize Gemini and start streaming
+    // Initialize LLM and start generating
     sendEvent('status', {
       step: 'generating',
-      message: 'Sending prompt to LLM...',
+      message: `Sending prompt to ${providerName === 'google' ? 'Google' : 'OpenAI'}...`,
     });
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = 'gemini-2.5-flash';
-    const model = genAI.getGenerativeModel({ model: modelName });
-
-    // Use streaming API
-    const result = await model.generateContentStream(template);
-
     let fullText = '';
+    let modelName = '';
 
-    // Stream chunks to client
-    for await (const chunk of result.stream) {
-      const chunkText = chunk.text();
-      fullText += chunkText;
-      sendEvent('chunk', { text: chunkText });
+    if (providerName === 'google') {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        sendEvent('error', { error: 'GEMINI_API_KEY not configured' });
+        res.end();
+        return;
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      modelName = 'gemini-2.5-flash';
+      const model = genAI.getGenerativeModel({ model: modelName });
+
+      // Use streaming API
+      const result = await model.generateContentStream(template);
+
+      // Stream chunks to client
+      for await (const chunk of result.stream) {
+        const chunkText = chunk.text();
+        fullText += chunkText;
+        sendEvent('chunk', { text: chunkText });
+      }
+    } else {
+      const provider = createProvider('openai');
+      modelName = 'openai';
+      const result = await provider.generate({ prompt: template });
+      fullText = result.text;
+      modelName = result.model;
+      // Send the full text as a single chunk
+      sendEvent('chunk', { text: fullText });
     }
 
     console.log(
-      '[Generate Content Stream] Streaming complete, text length:',
+      '[Generate Content Stream] Generation complete, text length:',
       fullText.length
     );
 
@@ -2459,7 +2473,7 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
         text: fullText,
         type: 'introduction',
         artifactId: artefactId,
-        llmProvider: 'google',
+        llmProvider: providerName,
         model: modelName,
         prompt: template,
       },
