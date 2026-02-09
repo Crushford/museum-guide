@@ -68,7 +68,9 @@ export function MuseumDetailsHydration({
       setMuseum(response.museum);
     } catch (err) {
       console.error('Museum hydration error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load museum details');
+      setError(
+        err instanceof Error ? err.message : 'Failed to load museum details'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +136,9 @@ export function MuseumDetailsHydration({
 
         {/* Wikipedia Summary */}
         {museum?.wikipediaSummary && (
-          <p className="text-primary leading-relaxed">{museum.wikipediaSummary}</p>
+          <p className="text-primary leading-relaxed">
+            {museum.wikipediaSummary}
+          </p>
         )}
 
         {/* Links */}

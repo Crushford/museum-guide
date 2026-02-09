@@ -125,7 +125,13 @@ export default async function ArtifactPage({
       title={artifact.name}
       actions={
         <Button asChild variant="secondary" size="sm">
-          <Link href={artifactRoom ? `/${museumSlug}/rooms/${artifactRoom.slug}` : `/${museumSlug}`}>
+          <Link
+            href={
+              artifactRoom
+                ? `/${museumSlug}/rooms/${artifactRoom.slug}`
+                : `/${museumSlug}`
+            }
+          >
             {artifactRoom ? 'Back to Room' : 'Back to Museum'}
           </Link>
         </Button>
@@ -161,7 +167,9 @@ export default async function ArtifactPage({
               {/* Plaque Information */}
               {artifact.knowledgeText && (
                 <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">Plaque Information</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Plaque Information
+                  </h4>
                   <p className="text-primary leading-relaxed whitespace-pre-wrap">
                     {artifact.knowledgeText}
                   </p>
@@ -189,7 +197,9 @@ export default async function ArtifactPage({
           {/* Introduction Section - Right */}
           <ArtifactIntroduction
             artifactId={artifact.id}
-            initialContent={artifactMain && artifactMain.text.trim() ? artifactMain : null}
+            initialContent={
+              artifactMain && artifactMain.text.trim() ? artifactMain : null
+            }
           />
         </div>
 

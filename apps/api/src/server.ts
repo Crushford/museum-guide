@@ -445,7 +445,9 @@ app.post('/api/museums/select/:qid', async (req, res) => {
     });
 
     if (existingMuseum) {
-      console.log(`[Museum Select] Museum already exists: ${existingMuseum.name} (${qid})`);
+      console.log(
+        `[Museum Select] Museum already exists: ${existingMuseum.name} (${qid})`
+      );
 
       // Check if we need to enrich (missing key fields)
       const needsEnrichment =
@@ -465,7 +467,10 @@ app.post('/api/museums/select/:qid', async (req, res) => {
               image: details.image || existingMuseum.image,
               coordinates: details.coordinates
                 ? details.coordinates
-                : (existingMuseum.coordinates as { lat: number; lng: number } | null) ?? undefined,
+                : ((existingMuseum.coordinates as {
+                    lat: number;
+                    lng: number;
+                  } | null) ?? undefined),
               locationTags:
                 existingMuseum.locationTags.length > 0
                   ? existingMuseum.locationTags
@@ -511,7 +516,9 @@ app.post('/api/museums/select/:qid', async (req, res) => {
       },
     });
 
-    console.log(`[Museum Select] Created museum: ${museum.name} (id: ${museum.id})`);
+    console.log(
+      `[Museum Select] Created museum: ${museum.name} (id: ${museum.id})`
+    );
 
     res.json({
       created: true,
@@ -596,7 +603,9 @@ app.post('/api/museums/:slug/hydrate', async (req, res) => {
       });
     }
 
-    console.log(`[Museum Hydrate] Fetching from Wikidata: ${museum.wikidataId}`);
+    console.log(
+      `[Museum Hydrate] Fetching from Wikidata: ${museum.wikidataId}`
+    );
 
     // Fetch details from Wikidata
     const details = await fetchWikidataEntity(museum.wikidataId);
@@ -627,7 +636,10 @@ app.post('/api/museums/:slug/hydrate', async (req, res) => {
         image: details.image || museum.image,
         coordinates: details.coordinates ?? museum.coordinates ?? undefined,
         officialWebsite: details.officialWebsite || museum.officialWebsite,
-        locationTags: details.locationLabels.length > 0 ? details.locationLabels : museum.locationTags,
+        locationTags:
+          details.locationLabels.length > 0
+            ? details.locationLabels
+            : museum.locationTags,
         museumHydratedAt: new Date(),
       } as any,
     });
@@ -713,18 +725,23 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
     // Require wikidataId to hydrate
     if (!museum.wikidataId) {
       return res.status(400).json({
-        error: 'Museum missing wikidataId. Cannot hydrate artifacts from Wikidata.',
+        error:
+          'Museum missing wikidataId. Cannot hydrate artifacts from Wikidata.',
       });
     }
 
-    console.log(`[Artifact Hydrate] Querying Wikidata for artifacts of: ${museum.wikidataId}`);
+    console.log(
+      `[Artifact Hydrate] Querying Wikidata for artifacts of: ${museum.wikidataId}`
+    );
 
     // Query Wikidata for artifacts
     const sparqlQuery = buildArtifactsQuery(museum.wikidataId);
     const bindings = await queryWikidata<WikidataArtifactBinding>(sparqlQuery);
     const artifactsFromWikidata = parseArtifactResults(bindings);
 
-    console.log(`[Artifact Hydrate] Found ${artifactsFromWikidata.length} artifacts with Wikipedia pages`);
+    console.log(
+      `[Artifact Hydrate] Found ${artifactsFromWikidata.length} artifacts with Wikipedia pages`
+    );
 
     // Upsert artifacts
     let upserted = 0;
@@ -765,7 +782,9 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
               wikipediaUrl: artifact.wikipediaUrl || null,
               wikimediaImageUrl: artifact.image || null,
               knowledgeText: artifact.description || null,
-              furtherReading: artifact.wikipediaUrl ? [artifact.wikipediaUrl] : [],
+              furtherReading: artifact.wikipediaUrl
+                ? [artifact.wikipediaUrl]
+                : [],
             } as any,
           });
           artifactResults.push({
@@ -781,9 +800,14 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
       } catch (artifactError: any) {
         // Handle slug collision - skip this artifact
         if (artifactError?.code === 'P2002') {
-          console.warn(`[Artifact Hydrate] Skipping duplicate: ${artifact.label}`);
+          console.warn(
+            `[Artifact Hydrate] Skipping duplicate: ${artifact.label}`
+          );
         } else {
-          console.error(`[Artifact Hydrate] Error upserting ${artifact.label}:`, artifactError);
+          console.error(
+            `[Artifact Hydrate] Error upserting ${artifact.label}:`,
+            artifactError
+          );
         }
       }
     }
@@ -794,7 +818,9 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
       data: { artifactsHydratedAt: new Date() } as any,
     });
 
-    console.log(`[Artifact Hydrate] Successfully hydrated ${upserted} new artifacts for: ${museum.name}`);
+    console.log(
+      `[Artifact Hydrate] Successfully hydrated ${upserted} new artifacts for: ${museum.name}`
+    );
 
     res.json({
       cached: false,
@@ -1807,7 +1833,16 @@ app.get('/artifacts/by-slug/:slug', async (req, res) => {
 });
 
 app.post('/content', async (req, res) => {
-  const { text, type, museumId, roomId, artifactId, llmProvider, model, prompt } = req.body;
+  const {
+    text,
+    type,
+    museumId,
+    roomId,
+    artifactId,
+    llmProvider,
+    model,
+    prompt,
+  } = req.body;
 
   if (!text) {
     return res.status(400).json({ error: 'text is required' });
@@ -2378,7 +2413,10 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
     }
 
     // Fetch artifact with related data
-    sendEvent('status', { step: 'loading', message: 'Loading artifact data...' });
+    sendEvent('status', {
+      step: 'loading',
+      message: 'Loading artifact data...',
+    });
 
     const artifact = await prisma.artifact.findUnique({
       where: { id: artefactId },
@@ -2423,7 +2461,10 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
     }
 
     // Initialize Gemini and start streaming
-    sendEvent('status', { step: 'generating', message: 'Sending prompt to LLM...' });
+    sendEvent('status', {
+      step: 'generating',
+      message: 'Sending prompt to LLM...',
+    });
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelName = 'gemini-2.5-flash';
@@ -2441,7 +2482,10 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
       sendEvent('chunk', { text: chunkText });
     }
 
-    console.log('[Generate Content Stream] Streaming complete, text length:', fullText.length);
+    console.log(
+      '[Generate Content Stream] Streaming complete, text length:',
+      fullText.length
+    );
 
     // Save to database
     sendEvent('status', { step: 'saving', message: 'Saving content...' });
@@ -2458,7 +2502,10 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
     });
 
     // Generate audio
-    sendEvent('status', { step: 'audio', message: 'Generating audio with text-to-speech...' });
+    sendEvent('status', {
+      step: 'audio',
+      message: 'Generating audio with text-to-speech...',
+    });
 
     let audioUrl: string | null = null;
     try {
@@ -2471,7 +2518,10 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
         data: { audioUrl },
       });
     } catch (audioError) {
-      console.error('[Generate Content Stream] Audio generation failed:', audioError);
+      console.error(
+        '[Generate Content Stream] Audio generation failed:',
+        audioError
+      );
       // Continue without audio
     }
 
@@ -2492,7 +2542,8 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
   } catch (error) {
     console.error('[Generate Content Stream] Error:', error);
     sendEvent('error', {
-      error: error instanceof Error ? error.message : 'Failed to generate content',
+      error:
+        error instanceof Error ? error.message : 'Failed to generate content',
     });
     res.end();
   }
@@ -2789,7 +2840,10 @@ const handleSeedMuseums = async (
             inserted++;
           } catch (createError: any) {
             // Handle slug collision (P2002 = unique constraint violation)
-            if (createError?.code === 'P2002' && createError?.meta?.modelName === 'Museum') {
+            if (
+              createError?.code === 'P2002' &&
+              createError?.meta?.modelName === 'Museum'
+            ) {
               // Slug collision - a museum with a similar name already exists
               // This can happen when Wikidata has multiple entries for similar museums
               console.warn(

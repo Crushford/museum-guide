@@ -48,7 +48,9 @@ export default function BrowsePage() {
       console.log(`[Browse] Fetching museums for city: ${selectedCity}`);
 
       try {
-        let fetchedMuseums = await api<MuseumResponse[]>(`/museums?citySlug=${selectedCity}`);
+        let fetchedMuseums = await api<MuseumResponse[]>(
+          `/museums?citySlug=${selectedCity}`
+        );
         console.log(`[Browse] Found ${fetchedMuseums.length} existing museums`);
 
         if (cancelled) return;
@@ -56,8 +58,12 @@ export default function BrowsePage() {
         if (fetchedMuseums.length === 0) {
           // No museums found, trigger seeding
           setSeedingCity(selectedCity);
-          setSeedingStatus('Querying Wikidata for museums (this may take up to 60 seconds)...');
-          console.log(`[Browse] No museums found, starting Wikidata seed for ${selectedCity}`);
+          setSeedingStatus(
+            'Querying Wikidata for museums (this may take up to 60 seconds)...'
+          );
+          console.log(
+            `[Browse] No museums found, starting Wikidata seed for ${selectedCity}`
+          );
 
           const result = await apiPost<{
             city: string;
@@ -72,7 +78,9 @@ export default function BrowsePage() {
           setSeedingStatus(`Added ${result.inserted} museums. Loading...`);
 
           // After seeding, fetch museums again
-          fetchedMuseums = await api<MuseumResponse[]>(`/museums?citySlug=${selectedCity}`);
+          fetchedMuseums = await api<MuseumResponse[]>(
+            `/museums?citySlug=${selectedCity}`
+          );
         }
 
         if (!cancelled) {
@@ -81,7 +89,9 @@ export default function BrowsePage() {
       } catch (error) {
         console.error('[Browse] Error fetching/seeding museums:', error);
         if (!cancelled) {
-          setSeedingStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          setSeedingStatus(
+            `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
           setMuseums([]);
         }
       } finally {

@@ -13,7 +13,13 @@ type ContentItem = {
   audioUrl: string | null;
 };
 
-type GenerationStep = 'idle' | 'loading' | 'generating' | 'saving' | 'audio' | 'done';
+type GenerationStep =
+  | 'idle'
+  | 'loading'
+  | 'generating'
+  | 'saving'
+  | 'audio'
+  | 'done';
 
 interface ArtifactIntroductionProps {
   artifactId: number;
@@ -103,7 +109,6 @@ export function ArtifactIntroduction({
     }
   }, [artifactId]);
 
-
   // Show streaming UI when generating (before we have final content)
   if (isGenerating && !content) {
     return (
@@ -177,7 +182,9 @@ export function ArtifactIntroduction({
         )}
 
         {/* Introduction Text */}
-        <p className="text-primary leading-relaxed whitespace-pre-wrap">{content.text}</p>
+        <p className="text-primary leading-relaxed whitespace-pre-wrap">
+          {content.text}
+        </p>
       </div>
     </SectionCard>
   );

@@ -29,13 +29,15 @@ const RATE_LIMIT_RETRY_DELAY_MS = 10000; // 10 seconds for 429
 export const SUPPORTED_CITIES: Record<string, string> = {
   berlin: 'Q64',
   amsterdam: 'Q9899',
-  brisbane: 'Q34932'
+  brisbane: 'Q34932',
 };
 
 /**
  * Execute a SPARQL query against Wikidata Query Service with retry logic
  */
-export async function queryWikidata<T = WikidataBinding>(sparqlQuery: string): Promise<T[]> {
+export async function queryWikidata<T = WikidataBinding>(
+  sparqlQuery: string
+): Promise<T[]> {
   const url = `${WIKIDATA_QUERY_SERVICE_URL}?query=${encodeURIComponent(
     sparqlQuery
   )}&format=json`;
@@ -77,7 +79,9 @@ export async function queryWikidata<T = WikidataBinding>(sparqlQuery: string): P
         throw new Error('Invalid response format from Wikidata');
       }
 
-      console.log(`[Wikidata] Query successful, received ${data.results.bindings.length} results`);
+      console.log(
+        `[Wikidata] Query successful, received ${data.results.bindings.length} results`
+      );
       return data.results.bindings;
     } catch (error) {
       lastError =
@@ -179,7 +183,14 @@ export async function searchWikidata(
   }
 
   // Keywords that indicate a museum-like entity
-  const museumKeywords = ['museum', 'gallery', 'collection', 'exhibition', 'art center', 'art centre'];
+  const museumKeywords = [
+    'museum',
+    'gallery',
+    'collection',
+    'exhibition',
+    'art center',
+    'art centre',
+  ];
 
   // Keywords that indicate non-museum entities (articles, publications, etc.)
   const excludeKeywords = [
@@ -223,14 +234,14 @@ export async function searchWikidata(
       const label = item.label.toLowerCase();
 
       // Exclude if description matches any exclude keywords
-      if (excludeKeywords.some(keyword => desc.includes(keyword))) {
+      if (excludeKeywords.some((keyword) => desc.includes(keyword))) {
         return false;
       }
 
       // Include if label or description contains museum-related keywords
       const hasMuseumKeyword =
-        museumKeywords.some(keyword => label.includes(keyword)) ||
-        museumKeywords.some(keyword => desc.includes(keyword));
+        museumKeywords.some((keyword) => label.includes(keyword)) ||
+        museumKeywords.some((keyword) => desc.includes(keyword));
 
       return hasMuseumKeyword;
     });
@@ -265,12 +276,12 @@ const PROPS = {
 
 // Q IDs for museum types
 const MUSEUM_TYPES = [
-  'Q33506',   // museum
-  'Q207694',  // art museum
+  'Q33506', // museum
+  'Q207694', // art museum
   'Q17431399', // science museum
   'Q16735822', // history museum
-  'Q1970365',  // natural history museum
-  'Q7328910',  // archaeological museum
+  'Q1970365', // natural history museum
+  'Q7328910', // archaeological museum
 ];
 
 /**
@@ -319,15 +330,11 @@ export async function fetchWikidataEntity(
   const sitelinks = entity.sitelinks || {};
 
   // Get label (prefer English, fallback to German)
-  const label =
-    entity.labels?.en?.value ||
-    entity.labels?.de?.value ||
-    qid;
+  const label = entity.labels?.en?.value || entity.labels?.de?.value || qid;
 
   // Get description
   const description =
-    entity.descriptions?.en?.value ||
-    entity.descriptions?.de?.value;
+    entity.descriptions?.en?.value || entity.descriptions?.de?.value;
 
   // Get Wikipedia URL (prefer English, fallback to German)
   let wikipediaUrl: string | undefined;
@@ -357,7 +364,8 @@ export async function fetchWikidataEntity(
   // Get official website (P856)
   let officialWebsite: string | undefined;
   if (claims[PROPS.OFFICIAL_WEBSITE]?.[0]?.mainsnak?.datavalue?.value) {
-    officialWebsite = claims[PROPS.OFFICIAL_WEBSITE][0].mainsnak.datavalue.value;
+    officialWebsite =
+      claims[PROPS.OFFICIAL_WEBSITE][0].mainsnak.datavalue.value;
   }
 
   // Get location labels (P131) - we'd need additional fetches for these
@@ -472,7 +480,8 @@ async function translateText(
     const client = new TranslationServiceClient();
 
     // Get the project ID from environment or use a default
-    const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
+    const projectId =
+      process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
 
     if (!projectId) {
       console.warn('[Translation] GOOGLE_CLOUD_PROJECT not configured');
@@ -577,7 +586,8 @@ async function getEnglishWikipediaUrl(
     if (!wdResponse.ok) return null;
 
     const wdData = await wdResponse.json();
-    const englishTitle = wdData.entities?.[wikidataId]?.sitelinks?.enwiki?.title;
+    const englishTitle =
+      wdData.entities?.[wikidataId]?.sitelinks?.enwiki?.title;
 
     if (englishTitle) {
       return `https://en.wikipedia.org/wiki/${encodeURIComponent(englishTitle.replace(/ /g, '_'))}`;
@@ -620,7 +630,9 @@ export async function fetchWikipediaSummaryWithTranslation(
 
     // If not English, try to find English version first
     if (originalLang !== 'en') {
-      console.log(`[Wikipedia] Original URL is ${originalLang}, looking for English version...`);
+      console.log(
+        `[Wikipedia] Original URL is ${originalLang}, looking for English version...`
+      );
       const englishUrl = await getEnglishWikipediaUrl(wikipediaUrl);
 
       if (englishUrl) {
@@ -646,7 +658,9 @@ export async function fetchWikipediaSummaryWithTranslation(
     }
 
     // Translate if not English
-    console.log(`[Wikipedia] Translating ${originalLang} summary to English...`);
+    console.log(
+      `[Wikipedia] Translating ${originalLang} summary to English...`
+    );
     const originalExtract = summary.extract;
     const translatedExtract = await translateText(summary.extract, 'en');
 
@@ -655,7 +669,8 @@ export async function fetchWikipediaSummaryWithTranslation(
         ...summary,
         extract: translatedExtract,
         translated: true,
-        originalLanguage: LANGUAGE_NAMES[originalLang] || originalLang.toUpperCase(),
+        originalLanguage:
+          LANGUAGE_NAMES[originalLang] || originalLang.toUpperCase(),
         originalExtract: originalExtract,
       };
     }
@@ -664,10 +679,14 @@ export async function fetchWikipediaSummaryWithTranslation(
     console.log('[Wikipedia] Translation failed, returning original');
     return {
       ...summary,
-      originalLanguage: LANGUAGE_NAMES[originalLang] || originalLang.toUpperCase(),
+      originalLanguage:
+        LANGUAGE_NAMES[originalLang] || originalLang.toUpperCase(),
     };
   } catch (error) {
-    console.error('[Wikipedia] Error in fetchWikipediaSummaryWithTranslation:', error);
+    console.error(
+      '[Wikipedia] Error in fetchWikipediaSummaryWithTranslation:',
+      error
+    );
     return null;
   }
 }

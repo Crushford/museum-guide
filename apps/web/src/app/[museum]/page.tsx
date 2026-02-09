@@ -7,10 +7,7 @@ import { SectionCard } from '../../components/shared';
 import { ChildEntityList } from '../../app/admin/shared/ChildEntityList';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import {
-  MuseumDetailsHydration,
-  ArtifactsHydration,
-} from './MuseumHydration';
+import { MuseumDetailsHydration, ArtifactsHydration } from './MuseumHydration';
 
 type Room = {
   id: number;

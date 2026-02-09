@@ -25,7 +25,9 @@ export default function AdminCitiesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [seedingCity, setSeedingCity] = useState<string | null>(null);
-  const [seedResults, setSeedResults] = useState<Record<string, SeedResult>>({});
+  const [seedResults, setSeedResults] = useState<Record<string, SeedResult>>(
+    {}
+  );
   const [seedErrors, setSeedErrors] = useState<Record<string, string>>({});
 
   const fetchStats = async () => {
@@ -35,7 +37,9 @@ export default function AdminCitiesPage() {
       const stats = await api<CityStats[]>('/cities/stats');
       setCityStats(stats);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load city stats');
+      setError(
+        err instanceof Error ? err.message : 'Failed to load city stats'
+      );
     } finally {
       setLoading(false);
     }
@@ -130,15 +134,13 @@ export default function AdminCitiesPage() {
           ) : (
             <div className="divide-y divide-border">
               {cityStats.map((stat) => (
-                <div
-                  key={stat.city}
-                  className="py-4 first:pt-0 last:pb-0"
-                >
+                <div key={stat.city} className="py-4 first:pt-0 last:pb-0">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-medium capitalize">{stat.city}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {stat.museumCount} museum{stat.museumCount !== 1 ? 's' : ''} in database
+                        {stat.museumCount} museum
+                        {stat.museumCount !== 1 ? 's' : ''} in database
                       </p>
                     </div>
                     <Button
@@ -171,8 +173,11 @@ export default function AdminCitiesPage() {
                             Seeding complete
                           </p>
                           <p className="text-green-700 dark:text-green-300">
-                            {seedResults[stat.city].inserted} new museum{seedResults[stat.city].inserted !== 1 ? 's' : ''} added,{' '}
-                            {seedResults[stat.city].updated} updated.{' '}
+                            {seedResults[stat.city].inserted} new museum
+                            {seedResults[stat.city].inserted !== 1
+                              ? 's'
+                              : ''}{' '}
+                            added, {seedResults[stat.city].updated} updated.{' '}
                             Total: {seedResults[stat.city].total}
                           </p>
                         </div>
@@ -209,16 +214,18 @@ export default function AdminCitiesPage() {
       >
         <div className="text-sm text-muted-foreground space-y-2">
           <p>
-            <strong>No duplicates:</strong> Each museum has a unique Wikidata ID. When reseeding,
-            existing museums are updated (name changes, etc.) and only new museums are inserted.
+            <strong>No duplicates:</strong> Each museum has a unique Wikidata
+            ID. When reseeding, existing museums are updated (name changes,
+            etc.) and only new museums are inserted.
           </p>
           <p>
-            <strong>Districts included:</strong> The query finds museums in the city and all its
-            districts/neighborhoods, following Wikidata's administrative hierarchy.
+            <strong>Districts included:</strong> The query finds museums in the
+            city and all its districts/neighborhoods, following Wikidata's
+            administrative hierarchy.
           </p>
           <p>
-            <strong>Safe to run multiple times:</strong> You can reseed as often as you like to
-            pick up newly added museums from Wikidata.
+            <strong>Safe to run multiple times:</strong> You can reseed as often
+            as you like to pick up newly added museums from Wikidata.
           </p>
         </div>
       </SectionCard>

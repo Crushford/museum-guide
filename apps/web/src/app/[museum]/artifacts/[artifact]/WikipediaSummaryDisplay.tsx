@@ -17,7 +17,8 @@ export function WikipediaSummaryDisplay({
 }: WikipediaSummaryDisplayProps) {
   const [showOriginal, setShowOriginal] = useState(false);
 
-  const displayText = showOriginal && originalExtract ? originalExtract : extract;
+  const displayText =
+    showOriginal && originalExtract ? originalExtract : extract;
 
   return (
     <div className="space-y-2">
