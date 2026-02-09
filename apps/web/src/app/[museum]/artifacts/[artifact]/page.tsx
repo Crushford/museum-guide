@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import type { MuseumResponse } from '@repo/types';
 import { AdminPageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Globe, ExternalLink } from 'lucide-react';
 import { ArtifactIntroduction } from './ArtifactIntroduction';
@@ -42,6 +43,9 @@ type Content = {
   id: number;
   text: string;
   type: string | null;
+  isAdultContent: boolean;
+  sensitiveTopics: string[];
+  subjectTags: string[];
   audioUrl: string | null;
   updatedAt?: string;
 };
@@ -131,6 +135,13 @@ export default async function ArtifactPage({
   const qaItems = content.filter((c) => c.type === 'qa').slice(0, 3);
   const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
 
+  // Aggregate tags across all content
+  const hasAdultContent = content.some((c) => c.isAdultContent);
+  const allSensitiveTopics = [
+    ...new Set(content.flatMap((c) => c.sensitiveTopics)),
+  ];
+  const allSubjectTags = [...new Set(content.flatMap((c) => c.subjectTags))];
+
   return (
     <AdminPageLayout
       title={artifact.name}
@@ -149,6 +160,31 @@ export default async function ArtifactPage({
       }
     >
       <div className="space-y-6">
+        {/* Content Tags */}
+        {(hasAdultContent ||
+          allSensitiveTopics.length > 0 ||
+          allSubjectTags.length > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {hasAdultContent && (
+              <Badge variant="destructive">Adult Content</Badge>
+            )}
+            {allSensitiveTopics.map((topic) => (
+              <Badge
+                key={topic}
+                variant="outline"
+                className="border-amber-500 text-amber-700"
+              >
+                {topic}
+              </Badge>
+            ))}
+            {allSubjectTags.map((tag) => (
+              <Badge key={tag} variant="secondary">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         {/* Two-column layout for About and Introduction */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Artifact Details - Left */}

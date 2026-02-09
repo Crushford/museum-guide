@@ -14,6 +14,9 @@ type ContentItem = {
   llmProvider: string;
   model: string;
   promptVersion?: string;
+  isAdultContent: boolean;
+  sensitiveTopics: string[];
+  subjectTags: string[];
   audioUrl: string | null;
   createdAt: string;
   updatedAt?: string;
@@ -110,6 +113,31 @@ export function ArtifactContentInspector({
                   {new Date(item.updatedAt || item.createdAt).toLocaleString()}
                 </span>
               </div>
+
+              {/* Content tags */}
+              {(item.isAdultContent ||
+                item.sensitiveTopics.length > 0 ||
+                item.subjectTags.length > 0) && (
+                <div className="flex flex-wrap gap-1">
+                  {item.isAdultContent && (
+                    <Badge variant="destructive">Adult Content</Badge>
+                  )}
+                  {item.sensitiveTopics.map((topic) => (
+                    <Badge
+                      key={topic}
+                      variant="outline"
+                      className="border-amber-500 text-amber-700"
+                    >
+                      {topic}
+                    </Badge>
+                  ))}
+                  {item.subjectTags.map((tag) => (
+                    <Badge key={tag} variant="secondary">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
 
               <p className="text-sm whitespace-pre-wrap">{item.text}</p>
 

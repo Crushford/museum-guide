@@ -6,14 +6,18 @@ import { EditPageClient } from '../../shared/EditPageClient';
 import { updateArtifact } from '../../shared/actions';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
 import { deleteArtifact } from './actions';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { ExternalLink } from 'lucide-react';
 import { ArtifactContentInspector } from './ArtifactContentInspector';
 
 type Artifact = {
   id: number;
   name: string;
+  slug: string;
   roomId: number;
+  museumId: number;
   knowledgeText: string | null;
   furtherReading: string[];
 };
@@ -28,6 +32,7 @@ type Room = {
 type Museum = {
   id: number;
   name: string;
+  slug: string;
 };
 
 type ContentItem = {
@@ -37,6 +42,9 @@ type ContentItem = {
   llmProvider: string;
   model: string;
   promptVersion?: string;
+  isAdultContent: boolean;
+  sensitiveTopics: string[];
+  subjectTags: string[];
   audioUrl: string | null;
   createdAt: string;
   updatedAt?: string;
@@ -157,6 +165,18 @@ export default async function ArtifactEditPage({
     await updateArtifact(nodeId, data);
   };
 
+  // Find the museum for this artifact to build the public page link
+  const artifactMuseum = museums.find((m) => m.id === artifact.museumId);
+
+  // Aggregate tags across all content items
+  const hasAdultContent = artifactContent.some((c) => c.isAdultContent);
+  const allSensitiveTopics = [
+    ...new Set(artifactContent.flatMap((c) => c.sensitiveTopics)),
+  ];
+  const allSubjectTags = [
+    ...new Set(artifactContent.flatMap((c) => c.subjectTags)),
+  ];
+
   return (
     <AdminPageLayout
       title={`Artifact: ${artifact.name}`}
@@ -166,9 +186,19 @@ export default async function ArtifactEditPage({
         { label: artifact.name },
       ]}
       actions={
-        <Button asChild size="sm">
-          <Link href="/admin">Back to Admin</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {artifactMuseum && (
+            <Button asChild size="sm" variant="secondary">
+              <Link href={`/${artifactMuseum.slug}/artifacts/${artifact.slug}`}>
+                View Public Page
+                <ExternalLink className="ml-1 h-3 w-3" />
+              </Link>
+            </Button>
+          )}
+          <Button asChild size="sm">
+            <Link href="/admin">Back to Admin</Link>
+          </Button>
+        </div>
       }
     >
       <EditPageClient
@@ -207,6 +237,33 @@ export default async function ArtifactEditPage({
         }))}
         onSave={handleSave}
       />
+      {/* Content Tags */}
+      {(hasAdultContent ||
+        allSensitiveTopics.length > 0 ||
+        allSubjectTags.length > 0) && (
+        <div className="rounded-lg border p-4 space-y-3">
+          <h3 className="text-sm font-medium">Content Tags</h3>
+          <div className="flex flex-wrap gap-2">
+            {hasAdultContent && (
+              <Badge variant="destructive">Adult Content</Badge>
+            )}
+            {allSensitiveTopics.map((topic) => (
+              <Badge
+                key={topic}
+                variant="outline"
+                className="border-amber-500 text-amber-700"
+              >
+                {topic}
+              </Badge>
+            ))}
+            {allSubjectTags.map((tag) => (
+              <Badge key={tag} variant="secondary">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
       <ArtifactContentInspector
         artifactId={artifact.id}
         initialContent={artifactContent}

@@ -1793,7 +1793,9 @@ app.get('/artifacts/:id', async (req, res) => {
       select: {
         id: true,
         name: true,
+        slug: true,
         roomId: true,
+        museumId: true,
         knowledgeText: true,
         furtherReading: true,
       } as Prisma.ArtifactSelect,
