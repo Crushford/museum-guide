@@ -27,8 +27,17 @@ All commands run from the repo root using `yarn`:
 ## After Making Changes
 
 1. Run `yarn format` to format all changed files
-2. Run `yarn build:web` or `yarn build:api` to check for type/build errors
-3. If there are lint or type errors, fix them before considering the task done
+2. Run `yarn build:api` to check for API type errors
+3. Run `yarn build:web` to check for web type/build errors
+4. Run `yarn workspace web lint` to check for ESLint errors
+5. If there are lint or type errors, fix them before considering the task done
+
+## Database
+
+- Postgres runs in Docker (`yarn db:start`)
+- Schema lives in `packages/db/prisma/schema.prisma`
+- After schema changes: `cd packages/db && npx prisma db push` (dev) then `npx prisma generate`
+- Access DB directly: `docker exec museum-guide-db-1 psql -U postgres -d museum`
 
 ## Code Style
 

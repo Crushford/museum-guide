@@ -43,6 +43,7 @@ type Content = {
   text: string;
   type: string | null;
   audioUrl: string | null;
+  updatedAt?: string;
 };
 
 export async function generateMetadata({
@@ -115,8 +116,18 @@ export default async function ArtifactPage({
       : Promise.resolve(null),
   ]);
 
+  // Show the most recently updated introduction
+  const introductions = content
+    .filter((c) => c.type === 'introduction')
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt ?? 0).getTime() -
+        new Date(a.updatedAt ?? 0).getTime()
+    );
   const artifactMain =
-    content.find((c) => c.type === 'artifactMain') || content[0];
+    introductions[0] ||
+    content.find((c) => c.type === 'artifactMain') ||
+    content[0];
   const qaItems = content.filter((c) => c.type === 'qa').slice(0, 3);
   const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
 

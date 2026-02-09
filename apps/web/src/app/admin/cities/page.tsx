@@ -146,7 +146,7 @@ export default function AdminCitiesPage() {
                     <Button
                       onClick={() => handleReseed(stat.city)}
                       disabled={seedingCity !== null}
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                     >
                       {seedingCity === stat.city ? (

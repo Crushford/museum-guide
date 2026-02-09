@@ -14,6 +14,12 @@ import { mkdir } from 'fs/promises';
 import { existsSync } from 'node:fs';
 import { generateAudioForContent } from './lib/audio';
 import {
+  generateIntroduction,
+  SpendLimitError,
+} from './lib/llm/generate-content';
+import { getMonthlySpendEur } from './lib/llm/cost-tracker';
+import { initLangfuse } from './lib/telemetry/langfuse';
+import {
   queryWikidata,
   buildMuseumQuery,
   buildArtifactsQuery,
@@ -2894,6 +2900,61 @@ const handleSeedMuseums = async (
 };
 
 app.post('/api/seed-museums/:city', handleSeedMuseums);
+
+// POST /admin/artifacts/:artifactId/generate-introduction
+app.post(
+  '/admin/artifacts/:artifactId/generate-introduction',
+  async (req, res) => {
+    try {
+      const artifactId = Number(req.params.artifactId);
+      if (Number.isNaN(artifactId)) {
+        return res.status(400).json({ error: 'Invalid artifactId' });
+      }
+
+      const providerName = req.body?.provider;
+      if (providerName !== 'google' && providerName !== 'openai') {
+        return res
+          .status(400)
+          .json({ error: 'provider must be "google" or "openai"' });
+      }
+
+      const result = await generateIntroduction(
+        artifactId,
+        providerName,
+        audioDir
+      );
+      res.json(result);
+    } catch (error) {
+      if (error instanceof SpendLimitError) {
+        return res.status(429).json({
+          error: error.message,
+          currentSpendEur: error.currentSpendEur,
+          limitEur: error.limitEur,
+        });
+      }
+      console.error('[generate-introduction] Error:', error);
+      res.status(500).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate introduction',
+      });
+    }
+  }
+);
+
+// GET /admin/llm-usage/monthly
+app.get('/admin/llm-usage/monthly', async (_req, res) => {
+  try {
+    const spend = await getMonthlySpendEur();
+    res.json({ spend });
+  } catch (error) {
+    console.error('[llm-usage] Error:', error);
+    res.status(500).json({ error: 'Failed to fetch usage data' });
+  }
+});
+
+initLangfuse();
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

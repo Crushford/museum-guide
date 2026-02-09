@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Globe, FileText } from 'lucide-react';
+import { LayoutDashboard, Globe, FileText, DollarSign } from 'lucide-react';
 
 const adminNavItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/cities', label: 'Cities', icon: Globe },
   { href: '/admin/content', label: 'Content', icon: FileText },
+  { href: '/admin/costs', label: 'LLM Costs', icon: DollarSign },
 ];
 
 export function AdminNav() {

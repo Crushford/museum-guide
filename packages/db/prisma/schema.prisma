@@ -31,20 +31,40 @@ model Artifact {
 }
 
 model Content {
-  id         Int       @id @default(autoincrement())
-  text       String
-  type       String?
-  museumId   Int?
-  roomId     Int?
-  artifactId Int?
-  llmProvider String
-  model       String
-  prompt      String
-  audioUrl    String?
-  createdAt  DateTime  @default(now())
-  Artifact   Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
-  Museum     Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)
-  Room       Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  id             Int       @id @default(autoincrement())
+  text           String
+  type           String?
+  museumId       Int?
+  roomId         Int?
+  artifactId     Int?
+  llmProvider    String
+  model          String
+  prompt         String
+  promptVersion    String    @default("1.0")
+  isAdultContent   Boolean   @default(false)
+  sensitiveTopics  String[]  @default([])
+  subjectTags      String[]  @default([])
+  audioUrl         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  Artifact       Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  Museum         Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  Room           Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model LlmUsage {
+  id           Int      @id @default(autoincrement())
+  provider     String
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  costEur      Float
+  contentId    Int?
+  artifactId   Int?
+  createdAt    DateTime @default(now())
+
+  @@index([provider])
+  @@index([createdAt])
 }
 
 model Museum {

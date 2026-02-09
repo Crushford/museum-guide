@@ -3723,7 +3723,9 @@ __metadata:
     cors: "npm:^2.8.5"
     dotenv: "npm:^17.2.3"
     express: "npm:^5.2.1"
+    langfuse: "npm:^3.38.6"
     nodemon: "npm:^3.1.11"
+    openai: "npm:^6.18.0"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
   languageName: unknown
@@ -6964,6 +6966,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"langfuse-core@npm:^3.38.6":
+  version: 3.38.6
+  resolution: "langfuse-core@npm:3.38.6"
+  dependencies:
+    mustache: "npm:^4.2.0"
+  checksum: 10c0/d101c6f05a98b7dcdc865b32e67803b538b60ff95a1e96e947b584c88f53a4e019450ba5609dcf30a9a5d80e9afd3eec28cae093157e5003bca9c3c595e63073
+  languageName: node
+  linkType: hard
+
+"langfuse@npm:^3.38.6":
+  version: 3.38.6
+  resolution: "langfuse@npm:3.38.6"
+  dependencies:
+    langfuse-core: "npm:^3.38.6"
+  checksum: 10c0/3605e30e3de486fd268cd09e6bd9ca879d483aa78837786762760093ecc43c7f4d93491064f86716e939479e67609cf212baf64c6101188db0947a71edbbdea4
+  languageName: node
+  linkType: hard
+
 "language-subtag-registry@npm:^0.3.20":
   version: 0.3.23
   resolution: "language-subtag-registry@npm:0.3.23"
@@ -7462,6 +7482,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"mustache@npm:^4.2.0":
+  version: 4.2.0
+  resolution: "mustache@npm:4.2.0"
+  bin:
+    mustache: bin/mustache
+  checksum: 10c0/1f8197e8a19e63645a786581d58c41df7853da26702dbc005193e2437c98ca49b255345c173d50c08fe4b4dbb363e53cb655ecc570791f8deb09887248dd34a2
+  languageName: node
+  linkType: hard
+
 "mysql2@npm:3.15.3":
   version: 3.15.3
   resolution: "mysql2@npm:3.15.3"
@@ -7842,6 +7871,23 @@ __metadata:
     is-inside-container: "npm:^1.0.0"
     wsl-utils: "npm:^0.1.0"
   checksum: 10c0/5a36d0c1fd2f74ce553beb427ca8b8494b623fc22c6132d0c1688f246a375e24584ea0b44c67133d9ab774fa69be8e12fbe1ff12504b1142bd960fb09671948f
+  languageName: node
+  linkType: hard
+
+"openai@npm:^6.18.0":
+  version: 6.18.0
+  resolution: "openai@npm:6.18.0"
+  peerDependencies:
+    ws: ^8.18.0
+    zod: ^3.25 || ^4.0
+  peerDependenciesMeta:
+    ws:
+      optional: true
+    zod:
+      optional: true
+  bin:
+    openai: bin/cli
+  checksum: 10c0/82d2f315bcb8eef0f834a3741afc248f15d5a26d5ed4fc877650a7df254bac3cffba11d35ff30335db7901bd0b9a96fe9bfaee0c19278433e6b6a9928d2eaab9
   languageName: node
   linkType: hard
 

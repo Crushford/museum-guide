@@ -8,6 +8,7 @@ import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
 import { deleteArtifact } from './actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { ArtifactContentInspector } from './ArtifactContentInspector';
 
 type Artifact = {
   id: number;
@@ -27,6 +28,18 @@ type Room = {
 type Museum = {
   id: number;
   name: string;
+};
+
+type ContentItem = {
+  id: number;
+  text: string;
+  type: string | null;
+  llmProvider: string;
+  model: string;
+  promptVersion?: string;
+  audioUrl: string | null;
+  createdAt: string;
+  updatedAt?: string;
 };
 
 async function getArtifactHierarchy(artifactId: number): Promise<string[]> {
@@ -80,10 +93,11 @@ export default async function ArtifactEditPage({
     redirect('/admin');
   }
 
-  const [artifact, museums, allRooms] = await Promise.all([
+  const [artifact, museums, allRooms, artifactContent] = await Promise.all([
     api<Artifact>(`/artifacts/${nodeId}`),
     api<Museum[]>(`/museums`).catch(() => []),
     api<Room[]>(`/admin/rooms`).catch(() => []),
+    api<ContentItem[]>(`/artifacts/${nodeId}/content`).catch(() => []),
   ]);
 
   // Get parent room
@@ -192,6 +206,10 @@ export default async function ArtifactEditPage({
           parentId: (r as { museumId?: number | null }).museumId ?? null,
         }))}
         onSave={handleSave}
+      />
+      <ArtifactContentInspector
+        artifactId={artifact.id}
+        initialContent={artifactContent}
       />
       <div className="flex justify-end pt-4">
         <DeleteEntityButton
