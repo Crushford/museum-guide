@@ -1,17 +1,12 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { updateNodeField } from './actions';
-
-type Room = {
-  id: number;
-  name: string;
-  parentId: number | null;
-};
+import { Room } from '@/lib/types';
 
 type RoomDisplayProps = {
   artifactId: number;

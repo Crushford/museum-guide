@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { API_URL } from '@/lib/api';
+import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
 
 type ArtifactQuestion = {
   id: number;
@@ -86,11 +87,7 @@ export function ArtifactQuestionsPanel({
   const [publishAnonymously, setPublishAnonymously] = useState(false);
   const [modalAnsweredQuestion, setModalAnsweredQuestion] =
     useState<ArtifactQuestion | null>(null);
-  const preferredProvider = useMemo(() => {
-    if (typeof window === 'undefined') return 'google';
-    const stored = localStorage.getItem('preferred-llm-provider');
-    return stored === 'google' || stored === 'openai' ? stored : 'google';
-  }, []);
+  const preferredProvider = usePreferredLLMProvider();
   const sessionIdRef = useRef(
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()

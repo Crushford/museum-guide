@@ -6,17 +6,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { updateNodeField } from './actions';
-
-type Museum = {
-  id: number;
-  name: string;
-};
-
-type Room = {
-  id: number;
-  name: string;
-  parentId: number | null;
-};
+import { Museum, Room } from '@/lib/types';
 
 type MuseumDisplayProps = {
   artifactId: number;

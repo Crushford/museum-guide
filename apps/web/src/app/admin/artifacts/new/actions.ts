@@ -1,8 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+import { API_URL, apiMutate } from '@/lib/api';
 
 type ArtifactData = {
   type: 'ARTIFACT';
@@ -69,22 +68,13 @@ export async function createArtifactWithRoom(data: ArtifactData) {
         roomPayload.museumId = museumId;
       }
 
-      const createRoomResponse = await fetch(`${API_URL}/rooms`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(roomPayload),
-      });
-
-      if (!createRoomResponse.ok) {
-        const error = await createRoomResponse.json();
-        throw new Error(
-          error.error || `Failed to create room "${data.parentName}"`
-        );
-      }
-
-      const newRoom = await createRoomResponse.json();
+      const newRoom = await apiMutate<{ id: number; parentId: number }>(
+        '/rooms',
+        {
+          method: 'POST',
+          body: roomPayload,
+        }
+      );
       roomId = newRoom.id;
 
       // Verify the room was created with the correct parentId
@@ -96,25 +86,16 @@ export async function createArtifactWithRoom(data: ArtifactData) {
     }
   }
   // Now create the artifact
-  const response = await fetch(`${API_URL}/artifacts`, {
+  const artifact = await apiMutate<{ id: number }>('/artifacts', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+    body: {
       name: data.name,
       museumId: data.museumId,
       roomId: roomId || null,
       knowledgeText: data.knowledgeText || null,
       furtherReading: data.furtherReading || [],
-    }),
+    },
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to create artifact');
-  }
-
-  const artifact = await response.json();
   redirect(`/admin/artifacts/${artifact.id}`);
 }

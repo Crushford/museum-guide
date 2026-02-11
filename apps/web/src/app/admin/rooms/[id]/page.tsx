@@ -8,6 +8,7 @@ import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
 import { deleteRoom } from './actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { Museum } from '@/lib/types';
 
 type Room = {
   id: number;
@@ -23,11 +24,6 @@ type ChildRoom = {
   name: string;
   museumId: number | null;
   parentRoomId: number | null;
-};
-
-type Museum = {
-  id: number;
-  name: string;
 };
 
 type Artifact = {

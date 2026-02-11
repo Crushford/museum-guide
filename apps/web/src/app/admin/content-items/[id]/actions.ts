@@ -1,8 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+import { API_URL, apiMutate } from '@/lib/api';
 
 type Node = {
   id: number;
@@ -14,18 +13,10 @@ export async function updateContentItemBody(
   body: string,
   returnTo?: string
 ) {
-  const response = await fetch(`${API_URL}/content-items/${id}`, {
+  await apiMutate(`/content-items/${id}`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ body }),
+    body: { body },
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to update content item');
-  }
 
   if (returnTo) {
     // Fetch the node to determine its type and redirect to the appropriate route

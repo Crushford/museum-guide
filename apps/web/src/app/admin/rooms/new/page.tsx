@@ -7,11 +7,7 @@ import { PromptTemplateBox } from '../../../../components/shared';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { RoomFormWrapper } from './RoomFormWrapper';
-
-type Museum = {
-  id: number;
-  name: string;
-};
+import { Museum } from '@/lib/types';
 
 export const metadata: Metadata = {
   title: 'Add Room',
