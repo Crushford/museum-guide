@@ -12,6 +12,7 @@ import {
   recordApiCall,
   recordApiCallSync,
 } from '../telemetry/api-call-tracker';
+import { assertTextAllowedForLlm } from './moderation';
 
 function extractResponseText(res: any): string {
   if (typeof res?.output_text === 'string' && res.output_text.trim()) {
@@ -64,6 +65,7 @@ export class OpenAILlmProvider implements LlmProvider {
     }
   > {
     const start = Date.now();
+    await assertTextAllowedForLlm(request.prompt, 'provider-openai-generate');
     const monthlyLimit = await checkSpendLimit('openai');
     if (!monthlyLimit.allowed) {
       throw new Error(

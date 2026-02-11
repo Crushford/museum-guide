@@ -1,6 +1,7 @@
 # TODO
 
 ## Q&A and Community Features
+
 - [ ] Add admin moderation tooling for blocked/hidden artifact questions.
 - [ ] Add anonymization job to move `ArtifactQuestion.status` to `ANONYMIZED` and scrub usernames.
 - [ ] Add stronger semantic dedupe (embeddings) for "similar question" grouping.
@@ -9,25 +10,30 @@
 - [ ] Add community controls (report answer/question, hide from ranking, restore).
 
 ## Prompting and Content Architecture
+
 - [ ] Split prompts into dedicated modules (system goal/tone, tag taxonomy, intro task, question task) and document versioning strategy.
 - [ ] Rename legacy `Content` introduction concepts to explicit `Introduction` model/flow in a separate MR.
 - [ ] Add migration plan for historical `content.type` values to explicit typed entities.
 
 ## Safety and Moderation
+
 - [ ] Tune OpenAI moderation thresholds with real traffic samples.
 - [ ] Add policy config so allowed/disallowed moderation categories are environment-driven.
 - [ ] Add dashboard for moderation outcomes, block rate, and false-positive review.
 
 ## Audio and Analytics
+
 - [ ] Add richer listen analytics (play-start, quartiles, completion) for answer audio.
 - [ ] Define ranking score using votes + completion rate + recency decay.
 - [ ] Add dashboards for question engagement (asks, votes, listens, completions).
 
 ## Scan/Matching Follow-ups
+
 - [ ] Implement museum confidence confirmation flow in plaque scanner (currently TODO in `PlaqueScanner.tsx`).
 - [ ] Implement incorrect-match review flow (currently TODO in `IncorrectMatchNotice.tsx`).
 - [ ] Add operator tooling to resolve duplicate-match misroutes and retrain duplicate heuristics.
 
 ## Localization
+
 - [ ] Add language strategy for full app localization (UI + generated answers).
 - [ ] Store answer language consistently and add translation pipeline hooks.

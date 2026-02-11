@@ -67,9 +67,8 @@ export function ArtifactQuestionsPanel({
   initialQuestions,
   suggestedQuestions,
 }: ArtifactQuestionsPanelProps) {
-  const [questions, setQuestions] = useState<ArtifactQuestion[]>(
-    initialQuestions
-  );
+  const [questions, setQuestions] =
+    useState<ArtifactQuestion[]>(initialQuestions);
   const [draft, setDraft] = useState('');
   const [isAsking, setIsAsking] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -150,7 +149,9 @@ export function ArtifactQuestionsPanel({
       setSimilarPrompt(null);
       setPreviewQuestion(null);
     } catch (askError) {
-      setModalError(askError instanceof Error ? askError.message : 'Failed to ask');
+      setModalError(
+        askError instanceof Error ? askError.message : 'Failed to ask'
+      );
     } finally {
       setIsAsking(false);
     }
@@ -185,13 +186,16 @@ export function ArtifactQuestionsPanel({
 
       const original = data.originalQuestion?.trim() || draft.trim();
       const corrected = data.correctedQuestion?.trim() || original;
-      const hasCorrections = data.hasCorrections === true && corrected !== original;
+      const hasCorrections =
+        data.hasCorrections === true && corrected !== original;
 
       setPreviewQuestion({ original, corrected, hasCorrections });
       setSelectedPublishQuestion(hasCorrections ? corrected : original);
     } catch (previewError) {
       setModalError(
-        previewError instanceof Error ? previewError.message : 'Failed to prepare question'
+        previewError instanceof Error
+          ? previewError.message
+          : 'Failed to prepare question'
       );
     } finally {
       setIsPreviewing(false);
@@ -216,11 +220,14 @@ export function ArtifactQuestionsPanel({
     setPendingVoteId(questionId);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/artifact-questions/${questionId}/vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vote: direction }),
-      });
+      const response = await fetch(
+        `${API_URL}/artifact-questions/${questionId}/vote`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vote: direction }),
+        }
+      );
       const payload = (await response.json()) as {
         upvotes: number;
         downvotes: number;
@@ -246,16 +253,24 @@ export function ArtifactQuestionsPanel({
 
   async function useSimilarQuestion(questionId: number) {
     try {
-      const response = await fetch(`${API_URL}/artifact-questions/${questionId}/use`, {
-        method: 'POST',
-      });
-      const payload = (await response.json()) as { askCount?: number; error?: string };
+      const response = await fetch(
+        `${API_URL}/artifact-questions/${questionId}/use`,
+        {
+          method: 'POST',
+        }
+      );
+      const payload = (await response.json()) as {
+        askCount?: number;
+        error?: string;
+      };
       if (!response.ok) {
         throw new Error(payload.error || `Failed (${response.status})`);
       }
       setQuestions((prev) =>
         prev.map((q) =>
-          q.id === questionId ? { ...q, askCount: payload.askCount ?? q.askCount } : q
+          q.id === questionId
+            ? { ...q, askCount: payload.askCount ?? q.askCount }
+            : q
         )
       );
       setSimilarPrompt(null);
@@ -328,34 +343,38 @@ export function ArtifactQuestionsPanel({
           ))}
         </div>
 
-        {similarPrompt?.requiresConfirmation && similarPrompt.similarQuestion && (
-          <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900 space-y-2">
-            <p className="text-sm">
-              Similar question found ({Math.round(similarPrompt.similarQuestion.similarity * 100)}%
-              match).
-            </p>
-            <p className="text-sm font-medium">
-              {similarPrompt.similarQuestion.questionText}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  if (!similarPrompt.similarQuestion) return;
-                  void useSimilarQuestion(similarPrompt.similarQuestion.id);
-                }}
-              >
-                Use Existing Answer
-              </Button>
-              <Button size="sm" onClick={() => void submitQuestion(true)}>
-                Ask Anyway
-              </Button>
+        {similarPrompt?.requiresConfirmation &&
+          similarPrompt.similarQuestion && (
+            <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900 space-y-2">
+              <p className="text-sm">
+                Similar question found (
+                {Math.round(similarPrompt.similarQuestion.similarity * 100)}%
+                match).
+              </p>
+              <p className="text-sm font-medium">
+                {similarPrompt.similarQuestion.questionText}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    if (!similarPrompt.similarQuestion) return;
+                    void useSimilarQuestion(similarPrompt.similarQuestion.id);
+                  }}
+                >
+                  Use Existing Answer
+                </Button>
+                <Button size="sm" onClick={() => void submitQuestion(true)}>
+                  Ask Anyway
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && (
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        )}
 
         {sortedQuestions.length === 0 ? (
           <p className="text-muted-foreground text-sm">
@@ -364,12 +383,18 @@ export function ArtifactQuestionsPanel({
         ) : (
           <div className="space-y-4">
             {sortedQuestions.map((question) => (
-              <div key={question.id} className="rounded-md border p-4 space-y-3">
+              <div
+                key={question.id}
+                className="rounded-md border p-4 space-y-3"
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
-                    <p className="font-medium text-primary">{question.questionText}</p>
+                    <p className="font-medium text-primary">
+                      {question.questionText}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      asked by {question.askedByUsername ?? 'anonymous'} | {question.listenCount} listens
+                      asked by {question.askedByUsername ?? 'anonymous'} |{' '}
+                      {question.listenCount} listens
                     </p>
                   </div>
                   <div className="flex gap-1 shrink-0">
@@ -472,10 +497,14 @@ export function ArtifactQuestionsPanel({
                   Your question is now public. Here is the answer:
                 </p>
                 <div className="rounded-md border p-2">
-                  <p className="font-medium">{modalAnsweredQuestion.questionText}</p>
+                  <p className="font-medium">
+                    {modalAnsweredQuestion.questionText}
+                  </p>
                 </div>
                 <div className="rounded-md border p-2">
-                  <p className="whitespace-pre-wrap">{modalAnsweredQuestion.answerText}</p>
+                  <p className="whitespace-pre-wrap">
+                    {modalAnsweredQuestion.answerText}
+                  </p>
                 </div>
                 {modalAnsweredQuestion.answerAudioUrl && (
                   <audio
@@ -550,40 +579,46 @@ export function ArtifactQuestionsPanel({
               </button>
             )}
 
-            {similarPrompt?.requiresConfirmation && similarPrompt.similarQuestion && (
-              <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900 space-y-2">
-                <p className="text-sm">
-                  Similar question found ({Math.round(similarPrompt.similarQuestion.similarity * 100)}
-                  % match).
-                </p>
-                <p className="text-sm font-medium">
-                  {similarPrompt.similarQuestion.questionText}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      if (!similarPrompt.similarQuestion) return;
-                      void useSimilarQuestion(similarPrompt.similarQuestion.id);
-                      resetModalState(false);
-                    }}
-                  >
-                    Use Existing Answer
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => void submitQuestion(true)}
-                    disabled={isAsking}
-                  >
-                    Ask Anyway
-                  </Button>
+            {similarPrompt?.requiresConfirmation &&
+              similarPrompt.similarQuestion && (
+                <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900 space-y-2">
+                  <p className="text-sm">
+                    Similar question found (
+                    {Math.round(similarPrompt.similarQuestion.similarity * 100)}
+                    % match).
+                  </p>
+                  <p className="text-sm font-medium">
+                    {similarPrompt.similarQuestion.questionText}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        if (!similarPrompt.similarQuestion) return;
+                        void useSimilarQuestion(
+                          similarPrompt.similarQuestion.id
+                        );
+                        resetModalState(false);
+                      }}
+                    >
+                      Use Existing Answer
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => void submitQuestion(true)}
+                      disabled={isAsking}
+                    >
+                      Ask Anyway
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {modalError && (
-              <p className="text-sm text-red-600 dark:text-red-400">{modalError}</p>
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {modalError}
+              </p>
             )}
 
             {!modalAnsweredQuestion && !isPreviewing && (
@@ -599,7 +634,9 @@ export function ArtifactQuestionsPanel({
                   onClick={() => void submitQuestion(false)}
                   disabled={isAsking || !selectedPublishQuestion.trim()}
                 >
-                  {isAsking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {isAsking && (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  )}
                   Publish and Answer
                 </Button>
               </div>

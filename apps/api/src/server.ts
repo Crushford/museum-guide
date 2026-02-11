@@ -34,10 +34,11 @@ import {
   getMonthlySpendEur,
   recordUsage,
 } from './lib/llm/cost-tracker';
+import { sanitizeSensitiveTopics, sanitizeSubjectTags } from './lib/llm/types';
 import {
-  sanitizeSensitiveTopics,
-  sanitizeSubjectTags,
-} from './lib/llm/types';
+  assertTextAllowedForLlm,
+  moderateTextForLlm,
+} from './lib/llm/moderation';
 import { initLangfuse } from './lib/telemetry/langfuse';
 import { recordApiCall } from './lib/telemetry/api-call-tracker';
 import {
@@ -530,7 +531,8 @@ app.post('/api/museums/select/:qid', async (req, res) => {
         ? details.label.trim()
         : qid;
     const rawSlug = generateSlug(museumName);
-    const museumSlug = rawSlug.length > 0 ? rawSlug : `museum-${qid.toLowerCase()}`;
+    const museumSlug =
+      rawSlug.length > 0 ? rawSlug : `museum-${qid.toLowerCase()}`;
 
     // Create the museum
     const museum = await prisma.museum.create({
@@ -2309,7 +2311,11 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
       }
     }
 
-    if (mostSimilar && mostSimilar.similarity >= SIMILARITY_THRESHOLD && !forceCreate) {
+    if (
+      mostSimilar &&
+      mostSimilar.similarity >= SIMILARITY_THRESHOLD &&
+      !forceCreate
+    ) {
       return res.json({
         requiresConfirmation: true,
         similarQuestion: mostSimilar,
@@ -2318,7 +2324,10 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
 
     let moderation;
     try {
-      moderation = await moderateQuestionText(publishQuestion);
+      moderation = await moderateTextForLlm(
+        publishQuestion,
+        'artifact-question-submit'
+      );
     } catch (error) {
       return res.status(503).json({
         error:
@@ -2340,7 +2349,10 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
           status: 'HIDDEN',
           moderationBlocked: true,
           moderationCategories: moderation.categories,
-          moderationPayload: moderation.raw as Prisma.InputJsonValue,
+          moderationPayload: {
+            source: moderation.source,
+            categories: moderation.categories,
+          } as Prisma.InputJsonValue,
           similarToQuestionId:
             mostSimilar && mostSimilar.similarity >= SIMILARITY_THRESHOLD
               ? mostSimilar.id
@@ -2833,184 +2845,6 @@ function hashText(text: string): string {
   return createHash('sha256').update(text).digest('hex');
 }
 
-function shouldBlockModeration(categories: Record<string, boolean>): boolean {
-  const blockedCategories = [
-    'hate',
-    'hate/threatening',
-    'harassment',
-    'harassment/threatening',
-  ];
-  return blockedCategories.some((key) => categories[key] === true);
-}
-
-function extractOpenAIText(response: any): string {
-  if (typeof response?.output_text === 'string' && response.output_text.trim()) {
-    return response.output_text.trim();
-  }
-  const output = Array.isArray(response?.output) ? response.output : [];
-  const chunks: string[] = [];
-  for (const item of output) {
-    const content = Array.isArray(item?.content) ? item.content : [];
-    for (const c of content) {
-      if (typeof c?.text === 'string') chunks.push(c.text);
-    }
-  }
-  return chunks.join('').trim();
-}
-
-async function moderateQuestionWithModelFallback(question: string): Promise<{
-  blocked: boolean;
-  categories: string[];
-  raw: unknown;
-}> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY missing for moderation fallback');
-  }
-
-  const client = new OpenAI({ apiKey });
-  const modelName =
-    process.env.OPENAI_MODEL_MODERATION_FALLBACK ||
-    process.env.OPENAI_MODEL_QA ||
-    process.env.OPENAI_MODEL_INTRODUCTION ||
-    'gpt-5-nano';
-
-  const response = await client.responses.create({
-    model: modelName,
-    input: [
-      {
-        role: 'system',
-        content: [
-          'Classify whether this visitor question should be blocked.',
-          'Block only for hate speech, racism, or threatening harassment toward people/groups.',
-          'Do not block for mild profanity, sexual topics, or non-targeted rude humor alone.',
-        ].join('\n'),
-      },
-      {
-        role: 'user',
-        content: `Question:\n${question}`,
-      },
-    ],
-    max_output_tokens: 200,
-    reasoning: { effort: 'minimal' },
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'question_moderation_fallback',
-        strict: true,
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            blocked: { type: 'boolean' },
-            categories: { type: 'array', items: { type: 'string' } },
-          },
-          required: ['blocked', 'categories'],
-        },
-      },
-    },
-  });
-
-  const rawText = extractOpenAIText(response);
-  if (!rawText) {
-    throw new Error('Moderation fallback returned empty response');
-  }
-
-  const parsed = JSON.parse(rawText) as {
-    blocked: boolean;
-    categories: string[];
-  };
-  const allowedCategories = new Set([
-    'hate',
-    'hate/threatening',
-    'harassment',
-    'harassment/threatening',
-  ]);
-  const categories = Array.isArray(parsed.categories)
-    ? parsed.categories
-        .filter((c): c is string => typeof c === 'string')
-        .map((c) => c.trim())
-        .filter((c) => allowedCategories.has(c))
-    : [];
-
-  const categoryMap = Object.fromEntries(
-    categories.map((category) => [category, true])
-  ) as Record<string, boolean>;
-
-  return {
-    blocked: parsed.blocked === true || shouldBlockModeration(categoryMap),
-    categories,
-    raw: parsed,
-  };
-}
-
-async function moderateQuestionText(question: string): Promise<{
-  blocked: boolean;
-  categories: string[];
-  raw: unknown;
-}> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    if (process.env.OPENAI_MODERATION_ALLOW_UNAVAILABLE === '1') {
-      return { blocked: false, categories: [], raw: null };
-    }
-    throw new Error(
-      'OpenAI moderation is unavailable (OPENAI_API_KEY missing). Refusing to publish question.'
-    );
-  }
-
-  const client = new OpenAI({ apiKey });
-  let moderation;
-  try {
-    moderation = await client.moderations.create({
-      model: 'omni-moderation-latest',
-      input: question,
-    });
-  } catch (error) {
-    try {
-      const fallback = await moderateQuestionWithModelFallback(question);
-      console.warn(
-        '[moderation] Used model fallback because moderation endpoint failed:',
-        error instanceof Error ? error.message : String(error)
-      );
-      return fallback;
-    } catch (fallbackError) {
-      if (process.env.OPENAI_MODERATION_ALLOW_UNAVAILABLE === '1') {
-        console.warn(
-          '[moderation] Endpoint and fallback unavailable, continuing in permissive mode:',
-          fallbackError instanceof Error
-            ? fallbackError.message
-            : String(fallbackError)
-        );
-        return { blocked: false, categories: [], raw: null };
-      }
-      throw new Error(
-        `OpenAI moderation failed and fallback failed: ${
-          fallbackError instanceof Error
-            ? fallbackError.message
-            : String(fallbackError)
-        }`
-      );
-    }
-  }
-
-  const first = moderation.results?.[0];
-  const flaggedCategories = Object.entries(
-    (first?.categories ?? {}) as unknown as Record<string, boolean | null>
-  )
-    .filter(([, flagged]) => flagged)
-    .map(([key]) => key);
-  const categoryMap = Object.fromEntries(
-    flaggedCategories.map((category) => [category, true])
-  ) as Record<string, boolean>;
-
-  return {
-    blocked: shouldBlockModeration(categoryMap),
-    categories: flaggedCategories,
-    raw: first ?? null,
-  };
-}
-
 async function fetchArtifactQuestionContext(artifactId: number) {
   const artifact = await prisma.artifact.findUnique({
     where: { id: artifactId },
@@ -3186,6 +3020,8 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
       step: 'generating',
       message: `Sending prompt to ${providerName === 'google' ? 'Google' : 'OpenAI'}...`,
     });
+
+    await assertTextAllowedForLlm(context.template, 'introduction-stream');
 
     let fullText = '';
     let modelName = '';

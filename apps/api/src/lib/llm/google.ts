@@ -15,6 +15,7 @@ import {
   recordApiCall,
   recordApiCallSync,
 } from '../telemetry/api-call-tracker';
+import { assertTextAllowedForLlm } from './moderation';
 
 const RESPONSE_SCHEMA: ResponseSchema = {
   type: SchemaType.OBJECT,
@@ -55,6 +56,7 @@ export class GoogleLlmProvider implements LlmProvider {
 
   async generate(request: LlmGenerateRequest): Promise<LlmGenerateResult> {
     const start = Date.now();
+    await assertTextAllowedForLlm(request.prompt, 'provider-google-generate');
 
     const systemInstruction = [request.systemInstruction, TAGGING_INSTRUCTIONS]
       .filter(Boolean)
