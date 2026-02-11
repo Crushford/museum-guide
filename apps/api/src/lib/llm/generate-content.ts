@@ -4,7 +4,10 @@ import { checkSpendLimit } from './cost-tracker';
 import { recordUsage } from './cost-tracker';
 import { traceGeneration } from '../telemetry/langfuse';
 import { generateAudioForContent } from '../audio';
-import { buildIntroductionPrompt } from './prompt-templates';
+import {
+  buildIntroductionPrompt,
+  buildMuseumGuideSystemPrompt,
+} from './prompt-templates';
 
 const PROMPT_VERSION = '1.0';
 
@@ -33,6 +36,7 @@ export async function generateIntroduction(
     type: string | null;
     llmProvider: string;
     model: string;
+    suggestedQuestions: string[];
     audioUrl: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -69,7 +73,10 @@ export async function generateIntroduction(
 
   // 4. Generate
   const provider = createProvider(providerName);
-  const result = await provider.generate({ prompt });
+  const result = await provider.generate({
+    prompt,
+    systemInstruction: buildMuseumGuideSystemPrompt(),
+  });
 
   // 5. Upsert content — update existing introduction for this provider, or create new
   const existing = await prisma.content.findFirst({
@@ -89,6 +96,7 @@ export async function generateIntroduction(
         isAdultContent: result.isAdultContent ?? false,
         sensitiveTopics: result.sensitiveTopics ?? [],
         subjectTags: result.subjectTags ?? [],
+        suggestedQuestions: result.suggestedQuestions ?? [],
       },
     });
   } else {
@@ -104,6 +112,7 @@ export async function generateIntroduction(
         isAdultContent: result.isAdultContent ?? false,
         sensitiveTopics: result.sensitiveTopics ?? [],
         subjectTags: result.subjectTags ?? [],
+        suggestedQuestions: result.suggestedQuestions ?? [],
       },
     });
   }

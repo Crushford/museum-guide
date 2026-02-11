@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { resolve } from 'path';
+import { createHash } from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import OpenAI from 'openai';
@@ -13,14 +14,31 @@ import type {
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'node:fs';
-import { generateAudioForContent } from './lib/audio';
+import {
+  generateAudioForArtifactQuestion,
+  generateAudioForContent,
+} from './lib/audio';
 import {
   generateIntroduction,
   SpendLimitError,
 } from './lib/llm/generate-content';
 import { createProvider } from './lib/llm';
-import { buildIntroductionPrompt } from './lib/llm/prompt-templates';
-import { getMonthlySpendEur } from './lib/llm/cost-tracker';
+import {
+  buildIntroductionPrompt,
+  buildMuseumGuideSystemPrompt,
+  buildQuestionAnswerPrompt,
+} from './lib/llm/prompt-templates';
+import {
+  checkDailySpendLimit,
+  checkSpendLimit,
+  getMonthlySpendEur,
+  recordUsage,
+} from './lib/llm/cost-tracker';
+import { sanitizeSensitiveTopics, sanitizeSubjectTags } from './lib/llm/types';
+import {
+  assertTextAllowedForLlm,
+  moderateTextForLlm,
+} from './lib/llm/moderation';
 import { initLangfuse } from './lib/telemetry/langfuse';
 import { recordApiCall } from './lib/telemetry/api-call-tracker';
 import {
@@ -508,10 +526,19 @@ app.post('/api/museums/select/:qid', async (req, res) => {
       });
     }
 
+    const museumName =
+      typeof details.label === 'string' && details.label.trim().length > 0
+        ? details.label.trim()
+        : qid;
+    const rawSlug = generateSlug(museumName);
+    const museumSlug =
+      rawSlug.length > 0 ? rawSlug : `museum-${qid.toLowerCase()}`;
+
     // Create the museum
     const museum = await prisma.museum.create({
       data: {
-        name: details.label,
+        name: museumName,
+        slug: museumSlug,
         wikidataId: qid,
         wikipediaUrl: details.wikipediaUrl || null,
         image: details.image || null,
@@ -519,6 +546,7 @@ app.post('/api/museums/select/:qid', async (req, res) => {
         locationTags: details.locationLabels || [],
         knowledgeText: null,
         furtherReading: [],
+        updatedAt: new Date(),
       },
     });
 
@@ -744,6 +772,7 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
             where: { wikidataId: artifact.qid },
             data: {
               displayTitle: artifact.label,
+              slug: generateSlug(artifact.label),
               wikipediaUrl: artifact.wikipediaUrl || existing.wikipediaUrl,
               wikimediaImageUrl: artifact.image || existing.wikimediaImageUrl,
             } as any,
@@ -761,6 +790,7 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
           const created = await prisma.artifact.create({
             data: {
               displayTitle: artifact.label,
+              slug: generateSlug(artifact.label),
               museumId: museum.id,
               wikidataId: artifact.qid,
               wikipediaUrl: artifact.wikipediaUrl || null,
@@ -2112,6 +2142,453 @@ app.get('/artifacts/:artifactId/content', async (req, res) => {
   res.json(content);
 });
 
+app.get('/artifacts/:artifactId/questions', async (req, res) => {
+  const artifactId = Number(req.params.artifactId);
+  if (Number.isNaN(artifactId)) {
+    return res.status(400).json({ error: 'Invalid artifactId' });
+  }
+
+  const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
+  const sort = req.query.sort === 'new' ? 'new' : 'top';
+
+  const questions = await prisma.artifactQuestion.findMany({
+    where: {
+      artifactId,
+      status: { in: ['ACTIVE', 'ANONYMIZED'] },
+      moderationBlocked: false,
+      answerText: { not: null },
+    },
+    orderBy:
+      sort === 'new'
+        ? [{ createdAt: 'desc' }]
+        : [{ upvotes: 'desc' }, { askCount: 'desc' }, { createdAt: 'desc' }],
+    take: limit,
+    include: {
+      _count: {
+        select: {
+          listenEvents: true,
+        },
+      },
+    },
+  });
+
+  res.json(
+    questions.map((question) => ({
+      id: question.id,
+      artifactId: question.artifactId,
+      museumId: question.museumId,
+      roomId: question.roomId,
+      questionText: question.questionText,
+      questionLanguage: question.questionLanguage,
+      askedByUsername:
+        question.status === 'ANONYMIZED' ? null : question.askedByUsername,
+      status: question.status,
+      askCount: question.askCount,
+      upvotes: question.upvotes,
+      downvotes: question.downvotes,
+      similarToQuestionId: question.similarToQuestionId,
+      answerText: question.answerText,
+      answerLanguage: question.answerLanguage,
+      answerAudioUrl: question.answerAudioUrl,
+      isAdultContent: question.isAdultContent,
+      sensitiveTopics: question.sensitiveTopics,
+      subjectTags: question.subjectTags,
+      listenCount: question._count.listenEvents,
+      createdAt: question.createdAt,
+      updatedAt: question.updatedAt,
+    }))
+  );
+});
+
+app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
+  try {
+    const artifactId = Number(req.params.artifactId);
+    if (Number.isNaN(artifactId)) {
+      return res.status(400).json({ error: 'Invalid artifactId' });
+    }
+
+    const questionRaw = req.body?.question;
+    const forceCreate = req.body?.forceCreate === true;
+    const previewOnly = req.body?.previewOnly === true;
+    const publishAnonymously = req.body?.publishAnonymously === true;
+    const approvedQuestionTextRaw = req.body?.approvedQuestionText;
+    if (typeof questionRaw !== 'string') {
+      return res.status(400).json({ error: 'question is required' });
+    }
+
+    const questionText = questionRaw.trim();
+    if (questionText.length < 8) {
+      return res
+        .status(400)
+        .json({ error: 'Question is too short (minimum 8 characters).' });
+    }
+    if (questionText.length > 280) {
+      return res
+        .status(400)
+        .json({ error: 'Question is too long (maximum 280 characters).' });
+    }
+
+    const providerName = parseProvider(req.query.provider, 'google');
+    let approvedQuestionText: string | null = null;
+    if (typeof approvedQuestionTextRaw === 'string') {
+      const trimmed = approvedQuestionTextRaw.trim();
+      if (trimmed.length > 0) {
+        approvedQuestionText = trimmed;
+      }
+    }
+
+    const correctedQuestion =
+      approvedQuestionText ??
+      (await suggestQuestionCorrection(questionText, providerName));
+
+    if (previewOnly) {
+      return res.json({
+        previewOnly: true,
+        originalQuestion: questionText,
+        correctedQuestion,
+        hasCorrections: correctedQuestion !== questionText,
+      });
+    }
+
+    const publishQuestion = (approvedQuestionText ?? correctedQuestion).trim();
+    if (publishQuestion.length < 8) {
+      return res
+        .status(400)
+        .json({ error: 'Question is too short (minimum 8 characters).' });
+    }
+    if (publishQuestion.length > 280) {
+      return res
+        .status(400)
+        .json({ error: 'Question is too long (maximum 280 characters).' });
+    }
+
+    const context = await fetchArtifactQuestionContext(artifactId);
+    if (!context) {
+      return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    const normalizedQuestion = normalizeQuestionText(publishQuestion);
+    const questionHash = hashText(normalizedQuestion);
+    const existing = await prisma.artifactQuestion.findMany({
+      where: {
+        artifactId,
+        status: { in: ['ACTIVE', 'ANONYMIZED'] },
+      },
+      select: {
+        id: true,
+        questionText: true,
+        answerText: true,
+        upvotes: true,
+        downvotes: true,
+      },
+      take: 200,
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    let mostSimilar: {
+      id: number;
+      questionText: string;
+      answerText: string | null;
+      similarity: number;
+      upvotes: number;
+      downvotes: number;
+    } | null = null;
+
+    for (const row of existing) {
+      const similarity = stringSimilarity(
+        normalizedQuestion,
+        normalizeQuestionText(row.questionText)
+      );
+      if (!mostSimilar || similarity > mostSimilar.similarity) {
+        mostSimilar = {
+          id: row.id,
+          questionText: row.questionText,
+          answerText: row.answerText,
+          similarity,
+          upvotes: row.upvotes,
+          downvotes: row.downvotes,
+        };
+      }
+    }
+
+    if (
+      mostSimilar &&
+      mostSimilar.similarity >= SIMILARITY_THRESHOLD &&
+      !forceCreate
+    ) {
+      return res.json({
+        requiresConfirmation: true,
+        similarQuestion: mostSimilar,
+      });
+    }
+
+    let moderation;
+    try {
+      moderation = await moderateTextForLlm(
+        publishQuestion,
+        'artifact-question-submit'
+      );
+    } catch (error) {
+      return res.status(503).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Moderation unavailable, cannot publish question right now.',
+      });
+    }
+    if (moderation.blocked) {
+      const blockedQuestion = await prisma.artifactQuestion.create({
+        data: {
+          artifactId: context.artifact.id,
+          museumId: context.artifact.museumId,
+          roomId: context.artifact.roomId ?? null,
+          questionText: publishQuestion,
+          normalizedQuestion,
+          questionHash,
+          askedByUsername: PROTOTYPE_USERNAME,
+          status: 'HIDDEN',
+          moderationBlocked: true,
+          moderationCategories: moderation.categories,
+          moderationPayload: {
+            source: moderation.source,
+            categories: moderation.categories,
+          } as Prisma.InputJsonValue,
+          similarToQuestionId:
+            mostSimilar && mostSimilar.similarity >= SIMILARITY_THRESHOLD
+              ? mostSimilar.id
+              : null,
+        },
+      });
+
+      return res.status(403).json({
+        error:
+          'This question could not be posted because it violates community safety rules.',
+        blocked: true,
+        questionId: blockedQuestion.id,
+      });
+    }
+
+    const spendMonthly = await checkSpendLimit(providerName);
+    if (!spendMonthly.allowed) {
+      return res.status(429).json({
+        error: `Monthly ${providerName} spend limit reached (€${spendMonthly.currentSpendEur.toFixed(2)} / €${spendMonthly.limitEur?.toFixed(2)}).`,
+      });
+    }
+    const spendDaily = await checkDailySpendLimit(providerName);
+    if (!spendDaily.allowed) {
+      return res.status(429).json({
+        error: `Daily ${providerName} spend limit reached (€${spendDaily.currentSpendEur.toFixed(2)} / €${spendDaily.limitEur?.toFixed(2)}).`,
+      });
+    }
+
+    const prompt = buildQuestionAnswerPrompt({
+      artifactName: context.artifact.displayTitle,
+      plaqueText:
+        context.artifact.wikipediaSummary ||
+        context.artifact.knowledgeTextEn ||
+        context.artifact.rawPlaqueText,
+      museumName: context.museum?.name ?? null,
+      roomName: context.room?.name ?? null,
+      parentRoomName: context.parentRoom?.name ?? null,
+      museumSummary: context.museum?.wikipediaSummary ?? null,
+      introductionText: context.introductionText,
+      userQuestion: publishQuestion,
+    });
+
+    const provider = createProvider(providerName);
+    const result = await provider.generate({
+      prompt,
+      systemInstruction: buildMuseumGuideSystemPrompt(),
+    });
+
+    const answerText = result.text.trim();
+    if (!answerText) {
+      throw new Error('LLM provider returned an empty answer text.');
+    }
+
+    const question = await prisma.artifactQuestion.create({
+      data: {
+        artifactId: context.artifact.id,
+        museumId: context.artifact.museumId,
+        roomId: context.artifact.roomId ?? null,
+        questionText: publishQuestion,
+        normalizedQuestion,
+        questionHash,
+        questionLanguage: null,
+        askedByUsername: PROTOTYPE_USERNAME,
+        status: publishAnonymously ? 'ANONYMIZED' : 'ACTIVE',
+        similarToQuestionId:
+          mostSimilar && mostSimilar.similarity >= SIMILARITY_THRESHOLD
+            ? mostSimilar.id
+            : null,
+        answerText,
+        answerLanguage: null,
+        isAdultContent: result.isAdultContent === true,
+        sensitiveTopics: sanitizeSensitiveTopics(result.sensitiveTopics),
+        subjectTags: sanitizeSubjectTags(result.subjectTags),
+        moderationBlocked: false,
+        llmProvider: result.provider,
+        model: result.model,
+        prompt,
+        promptVersion: QUESTION_PROMPT_VERSION,
+      },
+    });
+
+    let answerAudioUrl: string | null = null;
+    try {
+      answerAudioUrl = await generateAudioForArtifactQuestion(
+        question.id,
+        answerText,
+        { outputDir: audioDir }
+      );
+      await prisma.artifactQuestion.update({
+        where: { id: question.id },
+        data: { answerAudioUrl },
+      });
+    } catch {
+      // Audio is optional.
+    }
+
+    await recordUsage({
+      provider: result.provider,
+      model: result.model,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      durationMs: result.durationMs,
+      apiCallId: result.apiCallId ?? null,
+      artifactId: artifactId,
+    });
+
+    res.json({
+      requiresConfirmation: false,
+      question: {
+        ...question,
+        answerAudioUrl: answerAudioUrl ?? question.answerAudioUrl,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      error:
+        error instanceof Error ? error.message : 'Failed to answer question',
+    });
+  }
+});
+
+app.post('/artifact-questions/:questionId/vote', async (req, res) => {
+  const questionId = Number(req.params.questionId);
+  if (Number.isNaN(questionId)) {
+    return res.status(400).json({ error: 'Invalid questionId' });
+  }
+
+  const vote = req.body?.vote;
+  if (vote !== 'up' && vote !== 'down') {
+    return res.status(400).json({ error: 'vote must be "up" or "down"' });
+  }
+
+  const value = vote === 'up' ? 1 : -1;
+  const existing = await prisma.artifactQuestionVote.findUnique({
+    where: {
+      questionId_username: {
+        questionId,
+        username: PROTOTYPE_USERNAME,
+      },
+    },
+  });
+
+  if (existing && existing.value === value) {
+    await prisma.artifactQuestionVote.delete({ where: { id: existing.id } });
+  } else if (existing) {
+    await prisma.artifactQuestionVote.update({
+      where: { id: existing.id },
+      data: { value },
+    });
+  } else {
+    await prisma.artifactQuestionVote.create({
+      data: {
+        questionId,
+        username: PROTOTYPE_USERNAME,
+        value,
+      },
+    });
+  }
+
+  const [upvotes, downvotes] = await Promise.all([
+    prisma.artifactQuestionVote.count({ where: { questionId, value: 1 } }),
+    prisma.artifactQuestionVote.count({ where: { questionId, value: -1 } }),
+  ]);
+
+  const currentVote = await prisma.artifactQuestionVote.findUnique({
+    where: {
+      questionId_username: {
+        questionId,
+        username: PROTOTYPE_USERNAME,
+      },
+    },
+  });
+
+  await prisma.artifactQuestion.update({
+    where: { id: questionId },
+    data: { upvotes, downvotes },
+  });
+
+  res.json({
+    questionId,
+    upvotes,
+    downvotes,
+    currentUserVote: currentVote?.value ?? 0,
+  });
+});
+
+app.post('/artifact-questions/:questionId/use', async (req, res) => {
+  const questionId = Number(req.params.questionId);
+  if (Number.isNaN(questionId)) {
+    return res.status(400).json({ error: 'Invalid questionId' });
+  }
+
+  const question = await prisma.artifactQuestion.update({
+    where: { id: questionId },
+    data: {
+      askCount: { increment: 1 },
+    },
+  });
+
+  res.json({
+    id: question.id,
+    askCount: question.askCount,
+  });
+});
+
+app.post('/artifact-questions/:questionId/listen', async (req, res) => {
+  const questionId = Number(req.params.questionId);
+  if (Number.isNaN(questionId)) {
+    return res.status(400).json({ error: 'Invalid questionId' });
+  }
+
+  const durationSecondsRaw = Number(req.body?.durationSeconds ?? 0);
+  const durationSeconds =
+    Number.isFinite(durationSecondsRaw) && durationSecondsRaw > 0
+      ? durationSecondsRaw
+      : 0;
+
+  const completed = req.body?.completed === true;
+  const sessionId =
+    typeof req.body?.sessionId === 'string' ? req.body.sessionId : null;
+  const source = typeof req.body?.source === 'string' ? req.body.source : null;
+
+  await prisma.artifactQuestionListenEvent.create({
+    data: {
+      questionId,
+      username: PROTOTYPE_USERNAME,
+      sessionId,
+      durationSeconds,
+      completed,
+      source,
+    },
+  });
+
+  res.json({ ok: true });
+});
+
 // ============================================================================
 // ADMIN CONTENT ENDPOINTS
 // ============================================================================
@@ -2300,6 +2777,9 @@ app.get('/admin/content/content', async (_req, res) => {
 // ============================================================================
 
 type ContentProviderName = 'google' | 'openai';
+const PROTOTYPE_USERNAME = 'prototype-tester';
+const QUESTION_PROMPT_VERSION = '1.0';
+const SIMILARITY_THRESHOLD = 0.75;
 
 function parseProvider(
   value: unknown,
@@ -2353,6 +2833,82 @@ async function fetchArtifactContext(artifactId: number) {
   return { artifact, room, museum, parentRoom, template };
 }
 
+function normalizeQuestionText(question: string): string {
+  return question
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function hashText(text: string): string {
+  return createHash('sha256').update(text).digest('hex');
+}
+
+async function fetchArtifactQuestionContext(artifactId: number) {
+  const artifact = await prisma.artifact.findUnique({
+    where: { id: artifactId },
+    include: {
+      museum: {
+        select: {
+          id: true,
+          name: true,
+          wikipediaSummary: true,
+        },
+      },
+      room: {
+        include: {
+          parentRoom: {
+            select: {
+              id: true,
+              name: true,
+              museumId: true,
+            },
+          },
+        },
+      },
+      content: {
+        where: { type: 'introduction' },
+        orderBy: { updatedAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
+  if (!artifact) return null;
+
+  return {
+    artifact,
+    room: artifact.room,
+    parentRoom: artifact.room?.parentRoom ?? null,
+    museum: artifact.museum ?? null,
+    introductionText: artifact.content[0]?.text ?? null,
+  };
+}
+
+async function suggestQuestionCorrection(
+  question: string,
+  providerName: ContentProviderName
+): Promise<string> {
+  const provider = createProvider(providerName);
+  const result = await provider.generate({
+    systemInstruction: [
+      buildMuseumGuideSystemPrompt(),
+      'Task: clean up a visitor question for public display.',
+      'Only correct obvious spelling, punctuation, and capitalization mistakes.',
+      'Preserve meaning and tone.',
+      'Do not switch UK vs US spelling if both are correct.',
+      'Return only the cleaned question in the text field.',
+    ].join('\n'),
+    prompt: `Original visitor question:\n${question}`,
+  });
+
+  const cleaned = result.text.trim().replace(/^["']|["']$/g, '');
+  if (!cleaned) return question;
+  if (cleaned.length > 280) return question;
+  return cleaned;
+}
+
 // POST /generate-content/artefact/:artefactId - Generate content
 app.post('/generate-content/artefact/:artefactId', async (req, res) => {
   try {
@@ -2369,7 +2925,10 @@ app.post('/generate-content/artefact/:artefactId', async (req, res) => {
     const providerName = parseProvider(req.query.provider, 'google');
     const provider = createProvider(providerName);
 
-    const result = await provider.generate({ prompt: context.template });
+    const result = await provider.generate({
+      prompt: context.template,
+      systemInstruction: buildMuseumGuideSystemPrompt(),
+    });
 
     const content = await prisma.content.create({
       data: {
@@ -2379,6 +2938,7 @@ app.post('/generate-content/artefact/:artefactId', async (req, res) => {
         llmProvider: result.provider,
         model: result.model,
         prompt: context.template,
+        suggestedQuestions: result.suggestedQuestions ?? [],
       },
     });
 
@@ -2460,6 +3020,8 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
       step: 'generating',
       message: `Sending prompt to ${providerName === 'google' ? 'Google' : 'OpenAI'}...`,
     });
+
+    await assertTextAllowedForLlm(context.template, 'introduction-stream');
 
     let fullText = '';
     let modelName = '';
@@ -2765,7 +3327,9 @@ const handleSeedMuseums = async (
             where: { wikidataId } as any,
             data: {
               name: museumLabel,
+              slug: generateSlug(museumLabel),
               citySlug: city,
+              updatedAt: new Date(),
             } as any,
           });
           updated++;
@@ -2775,10 +3339,12 @@ const handleSeedMuseums = async (
             await prisma.museum.create({
               data: {
                 name: museumLabel,
+                slug: generateSlug(museumLabel),
                 wikidataId,
                 citySlug: city,
                 knowledgeText: null,
                 furtherReading: [],
+                updatedAt: new Date(),
               } as any,
             });
             inserted++;

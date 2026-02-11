@@ -142,3 +142,66 @@ export async function checkSpendLimit(provider: string): Promise<{
     limitEur,
   };
 }
+
+export async function getDailySpendEur(
+  provider?: string
+): Promise<{ provider: string; totalEur: number }[]> {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const where: {
+    createdAt: { gte: Date };
+    costEur: { not: null };
+    service?: string;
+  } = {
+    createdAt: { gte: startOfDay },
+    costEur: { not: null },
+  };
+  if (provider) {
+    where.service =
+      provider === 'openai'
+        ? 'OpenAI'
+        : provider === 'google'
+          ? 'Gemini'
+          : provider;
+  }
+
+  const results = await prisma.apiCall.groupBy({
+    by: ['service'],
+    where,
+    _sum: { costEur: true },
+  });
+
+  return results.map((r) => ({
+    provider:
+      r.service === 'OpenAI'
+        ? 'openai'
+        : r.service === 'Gemini'
+          ? 'google'
+          : r.service,
+    totalEur: r._sum.costEur ?? 0,
+  }));
+}
+
+export async function checkDailySpendLimit(provider: string): Promise<{
+  allowed: boolean;
+  currentSpendEur: number;
+  limitEur: number | null;
+}> {
+  const envKey = `${provider.toUpperCase()}_MAX_EUR_PER_DAY`;
+  const limitStr = process.env[envKey];
+  const limitEur = limitStr ? parseFloat(limitStr) : null;
+
+  if (limitEur === null || isNaN(limitEur)) {
+    return { allowed: true, currentSpendEur: 0, limitEur: null };
+  }
+
+  const spendData = await getDailySpendEur(provider);
+  const currentSpendEur = spendData[0]?.totalEur ?? 0;
+
+  return {
+    allowed: currentSpendEur < limitEur,
+    currentSpendEur,
+    limitEur,
+  };
+}

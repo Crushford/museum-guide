@@ -5,6 +5,8 @@ import {
 } from '@google/generative-ai';
 import {
   TAGGING_INSTRUCTIONS,
+  sanitizeSensitiveTopics,
+  sanitizeSubjectTags,
   type LlmProvider,
   type LlmGenerateRequest,
   type LlmGenerateResult,
@@ -13,6 +15,7 @@ import {
   recordApiCall,
   recordApiCallSync,
 } from '../telemetry/api-call-tracker';
+import { assertTextAllowedForLlm } from './moderation';
 
 const RESPONSE_SCHEMA: ResponseSchema = {
   type: SchemaType.OBJECT,
@@ -27,8 +30,18 @@ const RESPONSE_SCHEMA: ResponseSchema = {
       type: SchemaType.ARRAY,
       items: { type: SchemaType.STRING },
     },
+    suggestedQuestions: {
+      type: SchemaType.ARRAY,
+      items: { type: SchemaType.STRING },
+    },
   },
-  required: ['text', 'isAdultContent', 'sensitiveTopics', 'subjectTags'],
+  required: [
+    'text',
+    'isAdultContent',
+    'sensitiveTopics',
+    'subjectTags',
+    'suggestedQuestions',
+  ],
 };
 
 export class GoogleLlmProvider implements LlmProvider {
@@ -43,6 +56,7 @@ export class GoogleLlmProvider implements LlmProvider {
 
   async generate(request: LlmGenerateRequest): Promise<LlmGenerateResult> {
     const start = Date.now();
+    await assertTextAllowedForLlm(request.prompt, 'provider-google-generate');
 
     const systemInstruction = [request.systemInstruction, TAGGING_INSTRUCTIONS]
       .filter(Boolean)
@@ -92,6 +106,7 @@ export class GoogleLlmProvider implements LlmProvider {
       isAdultContent?: boolean;
       sensitiveTopics?: string[];
       subjectTags?: string[];
+      suggestedQuestions?: string[];
     };
     try {
       parsed = JSON.parse(raw);
@@ -111,8 +126,15 @@ export class GoogleLlmProvider implements LlmProvider {
     return {
       text: parsed.text ?? raw,
       isAdultContent: parsed.isAdultContent ?? false,
-      sensitiveTopics: parsed.sensitiveTopics ?? [],
-      subjectTags: parsed.subjectTags ?? [],
+      sensitiveTopics: sanitizeSensitiveTopics(parsed.sensitiveTopics),
+      subjectTags: sanitizeSubjectTags(parsed.subjectTags),
+      suggestedQuestions: Array.isArray(parsed.suggestedQuestions)
+        ? parsed.suggestedQuestions
+            .filter((item): item is string => typeof item === 'string')
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .slice(0, 5)
+        : [],
       apiCallId,
       inputTokens: usage?.promptTokenCount ?? 0,
       outputTokens: usage?.candidatesTokenCount ?? 0,
