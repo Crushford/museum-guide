@@ -53,6 +53,7 @@ import {
   fetchWikipediaSummaryWithTranslation,
   parseArtifactResults,
   type WikidataArtifactBinding,
+  type WikidataSearchResult,
 } from './lib/wikidata';
 import {
   extractTextFromImage,
@@ -415,8 +416,20 @@ app.get('/api/museums/search', async (req, res) => {
     const localQids = new Set(
       localMuseums.map((m) => m.wikidataId).filter(Boolean)
     );
-    const filteredWikidataResults = wikidataResults
-      .filter((r) => !localQids.has(r.qid))
+    const filteredByLocalQid = wikidataResults.filter((r) => !localQids.has(r.qid));
+    const resultsWithWikipedia = await Promise.all(
+      filteredByLocalQid.map(async (result) => {
+        try {
+          const details = await fetchWikidataEntity(result.qid);
+          return details?.wikipediaUrl ? result : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    const filteredWikidataResults = resultsWithWikipedia
+      .filter((result): result is WikidataSearchResult => result !== null)
       .map((r) => ({ ...r, isLocal: false }));
 
     res.json({
@@ -446,10 +459,23 @@ app.get('/api/museums/search/wikidata', async (req, res) => {
 
     // Search Wikidata only
     const wikidataResults = await searchWikidata(searchTerm, 10);
+    const withWikipedia = await Promise.all(
+      wikidataResults.map(async (result) => {
+        try {
+          const details = await fetchWikidataEntity(result.qid);
+          return details?.wikipediaUrl ? result : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+    const filteredResults = withWikipedia.filter(
+      (result): result is WikidataSearchResult => result !== null
+    );
 
     res.json({
       query: searchTerm,
-      results: wikidataResults,
+      results: filteredResults,
     });
   } catch (error) {
     const errorMessage =
@@ -470,40 +496,60 @@ app.post('/api/museums/select/:qid', async (req, res) => {
   }
 
   try {
+    const missingWikipediaError =
+      'This Wikidata result has no linked Wikipedia article, so it is likely not a real museum record. Please select a different result.';
+    const getMuseumUpdateData = (
+      existingMuseum: {
+        wikipediaUrl: string | null;
+        image: string | null;
+        coordinates: unknown;
+        locationTags: string[];
+      },
+      details: {
+        wikipediaUrl?: string;
+        image?: string;
+        coordinates?: { lat: number; lng: number };
+        locationLabels: string[];
+      }
+    ) => ({
+      wikipediaUrl: details.wikipediaUrl || existingMuseum.wikipediaUrl,
+      image: details.image || existingMuseum.image,
+      coordinates: details.coordinates
+        ? details.coordinates
+        : ((existingMuseum.coordinates as { lat: number; lng: number } | null) ??
+          undefined),
+      locationTags:
+        existingMuseum.locationTags.length > 0
+          ? existingMuseum.locationTags
+          : details.locationLabels,
+    });
+
     // Check if museum already exists in DB
     const existingMuseum = await prisma.museum.findUnique({
       where: { wikidataId: qid },
     });
 
     if (existingMuseum) {
-      // Check if we need to enrich (missing key fields)
       const needsEnrichment =
-        !existingMuseum.wikipediaUrl &&
-        !existingMuseum.image &&
-        !existingMuseum.coordinates;
+        !existingMuseum.wikipediaUrl ||
+        !existingMuseum.image ||
+        !existingMuseum.coordinates ||
+        existingMuseum.locationTags.length === 0;
 
-      if (needsEnrichment) {
-        const details = await fetchWikidataEntity(qid);
+      const details = needsEnrichment ? await fetchWikidataEntity(qid) : null;
 
-        if (details) {
-          await prisma.museum.update({
-            where: { wikidataId: qid },
-            data: {
-              wikipediaUrl: details.wikipediaUrl || existingMuseum.wikipediaUrl,
-              image: details.image || existingMuseum.image,
-              coordinates: details.coordinates
-                ? details.coordinates
-                : ((existingMuseum.coordinates as {
-                    lat: number;
-                    lng: number;
-                  } | null) ?? undefined),
-              locationTags:
-                existingMuseum.locationTags.length > 0
-                  ? existingMuseum.locationTags
-                  : details.locationLabels,
-            },
-          });
-        }
+      // Existing records must have a Wikipedia URL to be considered valid museum selections
+      if (!existingMuseum.wikipediaUrl && !details?.wikipediaUrl) {
+        return res.status(422).json({
+          error: missingWikipediaError,
+        });
+      }
+
+      if (details) {
+        await prisma.museum.update({
+          where: { wikidataId: qid },
+          data: getMuseumUpdateData(existingMuseum, details),
+        });
       }
 
       return res.json({
@@ -526,6 +572,12 @@ app.post('/api/museums/select/:qid', async (req, res) => {
       });
     }
 
+    if (!details.wikipediaUrl) {
+      return res.status(422).json({
+        error: missingWikipediaError,
+      });
+    }
+
     const museumName =
       typeof details.label === 'string' && details.label.trim().length > 0
         ? details.label.trim()
@@ -540,7 +592,7 @@ app.post('/api/museums/select/:qid', async (req, res) => {
         name: museumName,
         slug: museumSlug,
         wikidataId: qid,
-        wikipediaUrl: details.wikipediaUrl || null,
+        wikipediaUrl: details.wikipediaUrl,
         image: details.image || null,
         coordinates: details.coordinates ?? undefined,
         locationTags: details.locationLabels || [],
@@ -559,9 +611,13 @@ app.post('/api/museums/select/:qid', async (req, res) => {
         name: museum.name,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle slug collision
-    if (error?.code === 'P2002' && error?.meta?.modelName === 'Museum') {
+    const prismaError = error as { code?: string; meta?: { modelName?: string } };
+    if (
+      prismaError.code === 'P2002' &&
+      prismaError.meta?.modelName === 'Museum'
+    ) {
       return res.status(409).json({
         error: 'A museum with a similar name already exists',
       });
