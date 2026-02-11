@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { resolve } from 'path';
 import express from 'express';
 import cors from 'cors';
+import OpenAI from 'openai';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
 import type {
@@ -64,7 +65,7 @@ app.use(express.json());
 // Serve static audio files
 const audioDir = resolve(__dirname, '../public/audio');
 if (!existsSync(audioDir)) {
-  mkdir(audioDir, { recursive: true }).catch(console.error);
+  mkdir(audioDir, { recursive: true }).catch(() => {});
 }
 app.use('/audio', express.static(audioDir));
 
@@ -283,7 +284,6 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
       totalChecked: existingArtifacts.length,
     });
   } catch (error) {
-    console.error('Error checking duplicates:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to check duplicates';
     res.status(500).json({ error: errorMessage });
@@ -297,7 +297,6 @@ app.get('/cities', (_req, res) => {
     const cities = Object.keys(SUPPORTED_CITIES).sort();
     res.json(cities);
   } catch (error) {
-    console.error('Error fetching cities:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch cities';
     res.status(500).json({ error: errorMessage });
@@ -325,7 +324,6 @@ app.get('/cities/stats', async (_req, res) => {
 
     res.json(stats);
   } catch (error) {
-    console.error('Error fetching city stats:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch city stats';
     res.status(500).json({ error: errorMessage });
@@ -348,7 +346,6 @@ app.get('/api/museums/search', async (req, res) => {
     }
 
     const searchTerm = query.trim();
-    console.log(`[Museum Search] Searching for: "${searchTerm}"`);
 
     // Search database first (case-insensitive)
     const localMuseums = await prisma.museum.findMany({
@@ -372,8 +369,6 @@ app.get('/api/museums/search', async (req, res) => {
       slug: museum.slug,
     }));
 
-    console.log(`[Museum Search] Found ${localResults.length} local results`);
-
     // Search Wikidata
     const wikidataResults = await searchWikidata(searchTerm, 10);
 
@@ -385,17 +380,12 @@ app.get('/api/museums/search', async (req, res) => {
       .filter((r) => !localQids.has(r.qid))
       .map((r) => ({ ...r, isLocal: false }));
 
-    console.log(
-      `[Museum Search] Found ${filteredWikidataResults.length} Wikidata results (after filtering)`
-    );
-
     res.json({
       query: searchTerm,
       local: localResults,
       wikidata: filteredWikidataResults,
     });
   } catch (error) {
-    console.error('Error searching museums:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to search museums';
     res.status(500).json({ error: errorMessage });
@@ -414,19 +404,15 @@ app.get('/api/museums/search/wikidata', async (req, res) => {
     }
 
     const searchTerm = query.trim();
-    console.log(`[Wikidata Search] Searching for: "${searchTerm}"`);
 
     // Search Wikidata only
     const wikidataResults = await searchWikidata(searchTerm, 10);
-
-    console.log(`[Wikidata Search] Found ${wikidataResults.length} results`);
 
     res.json({
       query: searchTerm,
       results: wikidataResults,
     });
   } catch (error) {
-    console.error('Error searching Wikidata:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to search Wikidata';
     res.status(500).json({ error: errorMessage });
@@ -445,18 +431,12 @@ app.post('/api/museums/select/:qid', async (req, res) => {
   }
 
   try {
-    console.log(`[Museum Select] Selecting museum: ${qid}`);
-
     // Check if museum already exists in DB
     const existingMuseum = await prisma.museum.findUnique({
       where: { wikidataId: qid },
     });
 
     if (existingMuseum) {
-      console.log(
-        `[Museum Select] Museum already exists: ${existingMuseum.name} (${qid})`
-      );
-
       // Check if we need to enrich (missing key fields)
       const needsEnrichment =
         !existingMuseum.wikipediaUrl &&
@@ -464,7 +444,6 @@ app.post('/api/museums/select/:qid', async (req, res) => {
         !existingMuseum.coordinates;
 
       if (needsEnrichment) {
-        console.log(`[Museum Select] Enriching existing museum...`);
         const details = await fetchWikidataEntity(qid);
 
         if (details) {
@@ -500,7 +479,6 @@ app.post('/api/museums/select/:qid', async (req, res) => {
     }
 
     // Museum doesn't exist - fetch details from Wikidata and create
-    console.log(`[Museum Select] Fetching details from Wikidata...`);
     const details = await fetchWikidataEntity(qid);
 
     if (!details) {
@@ -510,7 +488,6 @@ app.post('/api/museums/select/:qid', async (req, res) => {
     }
 
     // Create the museum
-    console.log(`[Museum Select] Creating museum: ${details.label}`);
     const museum = await prisma.museum.create({
       data: {
         name: details.label,
@@ -524,10 +501,6 @@ app.post('/api/museums/select/:qid', async (req, res) => {
       },
     });
 
-    console.log(
-      `[Museum Select] Created museum: ${museum.name} (id: ${museum.id})`
-    );
-
     res.json({
       created: true,
       museum: {
@@ -538,8 +511,6 @@ app.post('/api/museums/select/:qid', async (req, res) => {
       },
     });
   } catch (error: any) {
-    console.error(`Error selecting museum ${qid}:`, error);
-
     // Handle slug collision
     if (error?.code === 'P2002' && error?.meta?.modelName === 'Museum') {
       return res.status(409).json({
@@ -571,8 +542,6 @@ app.post('/api/museums/:slug/hydrate', async (req, res) => {
   const force = req.query.force === '1';
 
   try {
-    console.log(`[Museum Hydrate] Starting hydration for: ${slug}`);
-
     // Find museum by slug
     const museum = await prisma.museum.findFirst({
       where: { slug },
@@ -586,7 +555,6 @@ app.post('/api/museums/:slug/hydrate', async (req, res) => {
 
     // Check cache unless force refresh
     if (!force && isRecentlyHydrated(museum.museumHydratedAt)) {
-      console.log(`[Museum Hydrate] Using cached data for: ${museum.name}`);
       return res.json({
         cached: true,
         museum: {
@@ -611,10 +579,6 @@ app.post('/api/museums/:slug/hydrate', async (req, res) => {
       });
     }
 
-    console.log(
-      `[Museum Hydrate] Fetching from Wikidata: ${museum.wikidataId}`
-    );
-
     // Fetch details from Wikidata
     const details = await fetchWikidataEntity(museum.wikidataId);
     if (!details) {
@@ -627,7 +591,6 @@ app.post('/api/museums/:slug/hydrate', async (req, res) => {
     let wikipediaSummary: string | null = null;
     const wikipediaUrl = details.wikipediaUrl || museum.wikipediaUrl;
     if (wikipediaUrl) {
-      console.log(`[Museum Hydrate] Fetching Wikipedia summary...`);
       const summary = await fetchWikipediaSummary(wikipediaUrl);
       if (summary) {
         wikipediaSummary = summary.extract;
@@ -652,8 +615,6 @@ app.post('/api/museums/:slug/hydrate', async (req, res) => {
       } as any,
     });
 
-    console.log(`[Museum Hydrate] Successfully hydrated: ${museum.name}`);
-
     res.json({
       cached: false,
       museum: {
@@ -670,8 +631,6 @@ app.post('/api/museums/:slug/hydrate', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(`[Museum Hydrate] Error:`, error);
-
     // Return 502 for Wikidata/Wikipedia service errors
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to hydrate museum';
@@ -693,8 +652,6 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
   const force = req.query.force === '1';
 
   try {
-    console.log(`[Artifact Hydrate] Starting hydration for museum: ${slug}`);
-
     // Find museum by slug
     const museum = await prisma.museum.findFirst({
       where: { slug },
@@ -708,7 +665,6 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
 
     // Check cache unless force refresh
     if (!force && isRecentlyHydrated(museum.artifactsHydratedAt)) {
-      console.log(`[Artifact Hydrate] Using cached data for: ${museum.name}`);
       const artifacts = await prisma.artifact.findMany({
         where: { museumId: museum.id },
         select: {
@@ -738,18 +694,10 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
       });
     }
 
-    console.log(
-      `[Artifact Hydrate] Querying Wikidata for artifacts of: ${museum.wikidataId}`
-    );
-
     // Query Wikidata for artifacts
     const sparqlQuery = buildArtifactsQuery(museum.wikidataId);
     const bindings = await queryWikidata<WikidataArtifactBinding>(sparqlQuery);
     const artifactsFromWikidata = parseArtifactResults(bindings);
-
-    console.log(
-      `[Artifact Hydrate] Found ${artifactsFromWikidata.length} artifacts with Wikipedia pages`
-    );
 
     // Upsert artifacts
     let upserted = 0;
@@ -808,14 +756,9 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
       } catch (artifactError: any) {
         // Handle slug collision - skip this artifact
         if (artifactError?.code === 'P2002') {
-          console.warn(
-            `[Artifact Hydrate] Skipping duplicate: ${artifact.label}`
-          );
+          // Skip duplicates
         } else {
-          console.error(
-            `[Artifact Hydrate] Error upserting ${artifact.label}:`,
-            artifactError
-          );
+          throw artifactError;
         }
       }
     }
@@ -826,10 +769,6 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
       data: { artifactsHydratedAt: new Date() } as any,
     });
 
-    console.log(
-      `[Artifact Hydrate] Successfully hydrated ${upserted} new artifacts for: ${museum.name}`
-    );
-
     res.json({
       cached: false,
       museumId: museum.id,
@@ -838,8 +777,6 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
       artifactsHydratedAt: new Date(),
     });
   } catch (error) {
-    console.error(`[Artifact Hydrate] Error:`, error);
-
     // Return 502 for Wikidata service errors
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to hydrate artifacts';
@@ -877,7 +814,6 @@ app.get('/museums', async (req, res) => {
     }
     res.json(museums);
   } catch (error) {
-    console.error('Error fetching museums:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch museums';
     res.status(500).json({ error: errorMessage });
@@ -902,7 +838,6 @@ app.get('/museums/:id', async (req, res) => {
 
     res.json(museum);
   } catch (error) {
-    console.error('Error fetching museum:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch museum';
     res.status(500).json({ error: errorMessage });
@@ -926,7 +861,6 @@ app.get('/museums/by-slug/:slug', async (req, res) => {
 
     res.json(museum);
   } catch (error) {
-    console.error('Error fetching museum by slug:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch museum';
     res.status(500).json({ error: errorMessage });
@@ -963,7 +897,6 @@ app.get('/admin/rooms', async (req, res) => {
 
     res.json(rooms);
   } catch (error) {
-    console.error('Error fetching rooms:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch rooms';
     res.status(500).json({ error: errorMessage });
@@ -1111,7 +1044,6 @@ app.get('/admin/artifacts', async (req, res) => {
     });
     res.json(response);
   } catch (error) {
-    console.error('Error fetching artifacts:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifacts';
     res.status(500).json({ error: errorMessage });
@@ -1162,7 +1094,6 @@ app.delete('/museums/:id', async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting museum:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to delete museum';
     res.status(500).json({ error: errorMessage });
@@ -1193,7 +1124,6 @@ app.delete('/rooms/:id', async (req, res) => {
 
     res.status(204).send(); // No Content
   } catch (error) {
-    console.error('Error deleting room:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to delete room';
     res.status(500).json({ error: errorMessage });
@@ -1224,7 +1154,6 @@ app.delete('/artifacts/:id', async (req, res) => {
 
     res.status(204).send(); // No Content
   } catch (error) {
-    console.error('Error deleting artifact:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to delete artifact';
     res.status(500).json({ error: errorMessage });
@@ -1369,7 +1298,6 @@ app.get('/museums/:museumId/artifacts', async (req, res) => {
 
     res.json(artifacts);
   } catch (error) {
-    console.error('Error fetching museum artifacts:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifacts';
     res.status(500).json({ error: errorMessage });
@@ -1401,7 +1329,6 @@ app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
 
     res.json(artifacts);
   } catch (error) {
-    console.error('Error fetching artifacts for museum:', error);
     const errorMessage =
       error instanceof Error
         ? error.message
@@ -1436,7 +1363,6 @@ app.get('/rooms/:id', async (req, res) => {
 
     res.json(room);
   } catch (error) {
-    console.error('Error fetching room:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch room';
     res.status(500).json({ error: errorMessage });
@@ -1462,7 +1388,6 @@ app.get('/rooms/by-slug/:slug', async (req, res) => {
 
     res.json(room);
   } catch (error) {
-    console.error('Error fetching room by slug:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch room';
     res.status(500).json({ error: errorMessage });
@@ -1520,7 +1445,6 @@ app.get('/rooms/:id/children', async (req, res) => {
 
     res.json(childRooms);
   } catch (error) {
-    console.error('Error fetching child rooms:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch child rooms';
     res.status(500).json({ error: errorMessage });
@@ -1594,7 +1518,6 @@ app.patch('/rooms/:id', async (req, res) => {
 
     res.json(room);
   } catch (error) {
-    console.error('Error updating room:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to update room';
     res.status(500).json({ error: errorMessage });
@@ -1651,7 +1574,6 @@ app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
 
     res.json(artifacts);
   } catch (error) {
-    console.error('Error fetching recursive artifacts:', error);
     const errorMessage =
       error instanceof Error
         ? error.message
@@ -1765,7 +1687,6 @@ app.get('/artifacts/:id', async (req, res) => {
 
     res.json(artifact);
   } catch (error) {
-    console.error('Error fetching artifact:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifact';
     res.status(500).json({ error: errorMessage });
@@ -1791,7 +1712,6 @@ app.get('/artifacts/by-slug/:slug', async (req, res) => {
 
     res.json(artifact);
   } catch (error) {
-    console.error('Error fetching artifact by slug:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifact';
     res.status(500).json({ error: errorMessage });
@@ -1897,7 +1817,6 @@ app.get('/admin/content/museums', async (_req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json(museums);
   } catch (error) {
-    console.error('Error fetching museums:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch museums';
     res.status(500).json({ error: errorMessage });
@@ -1913,7 +1832,6 @@ app.get('/admin/content/rooms', async (_req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json(rooms);
   } catch (error) {
-    console.error('Error fetching rooms:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch rooms';
     res.status(500).json({ error: errorMessage });
@@ -2035,7 +1953,6 @@ app.get('/admin/content/artifacts', async (_req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json(response);
   } catch (error) {
-    console.error('Error fetching artifacts:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifacts';
     res.status(500).json({ error: errorMessage });
@@ -2063,7 +1980,6 @@ app.get('/admin/content/content', async (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json(content);
   } catch (error) {
-    console.error('Error fetching content:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch content';
     res.status(500).json({ error: errorMessage });
@@ -2074,261 +1990,126 @@ app.get('/admin/content/content', async (_req, res) => {
 // CONTENT GENERATION ENDPOINT
 // ============================================================================
 
-// POST /generate-content/artefact/:artefactId - Generate content using Gemini
-app.post('/generate-content/artefact/:artefactId', async (req, res) => {
-  const startTime = Date.now();
-  console.log(
-    '[Generate Content] Starting request for artifact:',
-    req.params.artefactId
-  );
+type ContentProviderName = 'google' | 'openai';
 
-  try {
-    const artefactId = Number(req.params.artefactId);
-    console.log('[Generate Content] Parsed artifact ID:', artefactId);
+function parseProvider(
+  value: unknown,
+  fallback: ContentProviderName
+): ContentProviderName {
+  if (value === 'openai') return 'openai';
+  if (value === 'google') return 'google';
+  return fallback;
+}
 
-    if (Number.isNaN(artefactId)) {
-      console.error(
-        '[Generate Content] Invalid artifact ID:',
-        req.params.artefactId
-      );
-      return res.status(400).json({ error: 'Invalid artefactId' });
-    }
-
-    // Fetch artifact with related data
-    console.log('[Generate Content] Fetching artifact from database...');
-    const artifact = await prisma.artifact.findUnique({
-      where: { id: artefactId },
-      include: {
-        museum: {
-          select: {
-            id: true,
-            name: true,
-            wikipediaSummary: true,
-          },
+async function fetchArtifactContext(artifactId: number) {
+  const artifact = await prisma.artifact.findUnique({
+    where: { id: artifactId },
+    include: {
+      museum: {
+        select: {
+          id: true,
+          name: true,
+          wikipediaSummary: true,
         },
-        room: {
-          include: {
-            parentRoom: {
-              select: {
-                id: true,
-                name: true,
-                museumId: true,
-              },
+      },
+      room: {
+        include: {
+          parentRoom: {
+            select: {
+              id: true,
+              name: true,
+              museumId: true,
             },
           },
         },
       },
-    });
+    },
+  });
 
-    console.log('[Generate Content] Artifact fetched:', {
-      id: artifact?.id,
-      name: artifact?.name,
-      hasRoom: !!artifact?.room,
-      hasMuseum: !!artifact?.room?.museum,
-    });
+  if (!artifact) return null;
 
-    if (!artifact) {
-      console.error('[Generate Content] Artifact not found:', artefactId);
+  const room = artifact.room;
+  const museum = artifact.museum || null;
+  const parentRoom = room?.parentRoom || null;
+
+  const template = buildIntroductionPrompt({
+    artifactName: artifact.name,
+    plaqueText: artifact.knowledgeText,
+    museumName: museum?.name ?? null,
+    roomName: room?.name ?? null,
+    parentRoomName: parentRoom?.name ?? null,
+    museumSummary: museum?.wikipediaSummary ?? null,
+  });
+
+  return { artifact, room, museum, parentRoom, template };
+}
+
+// POST /generate-content/artefact/:artefactId - Generate content
+app.post('/generate-content/artefact/:artefactId', async (req, res) => {
+  try {
+    const artefactId = Number(req.params.artefactId);
+    if (Number.isNaN(artefactId)) {
+      return res.status(400).json({ error: 'Invalid artefactId' });
+    }
+
+    const context = await fetchArtifactContext(artefactId);
+    if (!context) {
       return res.status(404).json({ error: 'Artifact not found' });
     }
 
-    // Extract related entities
-    const room = artifact.room;
-    const museum = artifact.museum || null;
-    const parentRoom = room?.parentRoom || null;
-    console.log('[Generate Content] Related entities:', {
-      roomName: room?.name,
-      museumName: museum?.name,
-      parentRoomName: parentRoom?.name,
-    });
+    const providerName = parseProvider(req.query.provider, 'google');
+    const provider = createProvider(providerName);
 
-    // Generate template
-    console.log('[Generate Content] Generating template...');
-    const template = buildIntroductionPrompt({
-      artifactName: artifact.name,
-      plaqueText: artifact.knowledgeText,
-      museumName: museum?.name ?? null,
-      roomName: room?.name ?? null,
-      parentRoomName: parentRoom?.name ?? null,
-      museumSummary: museum?.wikipediaSummary ?? null,
-    });
+    const result = await provider.generate({ prompt: context.template });
 
-    console.log(
-      '[Generate Content] Template generated, length:',
-      template.length
-    );
-
-    // Check for API key
-    const apiKey = process.env.GEMINI_API_KEY;
-    console.log('[Generate Content] GEMINI_API_KEY check:', {
-      exists: !!apiKey,
-      length: apiKey?.length || 0,
-      startsWith: apiKey?.substring(0, 10) || 'N/A',
-    });
-
-    if (!apiKey) {
-      console.error('[Generate Content] GEMINI_API_KEY not configured');
-      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
-    }
-
-    // Initialize Gemini client
-    console.log('[Generate Content] Initializing Gemini client...');
-    const genAI = new GoogleGenerativeAI(apiKey);
-    // Use gemini-2.5-flash as it's a cheap, non-thinking model
-    const modelName = 'gemini-2.5-flash';
-    const model = genAI.getGenerativeModel({ model: modelName });
-    console.log('[Generate Content] Using model:', modelName);
-
-    // Generate content
-    console.log('[Generate Content] Calling Gemini API...');
-    const geminiStartTime = Date.now();
-    const result = await model.generateContent(template);
-    const response = await result.response;
-    const generatedText = response.text();
-    const geminiDuration = Date.now() - geminiStartTime;
-    console.log('[Generate Content] Gemini API response received:', {
-      duration: `${geminiDuration}ms`,
-      textLength: generatedText.length,
-      preview: generatedText.substring(0, 100) + '...',
-    });
-
-    // Prepare data for database
-    const contentData = {
-      text: generatedText,
-      type: 'introduction',
-      artifactId: artefactId,
-      llmProvider: 'google',
-      model: modelName,
-      prompt: template,
-    };
-    console.log('[Generate Content] Preparing to save content:', {
-      textLength: contentData.text.length,
-      type: contentData.type,
-      artifactId: contentData.artifactId,
-      llmProvider: contentData.llmProvider,
-      model: contentData.model,
-      promptLength: contentData.prompt.length,
-    });
-
-    // Check Prisma client schema
-    console.log('[Generate Content] Checking Prisma Content model fields...');
-    try {
-      // Try to introspect what fields Prisma thinks exist
-      const sampleContent = await prisma.content.findFirst();
-      console.log('[Generate Content] Sample content from DB:', {
-        hasLlmProvider: 'llmProvider' in (sampleContent || {}),
-        hasModel: 'model' in (sampleContent || {}),
-        hasPrompt: 'prompt' in (sampleContent || {}),
-        fields: sampleContent ? Object.keys(sampleContent) : 'no content found',
-      });
-    } catch (introspectError) {
-      console.warn(
-        '[Generate Content] Could not introspect Content model:',
-        introspectError
-      );
-    }
-
-    // Save to Content table
-    console.log('[Generate Content] Saving content to database...');
-    const dbStartTime = Date.now();
     const content = await prisma.content.create({
-      data: contentData,
-    });
-    const dbDuration = Date.now() - dbStartTime;
-    console.log('[Generate Content] Content saved successfully:', {
-      id: content.id,
-      duration: `${dbDuration}ms`,
+      data: {
+        text: result.text,
+        type: 'introduction',
+        artifactId: artefactId,
+        llmProvider: result.provider,
+        model: result.model,
+        prompt: context.template,
+      },
     });
 
-    // Generate audio using Google Cloud Text-to-Speech
     let audioUrl: string | null = null;
     try {
-      console.log('[Generate Content] Starting audio generation...');
-      audioUrl = await generateAudioForContent(content.id, generatedText, {
+      audioUrl = await generateAudioForContent(content.id, result.text, {
         outputDir: audioDir,
       });
-
-      // Update content with audio URL
       await prisma.content.update({
         where: { id: content.id },
         data: { audioUrl },
       });
-
-      console.log('[Generate Content] Content updated with audio URL');
-    } catch (audioError) {
-      console.error('[Generate Content] Error generating audio:', audioError);
-      // Don't fail the entire request if audio generation fails
-      // Content is already saved, audio is optional
+    } catch {
+      // Audio is optional
     }
 
-    const totalDuration = Date.now() - startTime;
-    console.log('[Generate Content] Complete:', {
-      contentId: content.id,
-      hasAudio: !!audioUrl,
-      totalDuration: `${totalDuration}ms`,
-    });
-
-    // Return updated content with audioUrl
     const updatedContent = await prisma.content.findUnique({
       where: { id: content.id },
     });
 
     res.json(updatedContent);
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error('[Generate Content] Error occurred:', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      duration: `${duration}ms`,
-    });
-
-    if (error instanceof Error) {
-      console.error('[Generate Content] Error details:', {
-        name: error.name,
-        message: error.message,
-        cause: (error as unknown as { cause?: unknown }).cause,
-      });
-
-      // Log Prisma-specific errors in detail
-      if (
-        error.message.includes('prisma') ||
-        error.message.includes('Invalid')
-      ) {
-        console.error(
-          '[Generate Content] Prisma error detected - checking schema sync...'
-        );
-        console.error(
-          '[Generate Content] Full error:',
-          JSON.stringify(error, null, 2)
-        );
-      }
-    }
-
     let errorMessage = 'Failed to generate content';
-
     if (error instanceof Error) {
       errorMessage = error.message;
-      // If it's a Prisma error, provide more helpful context
       if (
         error.message.includes('prisma') ||
         error.message.includes('Invalid')
       ) {
-        errorMessage = `Database error: ${error.message}\n\nThis usually means the Prisma client needs to be regenerated. Run: yarn prisma generate`;
+        errorMessage = `Database error: ${error.message}
+
+This usually means the Prisma client needs to be regenerated. Run: yarn prisma generate`;
       }
     }
-
     res.status(500).json({ error: errorMessage });
   }
 });
 
 // GET /generate-content/artefact/:artefactId/stream - Stream content generation using SSE
 app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
-  const startTime = Date.now();
-  console.log(
-    '[Generate Content Stream] Starting request for artifact:',
-    req.params.artefactId
-  );
-
   // Set up SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -2337,66 +2118,35 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
   res.flushHeaders();
 
   const sendEvent = (event: string, data: unknown) => {
-    res.write(`event: ${event}\n`);
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    res.write(`event: ${event}
+`);
+    res.write(`data: ${JSON.stringify(data)}
+
+`);
   };
 
   try {
     const artefactId = Number(req.params.artefactId);
-
     if (Number.isNaN(artefactId)) {
       sendEvent('error', { error: 'Invalid artefactId' });
       res.end();
       return;
     }
 
-    // Fetch artifact with related data
     sendEvent('status', {
       step: 'loading',
       message: 'Loading artifact data...',
     });
 
-    const artifact = await prisma.artifact.findUnique({
-      where: { id: artefactId },
-      include: {
-        museum: {
-          select: {
-            id: true,
-            name: true,
-            wikipediaSummary: true,
-          },
-        },
-        room: {
-          include: {
-            parentRoom: { select: { id: true, name: true, museumId: true } },
-          },
-        },
-      },
-    });
-
-    if (!artifact) {
+    const context = await fetchArtifactContext(artefactId);
+    if (!context) {
       sendEvent('error', { error: 'Artifact not found' });
       res.end();
       return;
     }
 
-    const room = artifact.room;
-    const museum = artifact.museum || null;
-    const parentRoom = room?.parentRoom || null;
+    const providerName = parseProvider(req.query.provider, 'google');
 
-    // Generate template
-    const template = buildIntroductionPrompt({
-      artifactName: artifact.name,
-      plaqueText: artifact.knowledgeText,
-      museumName: museum?.name ?? null,
-      roomName: room?.name ?? null,
-      parentRoomName: parentRoom?.name ?? null,
-      museumSummary: museum?.wikipediaSummary ?? null,
-    });
-
-    const providerName = req.query.provider === 'openai' ? 'openai' : 'google';
-
-    // Initialize LLM and start generating
     sendEvent('status', {
       step: 'generating',
       message: `Sending prompt to ${providerName === 'google' ? 'Google' : 'OpenAI'}...`,
@@ -2416,32 +2166,41 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
       const genAI = new GoogleGenerativeAI(apiKey);
       modelName = 'gemini-2.5-flash';
       const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContentStream(context.template);
 
-      // Use streaming API
-      const result = await model.generateContentStream(template);
-
-      // Stream chunks to client
       for await (const chunk of result.stream) {
         const chunkText = chunk.text();
         fullText += chunkText;
         sendEvent('chunk', { text: chunkText });
       }
     } else {
-      const provider = createProvider('openai');
-      modelName = 'openai';
-      const result = await provider.generate({ prompt: template });
-      fullText = result.text;
-      modelName = result.model;
-      // Send the full text as a single chunk
-      sendEvent('chunk', { text: fullText });
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        sendEvent('error', { error: 'OPENAI_API_KEY not configured' });
+        res.end();
+        return;
+      }
+
+      const client = new OpenAI({ apiKey });
+      modelName = process.env.OPENAI_MODEL_INTRODUCTION || 'gpt-5-nano';
+
+      const stream = client.responses.stream({
+        model: modelName,
+        input: [{ role: 'user', content: context.template }],
+        max_output_tokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 1000),
+        reasoning: { effort: 'minimal' },
+      });
+
+      stream.on('response.output_text.delta', (event) => {
+        const delta = typeof event?.delta === 'string' ? event.delta : '';
+        if (!delta) return;
+        fullText += delta;
+        sendEvent('chunk', { text: delta });
+      });
+
+      await stream.done();
     }
 
-    console.log(
-      '[Generate Content Stream] Generation complete, text length:',
-      fullText.length
-    );
-
-    // Save to database
     sendEvent('status', { step: 'saving', message: 'Saving content...' });
 
     const content = await prisma.content.create({
@@ -2451,11 +2210,10 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
         artifactId: artefactId,
         llmProvider: providerName,
         model: modelName,
-        prompt: template,
+        prompt: context.template,
       },
     });
 
-    // Generate audio
     sendEvent('status', {
       step: 'audio',
       message: 'Generating audio with text-to-speech...',
@@ -2466,35 +2224,21 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
       audioUrl = await generateAudioForContent(content.id, fullText, {
         outputDir: audioDir,
       });
-
       await prisma.content.update({
         where: { id: content.id },
         data: { audioUrl },
       });
-    } catch (audioError) {
-      console.error(
-        '[Generate Content Stream] Audio generation failed:',
-        audioError
-      );
+    } catch {
       // Continue without audio
     }
 
-    // Send final complete event
     const finalContent = await prisma.content.findUnique({
       where: { id: content.id },
-    });
-
-    const totalDuration = Date.now() - startTime;
-    console.log('[Generate Content Stream] Complete:', {
-      contentId: content.id,
-      hasAudio: !!audioUrl,
-      totalDuration: `${totalDuration}ms`,
     });
 
     sendEvent('complete', { content: finalContent });
     res.end();
   } catch (error) {
-    console.error('[Generate Content Stream] Error:', error);
     sendEvent('error', {
       error:
         error instanceof Error ? error.message : 'Failed to generate content',
@@ -2521,7 +2265,6 @@ app.get('/wikipedia/summary', async (req, res) => {
 
     res.json(summary);
   } catch (error) {
-    console.error('[Wikipedia Summary] Error:', error);
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to fetch summary',
     });
@@ -2530,189 +2273,103 @@ app.get('/wikipedia/summary', async (req, res) => {
 
 // POST /generate-audio/artefact/:artefactId - Generate audio for artifact's content
 app.post('/generate-audio/artefact/:artefactId', async (req, res) => {
-  const startTime = Date.now();
-  console.log(
-    '[Generate Audio] Starting request for artifact:',
-    req.params.artefactId
-  );
-
   try {
     const artefactId = Number(req.params.artefactId);
-    console.log('[Generate Audio] Parsed artifact ID:', artefactId);
-
     if (Number.isNaN(artefactId)) {
-      console.error(
-        '[Generate Audio] Invalid artifact ID:',
-        req.params.artefactId
-      );
       return res.status(400).json({ error: 'Invalid artefactId' });
     }
 
-    // Find the most recent content for this artifact
-    console.log('[Generate Audio] Fetching content for artifact...');
     const content = await prisma.content.findFirst({
       where: { artifactId: artefactId },
       orderBy: { createdAt: 'desc' },
     });
 
     if (!content) {
-      console.error(
-        '[Generate Audio] No content found for artifact:',
-        artefactId
-      );
       return res
         .status(404)
         .json({ error: 'No content found for this artifact' });
     }
 
     if (!content.text) {
-      console.error(
-        '[Generate Audio] Content has no text for artifact:',
-        artefactId
-      );
       return res
         .status(400)
         .json({ error: 'Content has no text to generate audio from' });
     }
 
-    console.log('[Generate Audio] Found content:', {
-      contentId: content.id,
-      textLength: content.text.length,
-    });
-
-    // Generate audio
-    console.log('[Generate Audio] Starting audio generation...');
     const audioUrl = await generateAudioForContent(content.id, content.text, {
       outputDir: audioDir,
     });
 
-    // Update content with audio URL
-    console.log('[Generate Audio] Updating content with audio URL...');
     const updatedContent = await prisma.content.update({
       where: { id: content.id },
       data: { audioUrl },
     });
 
-    const duration = Date.now() - startTime;
-    console.log('[Generate Audio] Complete:', {
-      contentId: content.id,
-      audioUrl,
-      duration: `${duration}ms`,
-    });
-
     res.json(updatedContent);
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error('[Generate Audio] Error occurred:', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      duration: `${duration}ms`,
-    });
-
     let errorMessage = 'Failed to generate audio';
-
     if (error instanceof Error) {
       errorMessage = error.message;
-      // If it's a Google Cloud credentials error, provide helpful context
       if (
         error.message.includes('GOOGLE_APPLICATION_CREDENTIALS') ||
         error.message.includes('credentials') ||
         error.message.includes('authentication')
       ) {
-        errorMessage = `${error.message}\n\nMake sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentials are set up correctly.`;
+        errorMessage = `${error.message}
+
+Make sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentials are set up correctly.`;
       }
     }
-
     res.status(500).json({ error: errorMessage });
   }
 });
 
 // POST /generate-audio/content/:contentId - Generate audio for a specific content item
 app.post('/generate-audio/content/:contentId', async (req, res) => {
-  const startTime = Date.now();
-  console.log(
-    '[Generate Audio] Starting request for content:',
-    req.params.contentId
-  );
-
   try {
     const contentId = Number(req.params.contentId);
-    console.log('[Generate Audio] Parsed content ID:', contentId);
-
     if (Number.isNaN(contentId)) {
-      console.error(
-        '[Generate Audio] Invalid content ID:',
-        req.params.contentId
-      );
       return res.status(400).json({ error: 'Invalid contentId' });
     }
 
-    // Find the content
-    console.log('[Generate Audio] Fetching content...');
     const content = await prisma.content.findUnique({
       where: { id: contentId },
     });
 
     if (!content) {
-      console.error('[Generate Audio] Content not found:', contentId);
       return res.status(404).json({ error: 'Content not found' });
     }
 
     if (!content.text) {
-      console.error('[Generate Audio] Content has no text:', contentId);
       return res
         .status(400)
         .json({ error: 'Content has no text to generate audio from' });
     }
 
-    console.log('[Generate Audio] Found content:', {
-      contentId: content.id,
-      textLength: content.text.length,
-    });
-
-    // Generate audio
-    console.log('[Generate Audio] Starting audio generation...');
     const audioUrl = await generateAudioForContent(content.id, content.text, {
       outputDir: audioDir,
     });
 
-    // Update content with audio URL
-    console.log('[Generate Audio] Updating content with audio URL...');
     const updatedContent = await prisma.content.update({
       where: { id: content.id },
       data: { audioUrl },
     });
 
-    const duration = Date.now() - startTime;
-    console.log('[Generate Audio] Complete:', {
-      contentId: content.id,
-      audioUrl,
-      duration: `${duration}ms`,
-    });
-
     res.json(updatedContent);
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error('[Generate Audio] Error occurred:', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      duration: `${duration}ms`,
-    });
-
     let errorMessage = 'Failed to generate audio';
-
     if (error instanceof Error) {
       errorMessage = error.message;
-      // If it's a Google Cloud credentials error, provide helpful context
       if (
         error.message.includes('GOOGLE_APPLICATION_CREDENTIALS') ||
         error.message.includes('credentials') ||
         error.message.includes('authentication')
       ) {
-        errorMessage = `${error.message}\n\nMake sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentials are set up correctly.`;
+        errorMessage = `${error.message}
+
+Make sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentials are set up correctly.`;
       }
     }
-
     res.status(500).json({ error: errorMessage });
   }
 });
@@ -2750,13 +2407,11 @@ const handleSeedMuseums = async (
       const museumLabel = binding.museumLabel?.value;
 
       if (!museumUri || !museumLabel) {
-        console.warn('Skipping museum with missing URI or label:', binding);
         continue;
       }
 
       const wikidataId = extractQId(museumUri);
       if (!wikidataId) {
-        console.warn('Failed to extract Q-id from URI:', museumUri);
         continue;
       }
 
@@ -2800,16 +2455,13 @@ const handleSeedMuseums = async (
             ) {
               // Slug collision - a museum with a similar name already exists
               // This can happen when Wikidata has multiple entries for similar museums
-              console.warn(
-                `Skipping museum ${wikidataId} (${museumLabel}): slug collision with existing museum`
-              );
+              // Skip this museum
             } else {
               throw createError;
             }
           }
         }
       } catch (error) {
-        console.error(`Error upserting museum ${wikidataId}:`, error);
         // Continue with other museums even if one fails
       }
     }
@@ -2826,7 +2478,6 @@ const handleSeedMuseums = async (
       total,
     });
   } catch (error) {
-    console.error('Error seeding museums:', error);
     const errorMessage =
       error instanceof Error
         ? error.message
@@ -2880,7 +2531,6 @@ app.post(
           limitEur: error.limitEur,
         });
       }
-      console.error('[generate-introduction] Error:', error);
       res.status(500).json({
         error:
           error instanceof Error
@@ -2897,13 +2547,10 @@ app.get('/admin/llm-usage/monthly', async (_req, res) => {
     const spend = await getMonthlySpendEur();
     res.json({ spend });
   } catch (error) {
-    console.error('[llm-usage] Error:', error);
     res.status(500).json({ error: 'Failed to fetch usage data' });
   }
 });
 
 initLangfuse();
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => {});

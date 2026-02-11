@@ -41,9 +41,10 @@ export function generateIntroductionTemplate(
     parentRoom?.name ||
     ('parentRoomName' in artifact ? artifact.parentRoomName : null);
 
-  const location = parentRoomName && roomName
-    ? `${parentRoomName} - ${roomName}`
-    : roomName || parentRoomName || null;
+  const location =
+    parentRoomName && roomName
+      ? `${parentRoomName} - ${roomName}`
+      : roomName || parentRoomName || null;
 
   const plaqueInfo =
     'knowledgeText' in artifact ? artifact.knowledgeText : null;
