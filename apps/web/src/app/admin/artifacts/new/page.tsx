@@ -7,19 +7,7 @@ import { PromptTemplateBox } from '../../../../components/shared';
 import { ArtifactFormWrapper } from './ArtifactFormWrapper';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-
-type Museum = {
-  id: number;
-  name: string;
-  type: 'MUSEUM';
-};
-
-type Room = {
-  id: number;
-  name: string;
-  type: 'ROOM';
-  parentId: number | null;
-};
+import { Museum, Room } from '@/lib/types';
 
 export const metadata: Metadata = {
   title: 'Add Artifact',
@@ -61,11 +49,7 @@ export default async function NewArtifactPage({
       const rooms = await api<Room[]>(`/museums/${museumId}/rooms`);
       const roomData = rooms.find((r) => r.id === roomId);
       if (roomData) {
-        selectedRoom = {
-          ...roomData,
-          type: 'ROOM' as const,
-          parentId: museumId,
-        };
+        selectedRoom = roomData;
       }
     } catch {
       // Room not found or invalid

@@ -2,14 +2,9 @@
 
 import { redirect } from 'next/navigation';
 import { apiMutate } from '@/lib/api';
+import { MuseumInput } from '@/lib/types';
 
-type MuseumData = {
-  name: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
-
-export async function createMuseum(data: MuseumData) {
+export async function createMuseum(data: MuseumInput) {
   const museum = await apiMutate<{ id: number }>('/museums', {
     method: 'POST',
     body: {

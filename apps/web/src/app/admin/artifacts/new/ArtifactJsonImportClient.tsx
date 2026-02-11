@@ -3,17 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { JsonPasteBox } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
-
-type ArtifactData = {
-  type: 'ARTIFACT';
-  name: string;
-  parentId?: number;
-  parentName?: string;
-  museumId?: number;
-  museumName?: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
+import { ArtifactCreateInput, ArtifactImportData } from '@/lib/types';
 
 type ValidationResult = {
   type: string;
@@ -25,7 +15,7 @@ type ValidationResult = {
 
 function validateJson(jsonString: string): {
   isValid: boolean;
-  data: ArtifactData | null;
+  data: ArtifactCreateInput | null;
   errors: string[];
   preview: ValidationResult | null;
 } {
@@ -38,10 +28,10 @@ function validateJson(jsonString: string): {
     };
   }
 
-  let parsed: any;
+  let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(jsonString);
-  } catch (error) {
+    parsed = JSON.parse(jsonString) as Record<string, unknown>;
+  } catch {
     return {
       isValid: false,
       data: null,
@@ -50,42 +40,58 @@ function validateJson(jsonString: string): {
     };
   }
 
+  const parsedType = typeof parsed.type === 'string' ? parsed.type : '';
+  const parsedName = typeof parsed.name === 'string' ? parsed.name : '';
+  const parsedParentId =
+    typeof parsed.parentId === 'number' ? parsed.parentId : undefined;
+  const parsedParentName =
+    typeof parsed.parentName === 'string' ? parsed.parentName : undefined;
+  const parsedMuseumId =
+    typeof parsed.museumId === 'number' ? parsed.museumId : undefined;
+  const parsedMuseumName =
+    typeof parsed.museumName === 'string' ? parsed.museumName : undefined;
+  const parsedKnowledgeText =
+    typeof parsed.knowledgeText === 'string' ? parsed.knowledgeText : undefined;
+  const parsedFurtherReading =
+    Array.isArray(parsed.furtherReading) &&
+    parsed.furtherReading.every((item) => typeof item === 'string')
+      ? (parsed.furtherReading as string[])
+      : [];
+
   const errors: string[] = [];
   const preview: ValidationResult = {
-    type: parsed.type || 'UNKNOWN',
-    name: parsed.name || 'Unnamed',
-    parent: parsed.parentId
-      ? `ID: ${parsed.parentId}`
-      : parsed.parentName || undefined,
+    type: parsedType || 'UNKNOWN',
+    name: parsedName || 'Unnamed',
+    parent: parsedParentId ? `ID: ${parsedParentId}` : parsedParentName,
     status: 'ok',
     message: undefined,
   };
 
   // Validate required fields
-  if (!parsed.type) {
+  if (!parsedType) {
     errors.push('Missing required field: type');
     preview.status = 'error';
     preview.message = 'Type is required';
-  } else if (parsed.type.toUpperCase() !== 'ARTIFACT') {
+  } else if (parsedType.toUpperCase() !== 'ARTIFACT') {
     errors.push('Type must be ARTIFACT');
     preview.status = 'error';
     preview.message = 'Invalid type';
   }
 
-  if (!parsed.name || typeof parsed.name !== 'string' || !parsed.name.trim()) {
+  if (!parsedName.trim()) {
     errors.push('Missing or invalid field: name');
     preview.status = 'error';
     preview.message = 'Name is required';
   }
 
   // Validate parent requirements - need either parentId or (parentName + museumId/museumName)
-  if (!parsed.parentId && !parsed.parentName) {
+  if (!parsedParentId && !parsedParentName) {
     errors.push('ARTIFACT requires either parentId or parentName');
     preview.status = 'error';
     preview.message = 'Parent reference required';
   }
 
-  if (parsed.parentName && !parsed.museumId && !parsed.museumName) {
+  if (parsedParentName && !parsedMuseumId && !parsedMuseumName) {
     errors.push(
       'When using parentName, museumId or museumName must be provided for automatic room creation'
     );
@@ -94,14 +100,14 @@ function validateJson(jsonString: string): {
   }
 
   // Warnings
-  if (!parsed.knowledgeText) {
+  if (!parsedKnowledgeText) {
     if (preview.status === 'ok') {
       preview.status = 'warning';
     }
     preview.message = 'No knowledge text provided';
   }
 
-  if (!parsed.furtherReading || parsed.furtherReading.length === 0) {
+  if (parsedFurtherReading.length === 0) {
     if (preview.status === 'ok') {
       preview.status = 'warning';
     }
@@ -125,36 +131,24 @@ function validateJson(jsonString: string): {
     isValid: true,
     data: {
       type: 'ARTIFACT',
-      name: parsed.name.trim(),
-      parentId: parsed.parentId,
-      parentName: parsed.parentName,
-      museumId: parsed.museumId,
-      museumName: parsed.museumName,
-      knowledgeText: parsed.knowledgeText || undefined,
-      furtherReading: parsed.furtherReading || [],
+      name: parsedName.trim(),
+      parentId: parsedParentId,
+      parentName: parsedParentName,
+      museumId: parsedMuseumId,
+      museumName: parsedMuseumName,
+      knowledgeText: parsedKnowledgeText,
+      furtherReading: parsedFurtherReading,
     },
     errors: [],
     preview,
   };
 }
 
-type ImportedArtifactData = {
-  name: string;
-  parentId?: number;
-  parentName?: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
-
 type ArtifactJsonImportClientProps = {
-  museumId: number;
-  roomId?: number;
-  onValidJson?: (data: ImportedArtifactData) => void;
+  onValidJson?: (data: ArtifactImportData) => void;
 };
 
 export function ArtifactJsonImportClient({
-  museumId,
-  roomId,
   onValidJson,
 }: ArtifactJsonImportClientProps) {
   const [jsonString, setJsonString] = useState('');

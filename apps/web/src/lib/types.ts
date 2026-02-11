@@ -119,3 +119,25 @@ export type RoomCreateInput = RoomDraft & {
   museumId?: number;
   parentRoomId?: number;
 };
+
+export type MuseumInput = {
+  name: string;
+  knowledgeText?: string;
+  furtherReading?: string[];
+};
+
+export type ArtifactImportData = {
+  name: string;
+  parentId?: number;
+  parentName?: string;
+  knowledgeText?: string;
+  furtherReading?: string[];
+};
+
+export type ArtifactCreateInput = ArtifactImportData & {
+  type: 'ARTIFACT';
+  museumId?: number;
+  museumName?: string;
+  newRoomParentType?: 'museum' | 'room';
+  newRoomParentRoomId?: number;
+};

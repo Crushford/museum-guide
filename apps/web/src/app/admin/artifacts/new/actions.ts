@@ -2,21 +2,9 @@
 
 import { redirect } from 'next/navigation';
 import { API_URL, apiMutate } from '@/lib/api';
+import { ArtifactCreateInput } from '@/lib/types';
 
-type ArtifactData = {
-  type: 'ARTIFACT';
-  name: string;
-  parentId?: number;
-  parentName?: string;
-  museumId?: number;
-  museumName?: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-  newRoomParentType?: 'museum' | 'room';
-  newRoomParentRoomId?: number;
-};
-
-export async function createArtifactWithRoom(data: ArtifactData) {
+export async function createArtifactWithRoom(data: ArtifactCreateInput) {
   // museumId is now required for artifacts
   if (!data.museumId || typeof data.museumId !== 'number') {
     throw new Error('museumId is required for artifacts');
