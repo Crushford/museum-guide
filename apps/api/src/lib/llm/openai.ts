@@ -1,10 +1,13 @@
 import OpenAI from 'openai';
 import {
   TAGGING_INSTRUCTIONS,
+  sanitizeSensitiveTopics,
+  sanitizeSubjectTags,
   type LlmProvider,
   type LlmGenerateRequest,
   type LlmGenerateResult,
 } from './types';
+import { checkDailySpendLimit, checkSpendLimit } from './cost-tracker';
 import {
   recordApiCall,
   recordApiCallSync,
@@ -34,7 +37,7 @@ Rules:
 - Do not wrap JSON in markdown.
 - Do not include any extra keys.
 - All strings must be plain text (no HTML).
-- The "text" field is the artifact introduction.
+- The "text" field is the final answer for the current task.
 - Do not include greetings, self-introductions, or the word "welcome".
 - Do not include stage directions or gestures.
 
@@ -61,6 +64,18 @@ export class OpenAILlmProvider implements LlmProvider {
     }
   > {
     const start = Date.now();
+    const monthlyLimit = await checkSpendLimit('openai');
+    if (!monthlyLimit.allowed) {
+      throw new Error(
+        `Monthly OpenAI spend limit reached (€${monthlyLimit.currentSpendEur.toFixed(2)} / €${monthlyLimit.limitEur?.toFixed(2)})`
+      );
+    }
+    const dailyLimit = await checkDailySpendLimit('openai');
+    if (!dailyLimit.allowed) {
+      throw new Error(
+        `Daily OpenAI spend limit reached (€${dailyLimit.currentSpendEur.toFixed(2)} / €${dailyLimit.limitEur?.toFixed(2)})`
+      );
+    }
 
     const input: Array<{ role: 'system' | 'user'; content: string }> = [];
 
@@ -95,12 +110,17 @@ export class OpenAILlmProvider implements LlmProvider {
                 isAdultContent: { type: 'boolean' },
                 sensitiveTopics: { type: 'array', items: { type: 'string' } },
                 subjectTags: { type: 'array', items: { type: 'string' } },
+                suggestedQuestions: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
               },
               required: [
                 'text',
                 'isAdultContent',
                 'sensitiveTopics',
                 'subjectTags',
+                'suggestedQuestions',
               ],
             },
           },
@@ -158,18 +178,14 @@ export class OpenAILlmProvider implements LlmProvider {
 
     const isAdultContent = parsed.isAdultContent === true;
 
-    const sensitiveTopics = Array.isArray(parsed.sensitiveTopics)
-      ? parsed.sensitiveTopics
-          .filter((t: unknown) => typeof t === 'string')
-          .map((t: string) => t.trim())
+    const sensitiveTopics = sanitizeSensitiveTopics(parsed.sensitiveTopics);
+    const subjectTags = sanitizeSubjectTags(parsed.subjectTags);
+    const suggestedQuestions = Array.isArray(parsed.suggestedQuestions)
+      ? parsed.suggestedQuestions
+          .filter((item: unknown): item is string => typeof item === 'string')
+          .map((item: string) => item.trim())
           .filter(Boolean)
-      : [];
-
-    const subjectTags = Array.isArray(parsed.subjectTags)
-      ? parsed.subjectTags
-          .filter((t: unknown) => typeof t === 'string')
-          .map((t: string) => t.trim())
-          .filter(Boolean)
+          .slice(0, 5)
       : [];
 
     return {
@@ -177,6 +193,7 @@ export class OpenAILlmProvider implements LlmProvider {
       isAdultContent,
       sensitiveTopics,
       subjectTags,
+      suggestedQuestions,
       apiCallId,
       inputTokens: res?.usage?.input_tokens ?? 0,
       outputTokens: res?.usage?.output_tokens ?? 0,

@@ -6,6 +6,12 @@ datasource db {
   provider = "postgresql"
 }
 
+enum ArtifactQuestionStatus {
+  ACTIVE
+  HIDDEN
+  ANONYMIZED
+}
+
 model Artifact {
   id                   Int          @id @default(autoincrement())
   displayTitle         String       @map("name")
@@ -29,6 +35,7 @@ model Artifact {
   museum               Museum       @relation(fields: [museumId], references: [id], onDelete: Cascade)
   content              Content[]
   plaqueScans          PlaqueScan[]
+  questions            ArtifactQuestion[]
 
   @@unique([slug, museumId])
   @@index([roomId])
@@ -64,6 +71,7 @@ model Content {
   isAdultContent  Boolean   @default(false)
   sensitiveTopics String[]  @default([])
   subjectTags     String[]  @default([])
+  suggestedQuestions String[] @default([])
   audioUrl        String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -96,6 +104,7 @@ model Museum {
   artifacts   Artifact[]
   plaqueScans PlaqueScan[]
   content     Content[]
+  questions   ArtifactQuestion[]
 
   @@index([citySlug])
 }
@@ -115,6 +124,7 @@ model Room {
   childRooms     Room[]     @relation("RoomToRoom")
   artifacts      Artifact[]
   content        Content[]
+  questions      ArtifactQuestion[]
 
   @@unique([slug, museumId])
   @@index([museumId])
@@ -142,5 +152,78 @@ model ApiCall {
   @@index([costEur])
   @@index([contentId])
   @@index([artifactId])
+  @@index([createdAt])
+}
+
+model ArtifactQuestion {
+  id                     Int                   @id @default(autoincrement())
+  artifactId             Int
+  museumId               Int
+  roomId                 Int?
+  questionText           String
+  normalizedQuestion     String
+  questionHash           String
+  questionLanguage       String?
+  askedByUsername        String
+  status                 ArtifactQuestionStatus @default(ACTIVE)
+  askCount               Int                   @default(1)
+  upvotes                Int                   @default(0)
+  downvotes              Int                   @default(0)
+  similarToQuestionId    Int?
+  answerText             String?
+  answerLanguage         String?
+  answerAudioUrl         String?
+  isAdultContent         Boolean               @default(false)
+  sensitiveTopics        String[]              @default([])
+  subjectTags            String[]              @default([])
+  moderationBlocked      Boolean               @default(false)
+  moderationCategories   String[]              @default([])
+  moderationPayload      Json?
+  llmProvider            String?
+  model                  String?
+  prompt                 String?
+  promptVersion          String                @default("1.0")
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  artifact               Artifact              @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  museum                 Museum                @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  room                   Room?                 @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  similarToQuestion      ArtifactQuestion?     @relation("ArtifactQuestionSimilarity", fields: [similarToQuestionId], references: [id], onDelete: SetNull)
+  similarQuestions       ArtifactQuestion[]    @relation("ArtifactQuestionSimilarity")
+  votes                  ArtifactQuestionVote[]
+  listenEvents           ArtifactQuestionListenEvent[]
+
+  @@index([artifactId, status])
+  @@index([museumId])
+  @@index([roomId])
+  @@index([questionHash])
+  @@index([similarToQuestionId])
+}
+
+model ArtifactQuestionVote {
+  id          Int              @id @default(autoincrement())
+  questionId  Int
+  username    String
+  value       Int
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  question    ArtifactQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, username])
+  @@index([questionId])
+}
+
+model ArtifactQuestionListenEvent {
+  id              Int              @id @default(autoincrement())
+  questionId      Int
+  username        String?
+  sessionId       String?
+  durationSeconds Float            @default(0)
+  completed       Boolean          @default(false)
+  source          String?
+  createdAt       DateTime         @default(now())
+  question        ArtifactQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
   @@index([createdAt])
 }
