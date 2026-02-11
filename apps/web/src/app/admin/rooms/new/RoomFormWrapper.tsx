@@ -3,17 +3,7 @@
 import { useState } from 'react';
 import { RoomFormClient } from './RoomFormClient';
 import { RoomJsonImportClient } from './RoomJsonImportClient';
-
-type RoomData = {
-  name: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
-
-type Room = {
-  id: number;
-  name: string;
-};
+import { Room, RoomDraft } from '@/lib/types';
 
 type RoomFormWrapperProps = {
   museumId: number;
@@ -21,9 +11,9 @@ type RoomFormWrapperProps = {
 };
 
 export function RoomFormWrapper({ museumId, rooms }: RoomFormWrapperProps) {
-  const [importedData, setImportedData] = useState<RoomData | null>(null);
+  const [importedData, setImportedData] = useState<RoomDraft | null>(null);
 
-  const handleValidJson = (data: RoomData) => {
+  const handleValidJson = (data: RoomDraft) => {
     setImportedData(data);
   };
 
@@ -34,7 +24,7 @@ export function RoomFormWrapper({ museumId, rooms }: RoomFormWrapperProps) {
         rooms={rooms}
         importedData={importedData}
       />
-      <RoomJsonImportClient museumId={museumId} onValidJson={handleValidJson} />
+      <RoomJsonImportClient onValidJson={handleValidJson} />
     </>
   );
 }

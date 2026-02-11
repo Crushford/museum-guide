@@ -3,21 +3,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { JsonPasteBox } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
-
-type RoomData = {
-  name: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
+import { RoomDraft } from '@/lib/types';
 
 type RoomJsonImportClientProps = {
-  museumId: number;
-  onValidJson?: (data: RoomData) => void;
+  onValidJson?: (data: RoomDraft) => void;
 };
 
 function validateJson(jsonString: string): {
   isValid: boolean;
-  data: RoomData | null;
+  data: RoomDraft | null;
   errors: string[];
 } {
   if (!jsonString.trim()) {
@@ -67,10 +61,7 @@ function validateJson(jsonString: string): {
   };
 }
 
-export function RoomJsonImportClient({
-  museumId,
-  onValidJson,
-}: RoomJsonImportClientProps) {
+export function RoomJsonImportClient({ onValidJson }: RoomJsonImportClientProps) {
   const [jsonString, setJsonString] = useState('');
 
   const validation = validateJson(jsonString);

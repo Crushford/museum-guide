@@ -10,30 +10,7 @@ import { SectionCard } from '../../../../components/shared';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
-
-type Museum = {
-  id: number;
-  name: string;
-  slug: string;
-  knowledgeText: string | null;
-  furtherReading: string[];
-};
-
-type Room = {
-  id: number;
-  name: string;
-};
-
-type Artifact = {
-  id: number;
-  name: string;
-};
-
-type ContentItem = {
-  id: number;
-  text: string;
-  type: string | null;
-};
+import { Museum, Room, Artifact, ContentItem } from '@/lib/types';
 
 async function getMuseumHierarchy(museumId: number): Promise<string[]> {
   const museum = await api<Museum>(`/museums/${museumId}`).catch(() => null);
@@ -133,8 +110,8 @@ export default async function MuseumEditPage({
           entity={{
             id: museum.id,
             name: museum.name,
-            knowledgeText: museum.knowledgeText,
-            furtherReading: museum.furtherReading,
+            knowledgeText: museum.knowledgeText ?? null,
+            furtherReading: museum.furtherReading ?? [],
             type: 'museum',
           }}
           childRooms={rooms}

@@ -8,29 +8,7 @@ import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
 import { deleteRoom } from './actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Museum } from '@/lib/types';
-
-type Room = {
-  id: number;
-  name: string;
-  museumId: number | null;
-  parentRoomId: number | null;
-  knowledgeText: string | null;
-  furtherReading: string[];
-};
-
-type ChildRoom = {
-  id: number;
-  name: string;
-  museumId: number | null;
-  parentRoomId: number | null;
-};
-
-type Artifact = {
-  id: number;
-  name: string;
-  roomId?: number;
-};
+import { Museum, Room, Artifact } from '@/lib/types';
 
 async function getRoomHierarchy(roomId: number): Promise<string[]> {
   const room = await api<Room>(`/rooms/${roomId}`).catch(() => null);
@@ -84,7 +62,7 @@ export default async function RoomEditPage({
   const [room, artifacts, childRooms, museums, allRooms] = await Promise.all([
     api<Room>(`/rooms/${nodeId}`),
     api<Artifact[]>(`/rooms/${nodeId}/artifacts`).catch(() => []),
-    api<ChildRoom[]>(`/rooms/${nodeId}/children`).catch(() => []),
+    api<Room[]>(`/rooms/${nodeId}/children`).catch(() => []),
     api<Museum[]>(`/museums`).catch(() => []),
     api<Room[]>(`/admin/rooms`).catch(() => []),
   ]);
@@ -262,11 +240,11 @@ export default async function RoomEditPage({
         entity={{
           id: room.id,
           name: room.name,
-          knowledgeText: room.knowledgeText,
-          furtherReading: room.furtherReading,
+          knowledgeText: room.knowledgeText ?? null,
+          furtherReading: room.furtherReading ?? [],
           type: 'room',
-          parentId: room.museumId,
-          parentRoomId: room.parentRoomId,
+          parentId: room.museumId ?? null,
+          parentRoomId: room.parentRoomId ?? null,
         }}
         parentMuseum={parentMuseum}
         parentRooms={availableParentRooms.map((r) => ({

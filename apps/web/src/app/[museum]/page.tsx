@@ -9,26 +9,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { MuseumDetailsHydration, ArtifactsHydration } from './MuseumHydration';
 import { PlaqueScanner } from './PlaqueScanner';
-
-type Room = {
-  id: number;
-  name: string;
-  slug: string;
-  museumId: number | null;
-};
-
-type Artifact = {
-  id: number;
-  name: string;
-  slug: string;
-  roomId: number;
-};
-
-type Content = {
-  id: number;
-  text: string;
-  type: string | null;
-};
+import { Room, Artifact, ContentItem } from '@/lib/types';
 
 export async function generateMetadata({
   params,
@@ -76,7 +57,7 @@ export default async function MuseumPage({
   const [rooms, artifacts, content] = await Promise.all([
     api<Room[]>(`/museums/${museum.id}/rooms`).catch(() => []),
     api<Artifact[]>(`/museums/${museum.id}/artifacts`).catch(() => []),
-    api<Content[]>(`/museums/${museum.id}/content`).catch(() => []),
+    api<ContentItem[]>(`/museums/${museum.id}/content`).catch(() => []),
   ]);
 
   // Find intro content (type 'intro' or first content item)
@@ -132,7 +113,7 @@ export default async function MuseumPage({
           existingArtifacts={artifacts.map((a) => ({
             id: a.id,
             name: a.name,
-            slug: a.slug,
+            slug: a.slug || '',
           }))}
         />
 

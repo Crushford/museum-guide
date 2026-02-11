@@ -2,16 +2,9 @@
 
 import { redirect } from 'next/navigation';
 import { apiMutate } from '@/lib/api';
+import { RoomCreateInput } from '@/lib/types';
 
-type RoomData = {
-  name: string;
-  museumId?: number;
-  parentRoomId?: number;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
-
-export async function createRoom(data: RoomData) {
+export async function createRoom(data: RoomCreateInput) {
   const body: Record<string, unknown> = {
     name: data.name,
     knowledgeText: data.knowledgeText || null,

@@ -8,22 +8,12 @@ import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/shared/SectionCard';
 import { SaveBar } from '@/components/shared/SaveBar';
 import { createRoom } from './actions';
-
-type RoomData = {
-  name: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
-
-type Room = {
-  id: number;
-  name: string;
-};
+import { Room, RoomDraft } from '@/lib/types';
 
 type RoomFormClientProps = {
   museumId: number;
   rooms: Room[];
-  importedData?: RoomData | null;
+  importedData?: RoomDraft | null;
 };
 
 export function RoomFormClient({

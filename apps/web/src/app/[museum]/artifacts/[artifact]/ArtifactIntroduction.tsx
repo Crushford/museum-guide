@@ -6,13 +6,7 @@ import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/shared';
 import { API_URL } from '@/lib/api';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
-
-type ContentItem = {
-  id: number;
-  text: string;
-  type: string | null;
-  audioUrl: string | null;
-};
+import { ContentItem } from '@/lib/types';
 
 type GenerationStep =
   | 'idle'
