@@ -8,6 +8,7 @@
 - [ ] Add UX to show grouped similar questions under their canonical question.
 - [ ] Add per-user vote tracking once auth is implemented (replace `prototype-tester` hardcode).
 - [ ] Add community controls (report answer/question, hide from ranking, restore).
+- [ ] Move generated suggested follow-up questions from the introduction section into the "Ask a Question" section.
 
 ## Prompting and Content Architecture
 
@@ -37,3 +38,12 @@
 
 - [ ] Add language strategy for full app localization (UI + generated answers).
 - [ ] Store answer language consistently and add translation pipeline hooks.
+
+## Search and Discovery
+
+- [ ] Improve museum search relevance with fuzzy matching/synonyms (e.g., "Naples Archaeological Museum" -> "Naples National Archaeological Museum") and better ranking.
+- [ ] Add "Did you mean...?" suggestions and typo-tolerant fallback when no strong search match is found.
+
+## Bugs
+
+- [ ] Investigate why this artifact page is in German: http://localhost:3000/british-museum/artifacts/bildnis-leendert-van-der-cooghen-mit-groem-hut
