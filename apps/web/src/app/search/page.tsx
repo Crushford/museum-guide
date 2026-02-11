@@ -106,9 +106,7 @@ export default function SearchPage() {
       setWikidataResults(filtered);
     } catch (error) {
       console.error('Wikidata search error:', error);
-      setSearchError(
-        error instanceof Error ? error.message : 'Search failed'
-      );
+      setSearchError(error instanceof Error ? error.message : 'Search failed');
     } finally {
       setIsSearchingWikidata(false);
     }
@@ -318,9 +316,9 @@ export default function SearchPage() {
                 Wikidata&apos;s database of millions of museums worldwide.
               </p>
               <p>
-                <strong>3. Select:</strong> Click on a museum to add it. We&apos;ll
-                fetch its details including images, coordinates, and Wikipedia
-                links.
+                <strong>3. Select:</strong> Click on a museum to add it.
+                We&apos;ll fetch its details including images, coordinates, and
+                Wikipedia links.
               </p>
             </div>
           </SectionCard>
