@@ -8,20 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { UrlListEditor } from '../../../../components/shared';
+import { ArtifactCreateInput, ArtifactImportData, Room } from '@/lib/types';
 import { createArtifactWithRoom } from './actions';
-
-type ArtifactData = {
-  type: 'ARTIFACT';
-  name: string;
-  parentId?: number;
-  parentName?: string;
-  museumId?: number;
-  museumName?: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-  newRoomParentType?: 'museum' | 'room';
-  newRoomParentRoomId?: number;
-};
 
 type FormData = {
   name: string;
@@ -33,330 +21,13 @@ type FormData = {
   newRoomParentRoomId?: string;
 };
 
-type ConflictField = {
-  field: keyof FormData;
-  oldValue: string | string[];
-  newValue: string | string[];
-};
-
-type ConflictResolution = {
-  [K in keyof FormData]?: 'keep' | 'replace';
-};
-
-function validateJson(jsonString: string): {
-  isValid: boolean;
-  data: ArtifactData | null;
-  errors: string[];
-} {
-  if (!jsonString.trim()) {
-    return {
-      isValid: false,
-      data: null,
-      errors: [],
-    };
-  }
-
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(jsonString) as Record<string, unknown>;
-  } catch {
-    return {
-      isValid: false,
-      data: null,
-      errors: ['Invalid JSON format'],
-    };
-  }
-
-  const errors: string[] = [];
-
-  // Validate required fields
-  if (!parsed.type) {
-    errors.push('Missing required field: type');
-  } else if (
-    typeof parsed.type === 'string' &&
-    parsed.type.toUpperCase() !== 'ARTIFACT'
-  ) {
-    errors.push('Type must be ARTIFACT');
-  }
-
-  if (!parsed.name || typeof parsed.name !== 'string' || !parsed.name.trim()) {
-    errors.push('Missing or invalid field: name');
-  }
-
-  // Validate parent requirements
-  if (!parsed.parentId && !parsed.parentName) {
-    errors.push('ARTIFACT requires either parentId or parentName');
-  }
-
-  if (parsed.parentName && !parsed.museumId && !parsed.museumName) {
-    errors.push(
-      'When using parentName, museumId or museumName must be provided for automatic room creation'
-    );
-  }
-
-  if (errors.length > 0) {
-    return {
-      isValid: false,
-      data: null,
-      errors,
-    };
-  }
-
-  return {
-    isValid: true,
-    data: {
-      type: 'ARTIFACT',
-      name: typeof parsed.name === 'string' ? parsed.name.trim() : '',
-      parentId:
-        typeof parsed.parentId === 'number' ? parsed.parentId : undefined,
-      parentName:
-        typeof parsed.parentName === 'string' ? parsed.parentName : undefined,
-      museumId:
-        typeof parsed.museumId === 'number' ? parsed.museumId : undefined,
-      museumName:
-        typeof parsed.museumName === 'string' ? parsed.museumName : undefined,
-      knowledgeText:
-        typeof parsed.knowledgeText === 'string'
-          ? parsed.knowledgeText
-          : undefined,
-      furtherReading:
-        Array.isArray(parsed.furtherReading) &&
-        parsed.furtherReading.every((item) => typeof item === 'string')
-          ? (parsed.furtherReading as string[])
-          : [],
-    },
-    errors: [],
-  };
-}
-
-function detectConflicts(
-  formData: FormData,
-  jsonData: ArtifactData
-): ConflictField[] {
-  const conflicts: ConflictField[] = [];
-
-  // Check name conflict
-  if (formData.name.trim() && jsonData.name !== formData.name.trim()) {
-    conflicts.push({
-      field: 'name',
-      oldValue: formData.name,
-      newValue: jsonData.name,
-    });
-  }
-
-  // Check parentName conflict
-  if (
-    formData.parentName.trim() &&
-    jsonData.parentName &&
-    formData.parentName.trim() !== jsonData.parentName
-  ) {
-    conflicts.push({
-      field: 'parentName',
-      oldValue: formData.parentName,
-      newValue: jsonData.parentName,
-    });
-  }
-
-  // Check museumId conflict
-  const formMuseumId = formData.museumId.trim();
-  if (
-    formMuseumId &&
-    jsonData.museumId &&
-    parseInt(formMuseumId, 10) !== jsonData.museumId
-  ) {
-    conflicts.push({
-      field: 'museumId',
-      oldValue: formMuseumId,
-      newValue: jsonData.museumId.toString(),
-    });
-  }
-
-  // Check knowledgeText conflict
-  if (
-    formData.knowledgeText.trim() &&
-    jsonData.knowledgeText &&
-    formData.knowledgeText.trim() !== jsonData.knowledgeText
-  ) {
-    conflicts.push({
-      field: 'knowledgeText',
-      oldValue: formData.knowledgeText,
-      newValue: jsonData.knowledgeText,
-    });
-  }
-
-  // Check furtherReading conflict
-  const formUrls = formData.furtherReading.filter((url) => url.trim());
-  const jsonUrls = jsonData.furtherReading || [];
-  if (
-    formUrls.length > 0 &&
-    JSON.stringify(formUrls.sort()) !== JSON.stringify(jsonUrls.sort())
-  ) {
-    conflicts.push({
-      field: 'furtherReading',
-      oldValue: formUrls,
-      newValue: jsonUrls,
-    });
-  }
-
-  return conflicts;
-}
-
-function ConflictResolutionUI({
-  conflicts,
-  onResolve,
-}: {
-  conflicts: ConflictField[];
-  onResolve: (resolution: ConflictResolution) => void;
-}) {
-  const [resolutions, setResolutions] = useState<ConflictResolution>(() => {
-    const initial: ConflictResolution = {};
-    conflicts.forEach((conflict) => {
-      initial[conflict.field] = 'keep';
-    });
-    return initial;
-  });
-
-  const handleResolve = (field: keyof FormData, choice: 'keep' | 'replace') => {
-    setResolutions((prev) => ({ ...prev, [field]: choice }));
-  };
-
-  const handleApply = () => {
-    onResolve(resolutions);
-  };
-
-  const getFieldLabel = (field: keyof FormData): string => {
-    const labels: Record<keyof FormData, string> = {
-      name: 'Name',
-      parentName: 'Room Name',
-      museumId: 'Museum ID',
-      knowledgeText: 'Knowledge Text',
-      furtherReading: 'Further Reading',
-      newRoomParentType: 'New Room Parent Type',
-      newRoomParentRoomId: 'New Room Parent Room ID',
-    };
-    return labels[field];
-  };
-
-  const formatValue = (value: string | string[]): string => {
-    if (Array.isArray(value)) {
-      return value.length === 0
-        ? '(empty)'
-        : value.map((url, i) => `${i + 1}. ${url}`).join('\n');
-    }
-    return value || '(empty)';
-  };
-
-  return (
-    <div className="space-y-4 p-4 bg-muted rounded-lg border border-border">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-primary">
-          Conflict Resolution Required
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          The JSON contains different values. Choose which to keep for each
-          field.
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        {conflicts.map((conflict) => (
-          <div
-            key={conflict.field}
-            className="p-4 bg-background rounded-md border border-border"
-          >
-            <Label className="text-base font-medium text-primary mb-3 block">
-              {getFieldLabel(conflict.field)}
-            </Label>
-
-            <div className="grid grid-cols-2 gap-4 mb-3">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                  <span className="text-sm font-medium text-primary">
-                    Current Value
-                  </span>
-                </div>
-                <div className="p-3 bg-muted rounded border border-border">
-                  <pre className="text-sm text-primary whitespace-pre-wrap break-words">
-                    {formatValue(conflict.oldValue)}
-                  </pre>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span className="text-sm font-medium text-primary">
-                    New Value (from JSON)
-                  </span>
-                </div>
-                <div className="p-3 bg-muted rounded border border-border">
-                  <pre className="text-sm text-primary whitespace-pre-wrap break-words">
-                    {formatValue(conflict.newValue)}
-                  </pre>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant={
-                  resolutions[conflict.field] === 'keep'
-                    ? 'default'
-                    : 'secondary'
-                }
-                onClick={() => handleResolve(conflict.field, 'keep')}
-              >
-                Keep Current
-              </Button>
-              <Button
-                size="sm"
-                variant={
-                  resolutions[conflict.field] === 'replace'
-                    ? 'default'
-                    : 'secondary'
-                }
-                onClick={() => handleResolve(conflict.field, 'replace')}
-              >
-                Use New
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex justify-end gap-2 pt-2 border-t border-border">
-        <Button onClick={handleApply} size="sm">
-          Apply Resolution
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-type Room = {
-  id: number;
-  name: string;
-  type: 'ROOM';
-  parentId: number | null;
-};
-
-type ImportedArtifactData = {
-  name: string;
-  parentId?: number;
-  parentName?: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
-
 type ArtifactFormClientProps = {
   museumId: number;
   museumName: string;
   rooms: Room[];
   roomId?: number;
   initialParentName?: string;
-  importedData?: ImportedArtifactData | null;
+  importedData?: ArtifactImportData | null;
 };
 
 export function ArtifactFormClient({
@@ -482,7 +153,7 @@ export function ArtifactFormClient({
     const validMuseumId =
       formMuseumId && !isNaN(formMuseumId) ? formMuseumId : museumId;
 
-    const artifactData: ArtifactData = {
+    const artifactData: ArtifactCreateInput = {
       type: 'ARTIFACT',
       name: formData.name.trim(),
       parentName: formData.parentName.trim(),
@@ -601,10 +272,10 @@ export function ArtifactFormClient({
                         const selectedRoom = rooms.find(
                           (r) => r.name === selectedRoomName
                         );
-                        if (selectedRoom && selectedRoom.parentId) {
+                        if (selectedRoom && selectedRoom.museumId) {
                           handleFormChange(
                             'museumId',
-                            selectedRoom.parentId.toString()
+                            selectedRoom.museumId.toString()
                           );
                         }
                       }

@@ -4,23 +4,8 @@ import { useState } from 'react';
 import { SectionCard } from '../../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
-
-type ContentItem = {
-  id: number;
-  text: string;
-  type: string | null;
-  llmProvider: string;
-  model: string;
-  promptVersion?: string;
-  isAdultContent: boolean;
-  sensitiveTopics: string[];
-  subjectTags: string[];
-  audioUrl: string | null;
-  createdAt: string;
-  updatedAt?: string;
-};
+import { API_URL } from '@/lib/api';
+import { ContentItem } from '@/lib/types';
 
 type Props = {
   artifactId: number;
@@ -124,19 +109,19 @@ export function ArtifactContentInspector({
                   <Badge variant="secondary">v{item.promptVersion}</Badge>
                 )}
                 <span className="text-xs text-muted-foreground ml-auto">
-                  {new Date(item.updatedAt || item.createdAt).toLocaleString()}
+                  {new Date(item.updatedAt || item.createdAt || '').toLocaleString()}
                 </span>
               </div>
 
               {/* Content tags */}
               {(item.isAdultContent ||
-                item.sensitiveTopics.length > 0 ||
-                item.subjectTags.length > 0) && (
+                (item.sensitiveTopics?.length ?? 0) > 0 ||
+                (item.subjectTags?.length ?? 0) > 0) && (
                 <div className="flex flex-wrap gap-1">
                   {item.isAdultContent && (
                     <Badge variant="destructive">Adult Content</Badge>
                   )}
-                  {item.sensitiveTopics.map((topic) => (
+                  {item.sensitiveTopics?.map((topic) => (
                     <Badge
                       key={topic}
                       variant="outline"
@@ -145,7 +130,7 @@ export function ArtifactContentInspector({
                       {topic}
                     </Badge>
                   ))}
-                  {item.subjectTags.map((tag) => (
+                  {item.subjectTags?.map((tag) => (
                     <Badge key={tag} variant="secondary">
                       {tag}
                     </Badge>

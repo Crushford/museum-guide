@@ -1,17 +1,12 @@
 'use client';
 
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Loader2, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/shared';
 import { API_URL } from '@/lib/api';
-
-type ContentItem = {
-  id: number;
-  text: string;
-  type: string | null;
-  audioUrl: string | null;
-};
+import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
+import { ContentItem } from '@/lib/types';
 
 type GenerationStep =
   | 'idle'
@@ -36,11 +31,7 @@ export function ArtifactIntroduction({
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
-  const preferredProvider = useMemo(() => {
-    if (typeof window === 'undefined') return 'google';
-    const stored = localStorage.getItem('preferred-llm-provider');
-    return stored === 'google' || stored === 'openai' ? stored : 'google';
-  }, []);
+  const preferredProvider = usePreferredLLMProvider();
 
   const isGenerating = generationStep !== 'idle' && generationStep !== 'done';
 

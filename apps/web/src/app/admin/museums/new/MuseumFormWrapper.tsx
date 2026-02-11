@@ -3,17 +3,12 @@
 import { useState } from 'react';
 import { MuseumFormClient } from './MuseumFormClient';
 import { MuseumJsonImportClient } from './MuseumJsonImportClient';
-
-type MuseumData = {
-  name: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
+import { MuseumInput } from '@/lib/types';
 
 export function MuseumFormWrapper() {
-  const [importedData, setImportedData] = useState<MuseumData | null>(null);
+  const [importedData, setImportedData] = useState<MuseumInput | null>(null);
 
-  const handleValidJson = (data: MuseumData) => {
+  const handleValidJson = (data: MuseumInput) => {
     setImportedData(data);
   };
 

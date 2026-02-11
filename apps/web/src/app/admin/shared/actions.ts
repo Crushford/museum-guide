@@ -1,8 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+import { apiMutate } from '@/lib/api';
 
 export async function updateMuseum(
   id: number,
@@ -13,23 +12,15 @@ export async function updateMuseum(
     furtherReading: string[];
   }
 ) {
-  const response = await fetch(`${API_URL}/nodes/${id}`, {
+  await apiMutate(`/nodes/${id}`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+    body: {
       name: data.name,
       parentId: data.parentId,
       knowledgeText: data.knowledgeText,
       furtherReading: data.furtherReading,
-    }),
+    },
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to update museum');
-  }
 
   redirect(`/admin/museums/${id}`);
 }
@@ -43,23 +34,15 @@ export async function updateRoom(
     furtherReading: string[];
   }
 ) {
-  const response = await fetch(`${API_URL}/nodes/${id}`, {
+  await apiMutate(`/nodes/${id}`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+    body: {
       name: data.name,
       parentId: data.parentId,
       knowledgeText: data.knowledgeText,
       furtherReading: data.furtherReading,
-    }),
+    },
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to update room');
-  }
 
   redirect(`/admin/rooms/${id}`);
 }
@@ -73,23 +56,15 @@ export async function updateArtifact(
     furtherReading: string[];
   }
 ) {
-  const response = await fetch(`${API_URL}/nodes/${id}`, {
+  await apiMutate(`/nodes/${id}`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+    body: {
       name: data.name,
       parentId: data.parentId,
       knowledgeText: data.knowledgeText,
       furtherReading: data.furtherReading,
-    }),
+    },
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to update artifact');
-  }
 
   redirect(`/admin/artifacts/${id}`);
 }
@@ -117,20 +92,7 @@ export async function updateNodeField(
     updateData.parentId = value as number | null;
   }
 
-  const response = await fetch(`${API_URL}/nodes/${id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(updateData),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || `Failed to update ${field}`);
-  }
-
-  return response.json();
+  return apiMutate(`/nodes/${id}`, { method: 'PATCH', body: updateData });
 }
 
 // Update room parent relationship (museumId or parentRoomId)
@@ -156,18 +118,13 @@ export async function updateRoomParent(
     updateData.parentRoomId = null;
   }
 
-  const response = await fetch(`${API_URL}/rooms/${id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(updateData),
-  });
+  return apiMutate(`/rooms/${id}`, { method: 'PATCH', body: updateData });
+}
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to update room parent');
-  }
-
-  return response.json();
+export async function deleteEntity(
+  type: 'museums' | 'rooms' | 'artifacts',
+  id: number
+) {
+  await apiMutate(`/${type}/${id}`, { method: 'DELETE' });
+  redirect(`/admin?tab=${type}`);
 }

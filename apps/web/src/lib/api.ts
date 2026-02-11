@@ -41,3 +41,24 @@ export async function apiPost<T>(path: string): Promise<T> {
   }
   return res.json();
 }
+
+export const JSON_HEADERS = {
+  'Content-Type': 'application/json',
+} as const;
+
+export async function apiMutate<T = unknown>(
+  path: string,
+  options: { method: string; body?: unknown }
+): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: options.method,
+    ...(options.body
+      ? { headers: JSON_HEADERS, body: JSON.stringify(options.body) }
+      : {}),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `API error: ${response.status}`);
+  }
+  return response.json();
+}

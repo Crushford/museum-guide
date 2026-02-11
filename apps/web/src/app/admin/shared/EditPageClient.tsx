@@ -8,17 +8,7 @@ import { SectionCard } from '@/components/shared/SectionCard';
 import { MuseumDisplay } from './MuseumDisplay';
 import { RoomDisplay } from './RoomDisplay';
 import { Button } from '@/components/ui/button';
-
-type Museum = {
-  id: number;
-  name: string;
-};
-
-type Room = {
-  id: number;
-  name: string;
-  parentId: number | null;
-};
+import { Museum, Room } from '@/lib/types';
 
 type BaseEntity = {
   id: number;

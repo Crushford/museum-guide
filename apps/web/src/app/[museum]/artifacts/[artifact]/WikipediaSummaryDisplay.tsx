@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { WikipediaSummary } from '@/lib/types';
 
-interface WikipediaSummaryDisplayProps {
-  extract: string;
-  translated?: boolean;
-  originalLanguage?: string;
-  originalExtract?: string;
-}
+type WikipediaSummaryDisplayProps = Pick<
+  WikipediaSummary,
+  'extract' | 'translated' | 'originalLanguage' | 'originalExtract'
+>;
 
 export function WikipediaSummaryDisplay({
   extract,

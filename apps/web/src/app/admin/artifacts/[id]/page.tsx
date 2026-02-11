@@ -11,45 +11,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { ArtifactContentInspector } from './ArtifactContentInspector';
-
-type Artifact = {
-  id: number;
-  name: string;
-  slug: string;
-  roomId: number;
-  museumId: number;
-  rawPlaqueText: string | null;
-  knowledgeTextEn: string | null;
-  furtherReading: string[];
-};
-
-type Room = {
-  id: number;
-  name: string;
-  museumId: number | null;
-  parentRoomId: number | null;
-};
-
-type Museum = {
-  id: number;
-  name: string;
-  slug: string;
-};
-
-type ContentItem = {
-  id: number;
-  text: string;
-  type: string | null;
-  llmProvider: string;
-  model: string;
-  promptVersion?: string;
-  isAdultContent: boolean;
-  sensitiveTopics: string[];
-  subjectTags: string[];
-  audioUrl: string | null;
-  createdAt: string;
-  updatedAt?: string;
-};
+import { Museum, Room, Artifact, ContentItem } from '@/lib/types';
 
 async function getArtifactHierarchy(artifactId: number): Promise<string[]> {
   const artifact = await api<Artifact>(`/artifacts/${artifactId}`).catch(
@@ -110,36 +72,16 @@ export default async function ArtifactEditPage({
   ]);
 
   // Get parent room
-  type RoomResponse = {
-    id: number;
-    name: string;
-    museumId?: number | null;
-    parentRoomId?: number | null;
-  };
   const parentRoom: Room | null = artifact.roomId
-    ? await api<RoomResponse>(`/rooms/${artifact.roomId}`)
-        .then((r) => ({
-          id: r.id,
-          name: r.name,
-          museumId: r.museumId ?? null,
-          parentRoomId: r.parentRoomId ?? null,
-        }))
-        .catch(() => null)
+    ? await api<Room>(`/rooms/${artifact.roomId}`).catch(() => null)
     : null;
 
   // Get parent room's parent room (if it exists)
   let parentParentRoom: Room | null = null;
   if (parentRoom?.parentRoomId) {
-    parentParentRoom = await api<RoomResponse>(
+    parentParentRoom = await api<Room>(
       `/rooms/${parentRoom.parentRoomId}`
-    )
-      .then((r) => ({
-        id: r.id,
-        name: r.name,
-        museumId: r.museumId ?? null,
-        parentRoomId: r.parentRoomId ?? null,
-      }))
-      .catch(() => null);
+    ).catch(() => null);
   }
 
   // Get museum directly from the artifact's museumId
@@ -166,10 +108,10 @@ export default async function ArtifactEditPage({
   // Aggregate tags across all content items
   const hasAdultContent = artifactContent.some((c) => c.isAdultContent);
   const allSensitiveTopics = [
-    ...new Set(artifactContent.flatMap((c) => c.sensitiveTopics)),
+    ...new Set(artifactContent.flatMap((c) => c.sensitiveTopics ?? [])),
   ];
   const allSubjectTags = [
-    ...new Set(artifactContent.flatMap((c) => c.subjectTags)),
+    ...new Set(artifactContent.flatMap((c) => c.subjectTags ?? [])),
   ];
 
   return (
@@ -200,10 +142,10 @@ export default async function ArtifactEditPage({
         entity={{
           id: artifact.id,
           name: artifact.name,
-          knowledgeText: artifact.rawPlaqueText,
-          furtherReading: artifact.furtherReading,
+          knowledgeText: artifact.rawPlaqueText ?? null,
+          furtherReading: artifact.furtherReading ?? [],
           type: 'artifact',
-          parentId: artifact.roomId,
+          parentId: artifact.roomId ?? null,
         }}
         parentRoom={
           parentRoom

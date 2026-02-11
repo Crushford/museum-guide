@@ -8,22 +8,7 @@ import { SectionCard } from '../../../../components/shared';
 import { EntityDetailsForm } from '../../../../app/admin/shared/EntityDetailsForm';
 import { ChildEntityList } from '../../../../app/admin/shared/ChildEntityList';
 import { Button } from '@/components/ui/button';
-
-type Room = {
-  id: number;
-  name: string;
-  slug: string;
-  museumId: number;
-  parentRoomId: number | null;
-  knowledgeText: string | null;
-  furtherReading: string[];
-};
-
-type Content = {
-  id: number;
-  text: string;
-  type: string | null;
-};
+import { Room, ContentItem } from '@/lib/types';
 
 export async function generateMetadata({
   params,
@@ -87,7 +72,7 @@ export default async function RoomPage({
     api<Array<{ id: number; name: string; slug: string }>>(
       `/rooms/${room.id}/children`
     ).catch(() => []),
-    api<Content[]>(`/rooms/${room.id}/content`).catch(() => []),
+    api<ContentItem[]>(`/rooms/${room.id}/content`).catch(() => []),
   ]);
 
   const roomBrief = content.find((c) => c.type === 'roomBrief') || content[0];

@@ -14,47 +14,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { API_URL } from '@/lib/api';
-
-type ArtifactQuestion = {
-  id: number;
-  artifactId: number;
-  museumId: number;
-  roomId: number | null;
-  questionText: string;
-  questionLanguage: string | null;
-  askedByUsername: string | null;
-  status: 'ACTIVE' | 'ANONYMIZED';
-  askCount: number;
-  upvotes: number;
-  downvotes: number;
-  similarToQuestionId: number | null;
-  answerText: string | null;
-  answerLanguage: string | null;
-  answerAudioUrl: string | null;
-  isAdultContent: boolean;
-  sensitiveTopics: string[];
-  subjectTags: string[];
-  listenCount: number;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type AskResponse = {
-  requiresConfirmation: boolean;
-  previewOnly?: boolean;
-  originalQuestion?: string;
-  correctedQuestion?: string;
-  hasCorrections?: boolean;
-  similarQuestion?: {
-    id: number;
-    questionText: string;
-    answerText: string | null;
-    similarity: number;
-    upvotes: number;
-    downvotes: number;
-  };
-  question?: ArtifactQuestion;
-};
+import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
+import { ArtifactQuestion, AskResponse } from '@/lib/types';
 
 interface ArtifactQuestionsPanelProps {
   artifactId: number;
@@ -86,11 +47,7 @@ export function ArtifactQuestionsPanel({
   const [publishAnonymously, setPublishAnonymously] = useState(false);
   const [modalAnsweredQuestion, setModalAnsweredQuestion] =
     useState<ArtifactQuestion | null>(null);
-  const preferredProvider = useMemo(() => {
-    if (typeof window === 'undefined') return 'google';
-    const stored = localStorage.getItem('preferred-llm-provider');
-    return stored === 'google' || stored === 'openai' ? stored : 'google';
-  }, []);
+  const preferredProvider = usePreferredLLMProvider();
   const sessionIdRef = useRef(
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
@@ -251,7 +208,7 @@ export function ArtifactQuestionsPanel({
     }
   }
 
-  async function useSimilarQuestion(questionId: number) {
+  async function applyExistingAnswer(questionId: number) {
     try {
       const response = await fetch(
         `${API_URL}/artifact-questions/${questionId}/use`,
@@ -567,7 +524,7 @@ export function ArtifactQuestionsPanel({
                       variant="secondary"
                       onClick={() => {
                         if (!similarPrompt.similarQuestion) return;
-                        void useSimilarQuestion(
+                        void applyExistingAnswer(
                           similarPrompt.similarQuestion.id
                         );
                         resetModalState(false);

@@ -3,21 +3,7 @@
 import { useState } from 'react';
 import { ArtifactFormClient } from './ArtifactFormClient';
 import { ArtifactJsonImportClient } from './ArtifactJsonImportClient';
-
-type Room = {
-  id: number;
-  name: string;
-  type: 'ROOM';
-  parentId: number | null;
-};
-
-type ImportedArtifactData = {
-  name: string;
-  parentId?: number;
-  parentName?: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
+import { ArtifactImportData, Room } from '@/lib/types';
 
 type ArtifactFormWrapperProps = {
   museumId: number;
@@ -34,11 +20,11 @@ export function ArtifactFormWrapper({
   roomId,
   initialParentName,
 }: ArtifactFormWrapperProps) {
-  const [importedData, setImportedData] = useState<ImportedArtifactData | null>(
+  const [importedData, setImportedData] = useState<ArtifactImportData | null>(
     null
   );
 
-  const handleValidJson = (data: ImportedArtifactData) => {
+  const handleValidJson = (data: ArtifactImportData) => {
     setImportedData(data);
   };
 
@@ -52,11 +38,7 @@ export function ArtifactFormWrapper({
         initialParentName={initialParentName}
         importedData={importedData}
       />
-      <ArtifactJsonImportClient
-        museumId={museumId}
-        roomId={roomId}
-        onValidJson={handleValidJson}
-      />
+      <ArtifactJsonImportClient onValidJson={handleValidJson} />
     </>
   );
 }
