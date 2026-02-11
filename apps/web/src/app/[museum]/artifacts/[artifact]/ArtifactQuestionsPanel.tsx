@@ -343,35 +343,6 @@ export function ArtifactQuestionsPanel({
           ))}
         </div>
 
-        {similarPrompt?.requiresConfirmation &&
-          similarPrompt.similarQuestion && (
-            <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900 space-y-2">
-              <p className="text-sm">
-                Similar question found (
-                {Math.round(similarPrompt.similarQuestion.similarity * 100)}%
-                match).
-              </p>
-              <p className="text-sm font-medium">
-                {similarPrompt.similarQuestion.questionText}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    if (!similarPrompt.similarQuestion) return;
-                    void useSimilarQuestion(similarPrompt.similarQuestion.id);
-                  }}
-                >
-                  Use Existing Answer
-                </Button>
-                <Button size="sm" onClick={() => void submitQuestion(true)}>
-                  Ask Anyway
-                </Button>
-              </div>
-            </div>
-          )}
-
         {error && (
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         )}
