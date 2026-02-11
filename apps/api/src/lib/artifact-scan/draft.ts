@@ -6,6 +6,7 @@ import {
 } from '@google/generative-ai';
 import type { ArtifactDraft } from '@repo/types';
 import { recordApiCall } from '../telemetry/api-call-tracker';
+import { assertTextAllowedForLlm } from '../llm/moderation';
 
 const DRAFT_SCHEMA: ResponseSchema = {
   type: SchemaType.OBJECT,
@@ -133,6 +134,8 @@ async function extractWithOpenAI(
   const model = process.env.OPENAI_MODEL_ARTIFACT_SCAN || 'gpt-5-nano';
   const client = new OpenAI({ apiKey });
   const start = Date.now();
+  const prompt = buildDraftPrompt(rawText, museumName);
+  await assertTextAllowedForLlm(prompt, 'artifact-scan-draft-openai');
 
   const response = await client.responses.create({
     model,
@@ -144,7 +147,7 @@ async function extractWithOpenAI(
       },
       {
         role: 'user',
-        content: buildDraftPrompt(rawText, museumName),
+        content: prompt,
       },
     ],
     reasoning: { effort: 'minimal' },
@@ -207,6 +210,8 @@ async function extractWithGemini(
   const modelName =
     process.env.GEMINI_MODEL_ARTIFACT_SCAN || 'gemini-2.5-flash';
   const client = new GoogleGenerativeAI(apiKey);
+  const prompt = buildDraftPrompt(rawText, museumName);
+  await assertTextAllowedForLlm(prompt, 'artifact-scan-draft-google');
   const model = client.getGenerativeModel({
     model: modelName,
     generationConfig: {
@@ -218,9 +223,7 @@ async function extractWithGemini(
   });
 
   const start = Date.now();
-  const result = await model.generateContent(
-    buildDraftPrompt(rawText, museumName)
-  );
+  const result = await model.generateContent(prompt);
   const raw = result.response.text();
   const parsed = JSON.parse(raw);
 

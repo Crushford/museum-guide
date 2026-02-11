@@ -171,3 +171,16 @@ export async function generateAudioForContent(
   });
   return result.audioUrl;
 }
+
+export async function generateAudioForArtifactQuestion(
+  questionId: number,
+  text: string,
+  options?: Omit<AudioGenerationOptions, 'text' | 'fileName'>
+): Promise<string> {
+  const result = await generateAudio({
+    text,
+    fileName: `artifact-question-${questionId}.mp3`,
+    ...options,
+  });
+  return result.audioUrl;
+}

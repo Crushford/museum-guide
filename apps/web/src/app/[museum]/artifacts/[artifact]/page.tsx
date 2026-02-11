@@ -11,6 +11,7 @@ import { Globe, ExternalLink } from 'lucide-react';
 import { ArtifactIntroduction } from './ArtifactIntroduction';
 import { WikipediaSummaryDisplay } from './WikipediaSummaryDisplay';
 import { IncorrectMatchNotice } from './IncorrectMatchNotice';
+import { ArtifactQuestionsPanel } from './ArtifactQuestionsPanel';
 
 type WikipediaSummary = {
   extract: string;
@@ -52,7 +53,32 @@ type Content = {
   sensitiveTopics: string[];
   subjectTags: string[];
   audioUrl: string | null;
+  suggestedQuestions: string[];
   updatedAt?: string;
+};
+
+type ArtifactQuestion = {
+  id: number;
+  artifactId: number;
+  museumId: number;
+  roomId: number | null;
+  questionText: string;
+  questionLanguage: string | null;
+  askedByUsername: string | null;
+  status: 'ACTIVE' | 'ANONYMIZED';
+  askCount: number;
+  upvotes: number;
+  downvotes: number;
+  similarToQuestionId: number | null;
+  answerText: string | null;
+  answerLanguage: string | null;
+  answerAudioUrl: string | null;
+  isAdultContent: boolean;
+  sensitiveTopics: string[];
+  subjectTags: string[];
+  listenCount: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 function resolveImageUrl(imageUrl: string | null): string | null {
@@ -126,13 +152,16 @@ export default async function ArtifactPage({
   );
 
   // Fetch content and Wikipedia summary in parallel
-  const [content, wikipediaSummary] = await Promise.all([
+  const [content, wikipediaSummary, questions] = await Promise.all([
     api<Content[]>(`/artifacts/${artifact.id}/content`).catch(() => []),
     artifact.wikipediaUrl
       ? api<WikipediaSummary>(
           `/wikipedia/summary?url=${encodeURIComponent(artifact.wikipediaUrl)}`
         ).catch(() => null)
       : Promise.resolve(null),
+    api<ArtifactQuestion[]>(
+      `/artifacts/${artifact.id}/questions?sort=top&limit=20`
+    ).catch(() => []),
   ]);
 
   // Show the most recently updated introduction
@@ -147,9 +176,9 @@ export default async function ArtifactPage({
     introductions[0] ||
     content.find((c) => c.type === 'artifactMain') ||
     content[0];
-  const qaItems = content.filter((c) => c.type === 'qa').slice(0, 3);
   const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
   const artifactImageUrl = resolveImageUrl(artifact.wikimediaImageUrl);
+  const suggestedQuestions = artifactMain?.suggestedQuestions ?? [];
 
   // Aggregate tags across all content
   const hasAdultContent = content.some((c) => c.isAdultContent);
@@ -286,24 +315,14 @@ export default async function ArtifactPage({
           />
         </div>
 
-        {/* Q&A Items */}
-        {qaItems.length > 0 && (
-          <SectionCard title="Common Questions">
-            <div className="space-y-4">
-              {qaItems.map((qa) => {
-                if (!qa.text.trim()) return null;
-                return (
-                  <div key={qa.id}>
-                    <p className="text-primary leading-relaxed">{qa.text}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </SectionCard>
-        )}
+        <ArtifactQuestionsPanel
+          artifactId={artifact.id}
+          initialQuestions={questions}
+          suggestedQuestions={suggestedQuestions}
+        />
 
         {/* Follow-up Content */}
-        {followups.length > 0 && qaItems.length === 0 && (
+        {followups.length > 0 && (
           <SectionCard title="Learn More">
             <div className="space-y-4">
               {followups.map((followup) => {
