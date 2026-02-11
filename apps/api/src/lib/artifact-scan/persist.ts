@@ -2,6 +2,7 @@ import { prisma } from '@repo/db';
 import type { ArtifactDraft, OcrResult } from '@repo/types';
 import { createPlaqueImageStorage } from './storage';
 import { buildArtifactDisplayTitle } from './display-title';
+import { buildUniqueArtifactSlug } from '../artifact-slug';
 
 interface ArtifactEnrichment {
   wikipediaUrl: string | null;
@@ -26,14 +27,29 @@ export async function createArtifactAndAssets(params: {
     museumId: params.museumId,
   });
 
+  const displayTitle = buildArtifactDisplayTitle({
+    localTitle: params.draft.localTitle,
+    localTitleLanguage: params.draft.localTitleLanguage,
+    englishTitle: params.draft.englishTitle,
+  });
+  const museum = await prisma.museum.findUnique({
+    where: { id: params.museumId },
+    select: { slug: true, name: true },
+  });
+  if (!museum) {
+    throw new Error(`Museum not found for scan create: ${params.museumId}`);
+  }
+  const slug = await buildUniqueArtifactSlug({
+    museumId: params.museumId,
+    museumSlugOrName: museum.slug || museum.name,
+    artifactName: displayTitle,
+  });
+
   const artifact = await prisma.artifact.create({
     data: {
       museumId: params.museumId,
-      displayTitle: buildArtifactDisplayTitle({
-        localTitle: params.draft.localTitle,
-        localTitleLanguage: params.draft.localTitleLanguage,
-        englishTitle: params.draft.englishTitle,
-      }),
+      displayTitle,
+      slug,
       localTitle: params.draft.localTitle,
       localTitleLanguage: params.draft.localTitleLanguage,
       englishTitle: params.draft.englishTitle,

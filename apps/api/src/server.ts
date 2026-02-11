@@ -63,19 +63,13 @@ import {
   createArtifactAndAssets,
   buildArtifactDisplayTitle,
 } from './lib/artifact-scan';
+import { generateSlug } from './lib/slug';
+import { buildUniqueArtifactSlug } from './lib/artifact-slug';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
 dotenv.config({ path: resolve(__dirname, '../.env') });
 dotenv.config({ path: resolve(__dirname, '../../web/.env.local') });
-
-function generateSlug(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-');
-}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -824,11 +818,17 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
 
         if (existing) {
           // Update existing artifact
+          const artifactSlug = await buildUniqueArtifactSlug({
+            museumId: museum.id,
+            museumSlugOrName: museum.slug || museum.name,
+            artifactName: artifact.label,
+            currentArtifactId: existing.id,
+          });
           const updated = await prisma.artifact.update({
             where: { wikidataId: artifact.qid },
             data: {
               displayTitle: artifact.label,
-              slug: generateSlug(artifact.label),
+              slug: artifactSlug,
               wikipediaUrl: artifact.wikipediaUrl || existing.wikipediaUrl,
               wikimediaImageUrl: artifact.image || existing.wikimediaImageUrl,
             } as any,
@@ -843,10 +843,15 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
           });
         } else {
           // Create new artifact
+          const artifactSlug = await buildUniqueArtifactSlug({
+            museumId: museum.id,
+            museumSlugOrName: museum.slug || museum.name,
+            artifactName: artifact.label,
+          });
           const created = await prisma.artifact.create({
             data: {
               displayTitle: artifact.label,
-              slug: generateSlug(artifact.label),
+              slug: artifactSlug,
               museumId: museum.id,
               wikidataId: artifact.qid,
               wikipediaUrl: artifact.wikipediaUrl || null,
@@ -2014,7 +2019,11 @@ app.post('/artifacts', async (req, res) => {
         localTitleLanguage: localTitleLanguage || null,
         englishTitle: englishTitle || fallbackName,
       }),
-      slug: generateSlug(localTitle || fallbackName),
+      slug: await buildUniqueArtifactSlug({
+        museumId,
+        museumSlugOrName: museum.slug || museum.name,
+        artifactName: localTitle || fallbackName,
+      }),
       roomId: roomId || null,
       museumId,
       localTitle: localTitle || fallbackName,
