@@ -2,6 +2,7 @@ import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { writeFile } from 'fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve } from 'path';
+import { recordApiCall } from './telemetry/api-call-tracker';
 
 export type AudioGenerationOptions = {
   text: string;
@@ -83,9 +84,25 @@ export async function generateAudio(
 
   // Generate audio
   let response;
+  const ttsStart = Date.now();
   try {
     [response] = await client.synthesizeSpeech(request);
+    recordApiCall({
+      service: 'Google TTS',
+      endpoint: 'synthesizeSpeech',
+      durationMs: Date.now() - ttsStart,
+      status: 'success',
+      metadata: { textLength: text.length, voiceName },
+    });
   } catch (error) {
+    recordApiCall({
+      service: 'Google TTS',
+      endpoint: 'synthesizeSpeech',
+      durationMs: Date.now() - ttsStart,
+      status: 'error',
+      metadata: { textLength: text.length, voiceName },
+      error: error instanceof Error ? error.message : String(error),
+    });
     console.error('[Audio Generation] Google Cloud TTS API error:', error);
     // Provide helpful error messages for common credential issues
     if (error instanceof Error) {

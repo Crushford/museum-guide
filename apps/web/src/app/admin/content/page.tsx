@@ -20,6 +20,7 @@ type ContentRow = {
   museumId: number | null;
   roomId: number | null;
   artifactId: number | null;
+  audioUrl: string | null;
 };
 
 export default function AdminContentPage() {

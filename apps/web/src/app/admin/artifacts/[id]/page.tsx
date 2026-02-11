@@ -6,14 +6,20 @@ import { EditPageClient } from '../../shared/EditPageClient';
 import { updateArtifact } from '../../shared/actions';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
 import { deleteArtifact } from './actions';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { ExternalLink } from 'lucide-react';
+import { ArtifactContentInspector } from './ArtifactContentInspector';
 
 type Artifact = {
   id: number;
   name: string;
+  slug: string;
   roomId: number;
-  knowledgeText: string | null;
+  museumId: number;
+  rawPlaqueText: string | null;
+  knowledgeTextEn: string | null;
   furtherReading: string[];
 };
 
@@ -27,6 +33,22 @@ type Room = {
 type Museum = {
   id: number;
   name: string;
+  slug: string;
+};
+
+type ContentItem = {
+  id: number;
+  text: string;
+  type: string | null;
+  llmProvider: string;
+  model: string;
+  promptVersion?: string;
+  isAdultContent: boolean;
+  sensitiveTopics: string[];
+  subjectTags: string[];
+  audioUrl: string | null;
+  createdAt: string;
+  updatedAt?: string;
 };
 
 async function getArtifactHierarchy(artifactId: number): Promise<string[]> {
@@ -80,10 +102,11 @@ export default async function ArtifactEditPage({
     redirect('/admin');
   }
 
-  const [artifact, museums, allRooms] = await Promise.all([
+  const [artifact, museums, allRooms, artifactContent] = await Promise.all([
     api<Artifact>(`/artifacts/${nodeId}`),
     api<Museum[]>(`/museums`).catch(() => []),
     api<Room[]>(`/admin/rooms`).catch(() => []),
+    api<ContentItem[]>(`/artifacts/${nodeId}/content`).catch(() => []),
   ]);
 
   // Get parent room
@@ -119,19 +142,10 @@ export default async function ArtifactEditPage({
       .catch(() => null);
   }
 
-  // Get museum - either directly from room or from parent room
-  let parentMuseum: Museum | null = null;
-  if (parentRoom?.museumId) {
-    // Room is directly attached to a museum
-    parentMuseum = await api<Museum>(`/museums/${parentRoom.museumId}`).catch(
-      () => null
-    );
-  } else if (parentRoom?.parentRoomId && parentParentRoom?.museumId) {
-    // Room is a child room - get parent room's museum
-    parentMuseum = await api<Museum>(
-      `/museums/${parentParentRoom.museumId}`
-    ).catch(() => null);
-  }
+  // Get museum directly from the artifact's museumId
+  const parentMuseum: Museum | null = await api<Museum>(
+    `/museums/${artifact.museumId}`
+  ).catch(() => null);
 
   const handleSave = async (data: {
     name: string;
@@ -140,8 +154,23 @@ export default async function ArtifactEditPage({
     furtherReading: string[];
   }) => {
     'use server';
-    await updateArtifact(nodeId, data);
+    await updateArtifact(nodeId, {
+      ...data,
+      knowledgeText: data.knowledgeText,
+    });
   };
+
+  // Find the museum for this artifact to build the public page link
+  const artifactMuseum = museums.find((m) => m.id === artifact.museumId);
+
+  // Aggregate tags across all content items
+  const hasAdultContent = artifactContent.some((c) => c.isAdultContent);
+  const allSensitiveTopics = [
+    ...new Set(artifactContent.flatMap((c) => c.sensitiveTopics)),
+  ];
+  const allSubjectTags = [
+    ...new Set(artifactContent.flatMap((c) => c.subjectTags)),
+  ];
 
   return (
     <AdminPageLayout
@@ -152,16 +181,26 @@ export default async function ArtifactEditPage({
         { label: artifact.name },
       ]}
       actions={
-        <Button asChild size="sm">
-          <Link href="/admin">Back to Admin</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {artifactMuseum && (
+            <Button asChild size="sm" variant="secondary">
+              <Link href={`/${artifactMuseum.slug}/artifacts/${artifact.slug}`}>
+                View Public Page
+                <ExternalLink className="ml-1 h-3 w-3" />
+              </Link>
+            </Button>
+          )}
+          <Button asChild size="sm">
+            <Link href="/admin">Back to Admin</Link>
+          </Button>
+        </div>
       }
     >
       <EditPageClient
         entity={{
           id: artifact.id,
           name: artifact.name,
-          knowledgeText: artifact.knowledgeText,
+          knowledgeText: artifact.rawPlaqueText,
           furtherReading: artifact.furtherReading,
           type: 'artifact',
           parentId: artifact.roomId,
@@ -192,6 +231,37 @@ export default async function ArtifactEditPage({
           parentId: (r as { museumId?: number | null }).museumId ?? null,
         }))}
         onSave={handleSave}
+      />
+      {/* Content Tags */}
+      {(hasAdultContent ||
+        allSensitiveTopics.length > 0 ||
+        allSubjectTags.length > 0) && (
+        <div className="rounded-lg border p-4 space-y-3">
+          <h3 className="text-sm font-medium">Content Tags</h3>
+          <div className="flex flex-wrap gap-2">
+            {hasAdultContent && (
+              <Badge variant="destructive">Adult Content</Badge>
+            )}
+            {allSensitiveTopics.map((topic) => (
+              <Badge
+                key={topic}
+                variant="outline"
+                className="border-amber-500 text-amber-700"
+              >
+                {topic}
+              </Badge>
+            ))}
+            {allSubjectTags.map((tag) => (
+              <Badge key={tag} variant="secondary">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+      <ArtifactContentInspector
+        artifactId={artifact.id}
+        initialContent={artifactContent}
       />
       <div className="flex justify-end pt-4">
         <DeleteEntityButton

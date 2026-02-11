@@ -3,6 +3,7 @@
  */
 
 import { TranslationServiceClient } from '@google-cloud/translate';
+import { recordApiCall } from './telemetry/api-call-tracker';
 
 export { buildMuseumQuery, buildArtifactsQuery } from './sparql-queries';
 
@@ -29,18 +30,21 @@ const RATE_LIMIT_RETRY_DELAY_MS = 10000; // 10 seconds for 429
 export const SUPPORTED_CITIES: Record<string, string> = {
   berlin: 'Q64',
   amsterdam: 'Q9899',
-  brisbane: 'Q34932'
+  brisbane: 'Q34932',
 };
 
 /**
  * Execute a SPARQL query against Wikidata Query Service with retry logic
  */
-export async function queryWikidata<T = WikidataBinding>(sparqlQuery: string): Promise<T[]> {
+export async function queryWikidata<T = WikidataBinding>(
+  sparqlQuery: string
+): Promise<T[]> {
   const url = `${WIKIDATA_QUERY_SERVICE_URL}?query=${encodeURIComponent(
     sparqlQuery
   )}&format=json`;
 
   let lastError: Error | null = null;
+  const overallStart = Date.now();
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`[Wikidata] Query attempt ${attempt}/${MAX_RETRIES}...`);
@@ -77,7 +81,20 @@ export async function queryWikidata<T = WikidataBinding>(sparqlQuery: string): P
         throw new Error('Invalid response format from Wikidata');
       }
 
-      console.log(`[Wikidata] Query successful, received ${data.results.bindings.length} results`);
+      console.log(
+        `[Wikidata] Query successful, received ${data.results.bindings.length} results`
+      );
+      recordApiCall({
+        service: 'Wikidata',
+        endpoint: 'sparql',
+        durationMs: Date.now() - overallStart,
+        status: 'success',
+        statusCode: response.status,
+        metadata: {
+          resultCount: data.results.bindings.length,
+          attempts: attempt,
+        },
+      });
       return data.results.bindings;
     } catch (error) {
       lastError =
@@ -118,6 +135,13 @@ export async function queryWikidata<T = WikidataBinding>(sparqlQuery: string): P
     }
   }
 
+  recordApiCall({
+    service: 'Wikidata',
+    endpoint: 'sparql',
+    durationMs: Date.now() - overallStart,
+    status: 'error',
+    error: lastError?.message ?? 'Failed to query Wikidata',
+  });
   throw lastError || new Error('Failed to query Wikidata');
 }
 
@@ -162,6 +186,7 @@ export async function searchWikidata(
   const url = `${WIKIDATA_API_URL}?${params}`;
   console.log(`[Wikidata Search] Searching for: "${query}"`);
 
+  const searchStart = Date.now();
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'MuseumGuide/1.0 (museum-guide@example.com)',
@@ -169,6 +194,15 @@ export async function searchWikidata(
   });
 
   if (!response.ok) {
+    recordApiCall({
+      service: 'Wikidata',
+      endpoint: 'wbsearchentities',
+      durationMs: Date.now() - searchStart,
+      status: 'error',
+      statusCode: response.status,
+      metadata: { query },
+      error: `Wikidata search failed: ${response.status}`,
+    });
     throw new Error(`Wikidata search failed: ${response.status}`);
   }
 
@@ -179,7 +213,14 @@ export async function searchWikidata(
   }
 
   // Keywords that indicate a museum-like entity
-  const museumKeywords = ['museum', 'gallery', 'collection', 'exhibition', 'art center', 'art centre'];
+  const museumKeywords = [
+    'museum',
+    'gallery',
+    'collection',
+    'exhibition',
+    'art center',
+    'art centre',
+  ];
 
   // Keywords that indicate non-museum entities (articles, publications, etc.)
   const excludeKeywords = [
@@ -223,19 +264,27 @@ export async function searchWikidata(
       const label = item.label.toLowerCase();
 
       // Exclude if description matches any exclude keywords
-      if (excludeKeywords.some(keyword => desc.includes(keyword))) {
+      if (excludeKeywords.some((keyword) => desc.includes(keyword))) {
         return false;
       }
 
       // Include if label or description contains museum-related keywords
       const hasMuseumKeyword =
-        museumKeywords.some(keyword => label.includes(keyword)) ||
-        museumKeywords.some(keyword => desc.includes(keyword));
+        museumKeywords.some((keyword) => label.includes(keyword)) ||
+        museumKeywords.some((keyword) => desc.includes(keyword));
 
       return hasMuseumKeyword;
     });
 
   console.log(`[Wikidata Search] Found ${results.length} museum-like results`);
+  recordApiCall({
+    service: 'Wikidata',
+    endpoint: 'wbsearchentities',
+    durationMs: Date.now() - searchStart,
+    status: 'success',
+    statusCode: response.status,
+    metadata: { query, resultCount: results.length },
+  });
   return results;
 }
 
@@ -265,12 +314,12 @@ const PROPS = {
 
 // Q IDs for museum types
 const MUSEUM_TYPES = [
-  'Q33506',   // museum
-  'Q207694',  // art museum
+  'Q33506', // museum
+  'Q207694', // art museum
   'Q17431399', // science museum
   'Q16735822', // history museum
-  'Q1970365',  // natural history museum
-  'Q7328910',  // archaeological museum
+  'Q1970365', // natural history museum
+  'Q7328910', // archaeological museum
 ];
 
 /**
@@ -297,6 +346,7 @@ export async function fetchWikidataEntity(
   const url = `${WIKIDATA_API_URL}?${params}`;
   console.log(`[Wikidata Entity] Fetching: ${qid}`);
 
+  const entityStart = Date.now();
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'MuseumGuide/1.0 (museum-guide@example.com)',
@@ -304,6 +354,15 @@ export async function fetchWikidataEntity(
   });
 
   if (!response.ok) {
+    recordApiCall({
+      service: 'Wikidata',
+      endpoint: 'wbgetentities',
+      durationMs: Date.now() - entityStart,
+      status: 'error',
+      statusCode: response.status,
+      metadata: { qid },
+      error: `Wikidata entity fetch failed: ${response.status}`,
+    });
     throw new Error(`Wikidata entity fetch failed: ${response.status}`);
   }
 
@@ -319,15 +378,11 @@ export async function fetchWikidataEntity(
   const sitelinks = entity.sitelinks || {};
 
   // Get label (prefer English, fallback to German)
-  const label =
-    entity.labels?.en?.value ||
-    entity.labels?.de?.value ||
-    qid;
+  const label = entity.labels?.en?.value || entity.labels?.de?.value || qid;
 
   // Get description
   const description =
-    entity.descriptions?.en?.value ||
-    entity.descriptions?.de?.value;
+    entity.descriptions?.en?.value || entity.descriptions?.de?.value;
 
   // Get Wikipedia URL (prefer English, fallback to German)
   let wikipediaUrl: string | undefined;
@@ -357,7 +412,8 @@ export async function fetchWikidataEntity(
   // Get official website (P856)
   let officialWebsite: string | undefined;
   if (claims[PROPS.OFFICIAL_WEBSITE]?.[0]?.mainsnak?.datavalue?.value) {
-    officialWebsite = claims[PROPS.OFFICIAL_WEBSITE][0].mainsnak.datavalue.value;
+    officialWebsite =
+      claims[PROPS.OFFICIAL_WEBSITE][0].mainsnak.datavalue.value;
   }
 
   // Get location labels (P131) - we'd need additional fetches for these
@@ -365,6 +421,14 @@ export async function fetchWikidataEntity(
   const locationLabels: string[] = [];
 
   console.log(`[Wikidata Entity] Fetched: ${label} (${qid})`);
+  recordApiCall({
+    service: 'Wikidata',
+    endpoint: 'wbgetentities',
+    durationMs: Date.now() - entityStart,
+    status: 'success',
+    statusCode: response.status,
+    metadata: { qid },
+  });
 
   return {
     qid,
@@ -432,6 +496,7 @@ export async function fetchWikipediaSummary(
     const apiUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
     console.log(`[Wikipedia] Fetching summary: ${title} (${lang})`);
 
+    const wikiStart = Date.now();
     const response = await fetch(apiUrl, {
       headers: {
         'User-Agent': 'MuseumGuide/1.0 (museum-guide@example.com)',
@@ -441,10 +506,27 @@ export async function fetchWikipediaSummary(
 
     if (!response.ok) {
       console.warn(`[Wikipedia] Summary fetch failed: ${response.status}`);
+      recordApiCall({
+        service: 'Wikipedia',
+        endpoint: 'page/summary',
+        durationMs: Date.now() - wikiStart,
+        status: 'error',
+        statusCode: response.status,
+        metadata: { lang, title },
+      });
       return null;
     }
 
     const data = await response.json();
+
+    recordApiCall({
+      service: 'Wikipedia',
+      endpoint: 'page/summary',
+      durationMs: Date.now() - wikiStart,
+      status: 'success',
+      statusCode: response.status,
+      metadata: { lang, title },
+    });
 
     return {
       title: data.title,
@@ -472,7 +554,8 @@ async function translateText(
     const client = new TranslationServiceClient();
 
     // Get the project ID from environment or use a default
-    const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
+    const projectId =
+      process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
 
     if (!projectId) {
       console.warn('[Translation] GOOGLE_CLOUD_PROJECT not configured');
@@ -488,6 +571,7 @@ async function translateText(
       projectId,
     });
 
+    const translateStart = Date.now();
     const [response] = await client.translateText({
       parent,
       contents: [text],
@@ -502,10 +586,24 @@ async function translateText(
         originalLength: text.length,
         translatedLength: translatedText.length,
       });
+      recordApiCall({
+        service: 'Google Translate',
+        endpoint: 'translateText',
+        durationMs: Date.now() - translateStart,
+        status: 'success',
+        metadata: { textLength: text.length, targetLang },
+      });
       return translatedText;
     }
 
     console.warn('[Translation] No translation returned');
+    recordApiCall({
+      service: 'Google Translate',
+      endpoint: 'translateText',
+      durationMs: Date.now() - translateStart,
+      status: 'success',
+      metadata: { textLength: text.length, targetLang, noResult: true },
+    });
     return null;
   } catch (error) {
     console.error('[Translation] Error:', error);
@@ -549,13 +647,31 @@ async function getEnglishWikipediaUrl(
     // Use Wikipedia API to get Wikidata item
     const apiUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageprops&format=json&origin=*`;
 
+    const langStart = Date.now();
     const response = await fetch(apiUrl, {
       headers: {
         'User-Agent': 'MuseumGuide/1.0 (museum-guide@example.com)',
       },
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      recordApiCall({
+        service: 'Wikipedia',
+        endpoint: 'query/pageprops',
+        durationMs: Date.now() - langStart,
+        status: 'error',
+        statusCode: response.status,
+      });
+      return null;
+    }
+
+    recordApiCall({
+      service: 'Wikipedia',
+      endpoint: 'query/pageprops',
+      durationMs: Date.now() - langStart,
+      status: 'success',
+      statusCode: response.status,
+    });
 
     const data = await response.json();
     const pages = data.query?.pages;
@@ -565,6 +681,7 @@ async function getEnglishWikipediaUrl(
     if (!wikidataId) return null;
 
     // Now fetch Wikidata entity to get English sitelink
+    const wdStart = Date.now();
     const wdResponse = await fetch(
       `${WIKIDATA_API_URL}?action=wbgetentities&ids=${wikidataId}&props=sitelinks&format=json&origin=*`,
       {
@@ -574,10 +691,28 @@ async function getEnglishWikipediaUrl(
       }
     );
 
-    if (!wdResponse.ok) return null;
+    if (!wdResponse.ok) {
+      recordApiCall({
+        service: 'Wikidata',
+        endpoint: 'wbgetentities/sitelinks',
+        durationMs: Date.now() - wdStart,
+        status: 'error',
+        statusCode: wdResponse.status,
+      });
+      return null;
+    }
+
+    recordApiCall({
+      service: 'Wikidata',
+      endpoint: 'wbgetentities/sitelinks',
+      durationMs: Date.now() - wdStart,
+      status: 'success',
+      statusCode: wdResponse.status,
+    });
 
     const wdData = await wdResponse.json();
-    const englishTitle = wdData.entities?.[wikidataId]?.sitelinks?.enwiki?.title;
+    const englishTitle =
+      wdData.entities?.[wikidataId]?.sitelinks?.enwiki?.title;
 
     if (englishTitle) {
       return `https://en.wikipedia.org/wiki/${encodeURIComponent(englishTitle.replace(/ /g, '_'))}`;
@@ -620,7 +755,9 @@ export async function fetchWikipediaSummaryWithTranslation(
 
     // If not English, try to find English version first
     if (originalLang !== 'en') {
-      console.log(`[Wikipedia] Original URL is ${originalLang}, looking for English version...`);
+      console.log(
+        `[Wikipedia] Original URL is ${originalLang}, looking for English version...`
+      );
       const englishUrl = await getEnglishWikipediaUrl(wikipediaUrl);
 
       if (englishUrl) {
@@ -646,7 +783,9 @@ export async function fetchWikipediaSummaryWithTranslation(
     }
 
     // Translate if not English
-    console.log(`[Wikipedia] Translating ${originalLang} summary to English...`);
+    console.log(
+      `[Wikipedia] Translating ${originalLang} summary to English...`
+    );
     const originalExtract = summary.extract;
     const translatedExtract = await translateText(summary.extract, 'en');
 
@@ -655,7 +794,8 @@ export async function fetchWikipediaSummaryWithTranslation(
         ...summary,
         extract: translatedExtract,
         translated: true,
-        originalLanguage: LANGUAGE_NAMES[originalLang] || originalLang.toUpperCase(),
+        originalLanguage:
+          LANGUAGE_NAMES[originalLang] || originalLang.toUpperCase(),
         originalExtract: originalExtract,
       };
     }
@@ -664,10 +804,14 @@ export async function fetchWikipediaSummaryWithTranslation(
     console.log('[Wikipedia] Translation failed, returning original');
     return {
       ...summary,
-      originalLanguage: LANGUAGE_NAMES[originalLang] || originalLang.toUpperCase(),
+      originalLanguage:
+        LANGUAGE_NAMES[originalLang] || originalLang.toUpperCase(),
     };
   } catch (error) {
-    console.error('[Wikipedia] Error in fetchWikipediaSummaryWithTranslation:', error);
+    console.error(
+      '[Wikipedia] Error in fetchWikipediaSummaryWithTranslation:',
+      error
+    );
     return null;
   }
 }
