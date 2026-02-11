@@ -2551,6 +2551,80 @@ app.get('/admin/llm-usage/monthly', async (_req, res) => {
   }
 });
 
+// GET /admin/openai-usage/daily - Get today's OpenAI token usage by model tier
+app.get('/admin/openai-usage/daily', async (_req, res) => {
+  try {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const PREMIUM_MODELS = new Set([
+      'gpt-5.2',
+      'gpt-5.1',
+      'gpt-5.1-codex',
+      'gpt-5',
+      'gpt-5-codex',
+      'gpt-5-chat-latest',
+      'gpt-4.1',
+      'gpt-4o',
+      'o1',
+      'o3',
+    ]);
+
+    const MINI_MODELS = new Set([
+      'gpt-5.1-codex-mini',
+      'gpt-5-mini',
+      'gpt-5-nano',
+      'gpt-4.1-mini',
+      'gpt-4.1-nano',
+      'gpt-4o-mini',
+      'o1-mini',
+      'o3-mini',
+      'o4-mini',
+      'codex-mini-latest',
+    ]);
+
+    const rows = await prisma.llmUsage.findMany({
+      where: {
+        provider: 'openai',
+        createdAt: { gte: startOfDay },
+      },
+      select: {
+        model: true,
+        inputTokens: true,
+        outputTokens: true,
+      },
+    });
+
+    let premiumTokens = 0;
+    let miniTokens = 0;
+
+    for (const row of rows) {
+      const total = row.inputTokens + row.outputTokens;
+      if (PREMIUM_MODELS.has(row.model)) {
+        premiumTokens += total;
+      } else if (MINI_MODELS.has(row.model)) {
+        miniTokens += total;
+      } else {
+        // Unknown model - count as premium to be safe
+        premiumTokens += total;
+      }
+    }
+
+    res.json({
+      premium: {
+        used: premiumTokens,
+        limit: 250_000,
+      },
+      mini: {
+        used: miniTokens,
+        limit: 2_500_000,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch daily usage data' });
+  }
+});
+
 initLangfuse();
 
 app.listen(PORT, () => {});
