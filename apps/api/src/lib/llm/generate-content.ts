@@ -114,6 +114,8 @@ export async function generateIntroduction(
     model: result.model,
     inputTokens: result.inputTokens,
     outputTokens: result.outputTokens,
+    durationMs: result.durationMs,
+    apiCallId: result.apiCallId ?? null,
     contentId: content.id,
     artifactId,
   });

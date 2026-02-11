@@ -52,21 +52,6 @@ model Content {
   Room           Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
-model LlmUsage {
-  id           Int      @id @default(autoincrement())
-  provider     String
-  model        String
-  inputTokens  Int
-  outputTokens Int
-  costEur      Float
-  contentId    Int?
-  artifactId   Int?
-  createdAt    DateTime @default(now())
-
-  @@index([provider])
-  @@index([createdAt])
-}
-
 model Museum {
   id                   Int       @id @default(autoincrement())
   name                 String
@@ -113,4 +98,28 @@ model Room {
   @@unique([slug, museumId])
   @@index([museumId])
   @@index([parentRoomId])
+}
+
+model ApiCall {
+  id           Int      @id @default(autoincrement())
+  service      String
+  endpoint     String
+  durationMs   Int
+  status       String
+  statusCode   Int?
+  inputTokens  Int?
+  outputTokens Int?
+  model        String?
+  costEur      Float?
+  contentId    Int?
+  artifactId   Int?
+  metadata     Json?
+  error        String?
+  createdAt    DateTime @default(now())
+
+  @@index([service])
+  @@index([costEur])
+  @@index([contentId])
+  @@index([artifactId])
+  @@index([createdAt])
 }

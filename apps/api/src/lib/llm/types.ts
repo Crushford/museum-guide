@@ -8,6 +8,7 @@ export interface LlmGenerateResult {
   isAdultContent?: boolean;
   sensitiveTopics?: string[];
   subjectTags?: string[];
+  apiCallId?: number | null;
   inputTokens: number;
   outputTokens: number;
   model: string;

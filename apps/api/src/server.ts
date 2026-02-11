@@ -22,6 +22,7 @@ import { createProvider } from './lib/llm';
 import { buildIntroductionPrompt } from './lib/llm/prompt-templates';
 import { getMonthlySpendEur } from './lib/llm/cost-tracker';
 import { initLangfuse } from './lib/telemetry/langfuse';
+import { recordApiCall } from './lib/telemetry/api-call-tracker';
 import {
   queryWikidata,
   buildMuseumQuery,
@@ -2154,6 +2155,7 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
 
     let fullText = '';
     let modelName = '';
+    const streamStart = Date.now();
 
     if (providerName === 'google') {
       const apiKey = process.env.GEMINI_API_KEY;
@@ -2173,6 +2175,19 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
         fullText += chunkText;
         sendEvent('chunk', { text: chunkText });
       }
+
+      const finalResponse = await result.response;
+      const usage = finalResponse.usageMetadata;
+
+      recordApiCall({
+        service: 'Gemini',
+        endpoint: 'generateContentStream',
+        durationMs: Date.now() - streamStart,
+        status: 'success',
+        inputTokens: usage?.promptTokenCount ?? 0,
+        outputTokens: usage?.candidatesTokenCount ?? 0,
+        model: modelName,
+      });
     } else {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {
@@ -2199,6 +2214,18 @@ app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
       });
 
       await stream.done();
+      const finalResponse = await stream.finalResponse();
+      const usage = finalResponse.usage;
+
+      recordApiCall({
+        service: 'OpenAI',
+        endpoint: 'responses.stream',
+        durationMs: Date.now() - streamStart,
+        status: 'success',
+        inputTokens: usage?.input_tokens ?? 0,
+        outputTokens: usage?.output_tokens ?? 0,
+        model: modelName,
+      });
     }
 
     sendEvent('status', { step: 'saving', message: 'Saving content...' });
@@ -2583,9 +2610,9 @@ app.get('/admin/openai-usage/daily', async (_req, res) => {
       'codex-mini-latest',
     ]);
 
-    const rows = await prisma.llmUsage.findMany({
+    const rows = await prisma.apiCall.findMany({
       where: {
-        provider: 'openai',
+        service: 'OpenAI',
         createdAt: { gte: startOfDay },
       },
       select: {
@@ -2599,10 +2626,10 @@ app.get('/admin/openai-usage/daily', async (_req, res) => {
     let miniTokens = 0;
 
     for (const row of rows) {
-      const total = row.inputTokens + row.outputTokens;
-      if (PREMIUM_MODELS.has(row.model)) {
+      const total = (row.inputTokens ?? 0) + (row.outputTokens ?? 0);
+      if (row.model && PREMIUM_MODELS.has(row.model)) {
         premiumTokens += total;
-      } else if (MINI_MODELS.has(row.model)) {
+      } else if (row.model && MINI_MODELS.has(row.model)) {
         miniTokens += total;
       } else {
         // Unknown model - count as premium to be safe
@@ -2622,6 +2649,77 @@ app.get('/admin/openai-usage/daily', async (_req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch daily usage data' });
+  }
+});
+
+// GET /admin/api-calls/daily - Summary of today's API calls by service
+app.get('/admin/api-calls/daily', async (_req, res) => {
+  try {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const rows = await prisma.apiCall.findMany({
+      where: { createdAt: { gte: startOfDay } },
+      select: { service: true, durationMs: true },
+    });
+
+    const totalCalls = rows.length;
+
+    const byService = new Map<
+      string,
+      { count: number; totalDurationMs: number }
+    >();
+    for (const row of rows) {
+      const entry = byService.get(row.service) ?? {
+        count: 0,
+        totalDurationMs: 0,
+      };
+      entry.count++;
+      entry.totalDurationMs += row.durationMs;
+      byService.set(row.service, entry);
+    }
+
+    const services = Array.from(byService.entries()).map(([service, data]) => ({
+      service,
+      count: data.count,
+      avgDurationMs: Math.round(data.totalDurationMs / data.count),
+    }));
+
+    res.json({ totalCalls, services });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch daily API call data' });
+  }
+});
+
+// GET /admin/api-calls - Paginated recent API calls
+app.get('/admin/api-calls', async (req, res) => {
+  try {
+    const service = req.query.service as string | undefined;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.min(
+      100,
+      Math.max(1, Number(req.query.pageSize) || 50)
+    );
+    const skip = (page - 1) * pageSize;
+
+    const where: any = {};
+    if (service) {
+      where.service = service;
+    }
+
+    const [rows, total] = await Promise.all([
+      prisma.apiCall.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: pageSize,
+        skip,
+      }),
+      prisma.apiCall.count({ where }),
+    ]);
+
+    res.json({ rows, total, page, pageSize });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch API calls' });
   }
 });
 

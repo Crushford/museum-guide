@@ -5,6 +5,10 @@ import {
   type LlmGenerateRequest,
   type LlmGenerateResult,
 } from './types';
+import {
+  recordApiCall,
+  recordApiCallSync,
+} from '../telemetry/api-call-tracker';
 
 function extractResponseText(res: any): string {
   if (typeof res?.output_text === 'string' && res.output_text.trim()) {
@@ -103,6 +107,15 @@ export class OpenAILlmProvider implements LlmProvider {
         },
       });
     } catch (err: any) {
+      recordApiCall({
+        service: 'OpenAI',
+        endpoint: 'responses.create',
+        durationMs: Date.now() - start,
+        status: 'error',
+        statusCode: err?.status,
+        metadata: { model: this.modelName },
+        error: err?.message,
+      });
       console.error(
         '[OpenAI] Request failed:',
         err?.message,
@@ -113,6 +126,16 @@ export class OpenAILlmProvider implements LlmProvider {
     }
 
     const durationMs = Date.now() - start;
+
+    const apiCallId = await recordApiCallSync({
+      service: 'OpenAI',
+      endpoint: 'responses.create',
+      durationMs,
+      status: 'success',
+      inputTokens: res?.usage?.input_tokens ?? 0,
+      outputTokens: res?.usage?.output_tokens ?? 0,
+      model: this.modelName,
+    });
     const raw = extractResponseText(res);
 
     if (!raw) {
@@ -154,6 +177,7 @@ export class OpenAILlmProvider implements LlmProvider {
       isAdultContent,
       sensitiveTopics,
       subjectTags,
+      apiCallId,
       inputTokens: res?.usage?.input_tokens ?? 0,
       outputTokens: res?.usage?.output_tokens ?? 0,
       model: this.modelName,

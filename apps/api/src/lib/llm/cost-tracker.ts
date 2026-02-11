@@ -26,6 +26,8 @@ export async function recordUsage(params: {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  durationMs?: number;
+  apiCallId?: number | null;
   contentId?: number | null;
   artifactId?: number | null;
 }): Promise<void> {
@@ -34,9 +36,39 @@ export async function recordUsage(params: {
     params.inputTokens,
     params.outputTokens
   );
-  await prisma.llmUsage.create({
+
+  if (params.apiCallId) {
+    try {
+      await prisma.apiCall.update({
+        where: { id: params.apiCallId },
+        data: {
+          model: params.model,
+          inputTokens: params.inputTokens,
+          outputTokens: params.outputTokens,
+          costEur,
+          contentId: params.contentId ?? null,
+          artifactId: params.artifactId ?? null,
+        },
+      });
+      return;
+    } catch {
+      // Fall through to create a dedicated usage row.
+    }
+  }
+
+  const fallbackService =
+    params.provider === 'openai'
+      ? 'OpenAI'
+      : params.provider === 'google'
+        ? 'Gemini'
+        : params.provider;
+
+  await prisma.apiCall.create({
     data: {
-      provider: params.provider,
+      service: fallbackService,
+      endpoint: 'llm.generate',
+      durationMs: params.durationMs ?? 0,
+      status: 'success',
       model: params.model,
       inputTokens: params.inputTokens,
       outputTokens: params.outputTokens,
@@ -54,19 +86,36 @@ export async function getMonthlySpendEur(
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const where: { createdAt: { gte: Date }; provider?: string } = {
+  const where: {
+    createdAt: { gte: Date };
+    costEur: { not: null };
+    service?: string;
+  } = {
     createdAt: { gte: startOfMonth },
+    costEur: { not: null },
   };
-  if (provider) where.provider = provider;
+  if (provider) {
+    where.service =
+      provider === 'openai'
+        ? 'OpenAI'
+        : provider === 'google'
+          ? 'Gemini'
+          : provider;
+  }
 
-  const results = await prisma.llmUsage.groupBy({
-    by: ['provider'],
+  const results = await prisma.apiCall.groupBy({
+    by: ['service'],
     where,
     _sum: { costEur: true },
   });
 
   return results.map((r) => ({
-    provider: r.provider,
+    provider:
+      r.service === 'OpenAI'
+        ? 'openai'
+        : r.service === 'Gemini'
+          ? 'google'
+          : r.service,
     totalEur: r._sum.costEur ?? 0,
   }));
 }

@@ -26,6 +26,11 @@ type DailyUsage = {
   mini: TierUsage;
 };
 
+type ApiCallsDaily = {
+  totalCalls: number;
+  services: { service: string; count: number; avgDurationMs: number }[];
+};
+
 function subscribeToStorage(callback: () => void) {
   window.addEventListener('storage', callback);
   return () => window.removeEventListener('storage', callback);
@@ -106,7 +111,11 @@ function UsageBar({
 
 export function DevHeader() {
   const [spend, setSpend] = useState<SpendRow[]>([]);
-  const [dailyUsage, setDailyUsage] = useState<DailyUsage | null>(null);
+  const [dailyUsage, setDailyUsage] = useState<DailyUsage>({
+    premium: { used: 0, limit: 250_000 },
+    mini: { used: 0, limit: 2_500_000 },
+  });
+  const [apiCalls, setApiCalls] = useState<ApiCallsDaily | null>(null);
 
   const providerRaw = useLocalStorageValue('preferred-llm-provider', 'google');
   const provider: 'google' | 'openai' =
@@ -114,19 +123,38 @@ export function DevHeader() {
   const hidden = useLocalStorageValue('dev-header-hidden', '0') === '1';
 
   useEffect(() => {
-    fetch(`${API_URL}/admin/llm-usage/monthly`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.spend) setSpend(data.spend);
-      })
-      .catch(() => {});
+    let cancelled = false;
 
-    fetch(`${API_URL}/admin/openai-usage/daily`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.premium && data?.mini) setDailyUsage(data);
-      })
-      .catch(() => {});
+    const refresh = () => {
+      fetch(`${API_URL}/admin/llm-usage/monthly`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!cancelled && data?.spend) setSpend(data.spend);
+        })
+        .catch(() => {});
+
+      fetch(`${API_URL}/admin/openai-usage/daily`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!cancelled && data?.premium && data?.mini) setDailyUsage(data);
+        })
+        .catch(() => {});
+
+      fetch(`${API_URL}/admin/api-calls/daily`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!cancelled && data?.totalCalls !== undefined) setApiCalls(data);
+        })
+        .catch(() => {});
+    };
+
+    refresh();
+    const intervalId = window.setInterval(refresh, 15_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   const totalEur = spend.reduce((sum, r) => sum + r.totalEur, 0);
@@ -174,22 +202,51 @@ export function DevHeader() {
           <span className="text-zinc-300">${totalEur.toFixed(4)}</span>
         </Link>
 
-        {dailyUsage && (
-          <Link
-            href="/admin/costs"
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-          >
-            <UsageBar
-              label="Premium"
-              used={dailyUsage.premium.used}
-              limit={dailyUsage.premium.limit}
-            />
-            <UsageBar
-              label="Mini"
-              used={dailyUsage.mini.used}
-              limit={dailyUsage.mini.limit}
-            />
-          </Link>
+        <Link
+          href="/admin/costs"
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+        >
+          <UsageBar
+            label="Premium"
+            used={dailyUsage.premium.used}
+            limit={dailyUsage.premium.limit}
+          />
+          <UsageBar
+            label="Mini"
+            used={dailyUsage.mini.used}
+            limit={dailyUsage.mini.limit}
+          />
+        </Link>
+
+        {apiCalls && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href="/admin/api-calls"
+                className="text-zinc-500 hover:text-zinc-200 transition-colors"
+              >
+                API:{' '}
+                <span className="text-zinc-300">
+                  {apiCalls.totalCalls} calls
+                </span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="text-xs space-y-0.5">
+                {apiCalls.services.map((s) => (
+                  <div key={s.service} className="flex justify-between gap-4">
+                    <span>{s.service}</span>
+                    <span className="font-mono">
+                      {s.count} ({s.avgDurationMs}ms avg)
+                    </span>
+                  </div>
+                ))}
+                {apiCalls.services.length === 0 && (
+                  <span>No API calls today</span>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
         )}
 
         <div className="ml-auto flex items-center gap-1">

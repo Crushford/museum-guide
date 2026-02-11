@@ -9,6 +9,10 @@ import {
   type LlmGenerateRequest,
   type LlmGenerateResult,
 } from './types';
+import {
+  recordApiCall,
+  recordApiCallSync,
+} from '../telemetry/api-call-tracker';
 
 const RESPONSE_SCHEMA: ResponseSchema = {
   type: SchemaType.OBJECT,
@@ -53,11 +57,35 @@ export class GoogleLlmProvider implements LlmProvider {
       },
     });
 
-    const result = await model.generateContent(request.prompt);
+    let result;
+    try {
+      result = await model.generateContent(request.prompt);
+    } catch (err) {
+      recordApiCall({
+        service: 'Gemini',
+        endpoint: 'generateContent',
+        durationMs: Date.now() - start,
+        status: 'error',
+        metadata: { model: this.modelName },
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+
     const response = result.response;
     const raw = response.text();
     const durationMs = Date.now() - start;
     const usage = response.usageMetadata;
+
+    const apiCallId = await recordApiCallSync({
+      service: 'Gemini',
+      endpoint: 'generateContent',
+      durationMs,
+      status: 'success',
+      inputTokens: usage?.promptTokenCount ?? 0,
+      outputTokens: usage?.candidatesTokenCount ?? 0,
+      model: this.modelName,
+    });
 
     let parsed: {
       text?: string;
@@ -71,6 +99,7 @@ export class GoogleLlmProvider implements LlmProvider {
       // If JSON parsing fails, treat the entire response as plain text
       return {
         text: raw,
+        apiCallId,
         inputTokens: usage?.promptTokenCount ?? 0,
         outputTokens: usage?.candidatesTokenCount ?? 0,
         model: this.modelName,
@@ -84,6 +113,7 @@ export class GoogleLlmProvider implements LlmProvider {
       isAdultContent: parsed.isAdultContent ?? false,
       sensitiveTopics: parsed.sensitiveTopics ?? [],
       subjectTags: parsed.subjectTags ?? [],
+      apiCallId,
       inputTokens: usage?.promptTokenCount ?? 0,
       outputTokens: usage?.candidatesTokenCount ?? 0,
       model: this.modelName,
