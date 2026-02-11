@@ -3,12 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { JsonPasteBox } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
-
-type MuseumData = {
-  name: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
+import { MuseumInput } from '@/lib/types';
 
 type ValidationResult = {
   type: string;
@@ -19,7 +14,7 @@ type ValidationResult = {
 
 function validateJson(jsonString: string): {
   isValid: boolean;
-  data: MuseumData | null;
+  data: MuseumInput | null;
   errors: string[];
   preview: ValidationResult | null;
 } {
@@ -105,7 +100,7 @@ function validateJson(jsonString: string): {
 }
 
 type MuseumJsonImportClientProps = {
-  onValidJson?: (data: MuseumData) => void;
+  onValidJson?: (data: MuseumInput) => void;
 };
 
 export function MuseumJsonImportClient({

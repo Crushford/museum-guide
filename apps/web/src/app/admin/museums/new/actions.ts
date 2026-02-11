@@ -1,33 +1,18 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { apiMutate } from '@/lib/api';
+import { MuseumInput } from '@/lib/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
-
-type MuseumData = {
-  name: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
-
-export async function createMuseum(data: MuseumData) {
-  const response = await fetch(`${API_URL}/museums`, {
+export async function createMuseum(data: MuseumInput) {
+  const museum = await apiMutate<{ id: number }>('/museums', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+    body: {
       name: data.name,
       knowledgeText: data.knowledgeText || null,
       furtherReading: data.furtherReading || [],
-    }),
+    },
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to create museum');
-  }
-
-  const museum = await response.json();
   redirect(`/admin/museums/${museum.id}`);
 }

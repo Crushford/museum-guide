@@ -12,74 +12,13 @@ import { ArtifactIntroduction } from './ArtifactIntroduction';
 import { WikipediaSummaryDisplay } from './WikipediaSummaryDisplay';
 import { IncorrectMatchNotice } from './IncorrectMatchNotice';
 import { ArtifactQuestionsPanel } from './ArtifactQuestionsPanel';
-
-type WikipediaSummary = {
-  extract: string;
-  title: string;
-  translated?: boolean;
-  originalLanguage?: string;
-  originalExtract?: string;
-};
-
-type Room = {
-  id: number;
-  name: string;
-  slug: string;
-  museumId: number;
-  parentRoomId: number | null;
-};
-
-type Artifact = {
-  id: number;
-  name: string;
-  localTitle: string | null;
-  localTitleLanguage: string | null;
-  englishTitle: string | null;
-  slug: string;
-  roomId: number;
-  museumId: number;
-  rawPlaqueText: string | null;
-  knowledgeTextEn: string | null;
-  furtherReading: string[];
-  wikimediaImageUrl: string | null;
-  wikipediaUrl: string | null;
-};
-
-type Content = {
-  id: number;
-  text: string;
-  type: string | null;
-  isAdultContent: boolean;
-  sensitiveTopics: string[];
-  subjectTags: string[];
-  audioUrl: string | null;
-  suggestedQuestions: string[];
-  updatedAt?: string;
-};
-
-type ArtifactQuestion = {
-  id: number;
-  artifactId: number;
-  museumId: number;
-  roomId: number | null;
-  questionText: string;
-  questionLanguage: string | null;
-  askedByUsername: string | null;
-  status: 'ACTIVE' | 'ANONYMIZED';
-  askCount: number;
-  upvotes: number;
-  downvotes: number;
-  similarToQuestionId: number | null;
-  answerText: string | null;
-  answerLanguage: string | null;
-  answerAudioUrl: string | null;
-  isAdultContent: boolean;
-  sensitiveTopics: string[];
-  subjectTags: string[];
-  listenCount: number;
-  createdAt: string;
-  updatedAt: string;
-};
+import {
+  Room,
+  Artifact,
+  ContentItem,
+  ArtifactQuestion,
+  WikipediaSummary,
+} from '@/lib/types';
 
 function resolveImageUrl(imageUrl: string | null): string | null {
   if (!imageUrl) return null;
@@ -153,7 +92,7 @@ export default async function ArtifactPage({
 
   // Fetch content and Wikipedia summary in parallel
   const [content, wikipediaSummary, questions] = await Promise.all([
-    api<Content[]>(`/artifacts/${artifact.id}/content`).catch(() => []),
+    api<ContentItem[]>(`/artifacts/${artifact.id}/content`).catch(() => []),
     artifact.wikipediaUrl
       ? api<WikipediaSummary>(
           `/wikipedia/summary?url=${encodeURIComponent(artifact.wikipediaUrl)}`
@@ -177,15 +116,17 @@ export default async function ArtifactPage({
     content.find((c) => c.type === 'artifactMain') ||
     content[0];
   const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
-  const artifactImageUrl = resolveImageUrl(artifact.wikimediaImageUrl);
+  const artifactImageUrl = resolveImageUrl(artifact.wikimediaImageUrl ?? null);
   const suggestedQuestions = artifactMain?.suggestedQuestions ?? [];
 
   // Aggregate tags across all content
   const hasAdultContent = content.some((c) => c.isAdultContent);
   const allSensitiveTopics = [
-    ...new Set(content.flatMap((c) => c.sensitiveTopics)),
+    ...new Set(content.flatMap((c) => c.sensitiveTopics ?? [])),
   ];
-  const allSubjectTags = [...new Set(content.flatMap((c) => c.subjectTags))];
+  const allSubjectTags = [
+    ...new Set(content.flatMap((c) => c.subjectTags ?? [])),
+  ];
 
   return (
     <AdminPageLayout

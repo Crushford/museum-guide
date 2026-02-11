@@ -53,6 +53,7 @@ import {
   fetchWikipediaSummaryWithTranslation,
   parseArtifactResults,
   type WikidataArtifactBinding,
+  type WikidataSearchResult,
 } from './lib/wikidata';
 import {
   extractTextFromImage,
@@ -62,19 +63,13 @@ import {
   createArtifactAndAssets,
   buildArtifactDisplayTitle,
 } from './lib/artifact-scan';
+import { generateSlug } from './lib/slug';
+import { buildUniqueArtifactSlug } from './lib/artifact-slug';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
 dotenv.config({ path: resolve(__dirname, '../.env') });
 dotenv.config({ path: resolve(__dirname, '../../web/.env.local') });
-
-function generateSlug(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-');
-}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -415,8 +410,20 @@ app.get('/api/museums/search', async (req, res) => {
     const localQids = new Set(
       localMuseums.map((m) => m.wikidataId).filter(Boolean)
     );
-    const filteredWikidataResults = wikidataResults
-      .filter((r) => !localQids.has(r.qid))
+    const filteredByLocalQid = wikidataResults.filter((r) => !localQids.has(r.qid));
+    const resultsWithWikipedia = await Promise.all(
+      filteredByLocalQid.map(async (result) => {
+        try {
+          const details = await fetchWikidataEntity(result.qid);
+          return details?.wikipediaUrl ? result : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    const filteredWikidataResults = resultsWithWikipedia
+      .filter((result): result is WikidataSearchResult => result !== null)
       .map((r) => ({ ...r, isLocal: false }));
 
     res.json({
@@ -446,10 +453,23 @@ app.get('/api/museums/search/wikidata', async (req, res) => {
 
     // Search Wikidata only
     const wikidataResults = await searchWikidata(searchTerm, 10);
+    const withWikipedia = await Promise.all(
+      wikidataResults.map(async (result) => {
+        try {
+          const details = await fetchWikidataEntity(result.qid);
+          return details?.wikipediaUrl ? result : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+    const filteredResults = withWikipedia.filter(
+      (result): result is WikidataSearchResult => result !== null
+    );
 
     res.json({
       query: searchTerm,
-      results: wikidataResults,
+      results: filteredResults,
     });
   } catch (error) {
     const errorMessage =
@@ -470,40 +490,60 @@ app.post('/api/museums/select/:qid', async (req, res) => {
   }
 
   try {
+    const missingWikipediaError =
+      'This Wikidata result has no linked Wikipedia article, so it is likely not a real museum record. Please select a different result.';
+    const getMuseumUpdateData = (
+      existingMuseum: {
+        wikipediaUrl: string | null;
+        image: string | null;
+        coordinates: unknown;
+        locationTags: string[];
+      },
+      details: {
+        wikipediaUrl?: string;
+        image?: string;
+        coordinates?: { lat: number; lng: number };
+        locationLabels: string[];
+      }
+    ) => ({
+      wikipediaUrl: details.wikipediaUrl || existingMuseum.wikipediaUrl,
+      image: details.image || existingMuseum.image,
+      coordinates: details.coordinates
+        ? details.coordinates
+        : ((existingMuseum.coordinates as { lat: number; lng: number } | null) ??
+          undefined),
+      locationTags:
+        existingMuseum.locationTags.length > 0
+          ? existingMuseum.locationTags
+          : details.locationLabels,
+    });
+
     // Check if museum already exists in DB
     const existingMuseum = await prisma.museum.findUnique({
       where: { wikidataId: qid },
     });
 
     if (existingMuseum) {
-      // Check if we need to enrich (missing key fields)
       const needsEnrichment =
-        !existingMuseum.wikipediaUrl &&
-        !existingMuseum.image &&
-        !existingMuseum.coordinates;
+        !existingMuseum.wikipediaUrl ||
+        !existingMuseum.image ||
+        !existingMuseum.coordinates ||
+        existingMuseum.locationTags.length === 0;
 
-      if (needsEnrichment) {
-        const details = await fetchWikidataEntity(qid);
+      const details = needsEnrichment ? await fetchWikidataEntity(qid) : null;
 
-        if (details) {
-          await prisma.museum.update({
-            where: { wikidataId: qid },
-            data: {
-              wikipediaUrl: details.wikipediaUrl || existingMuseum.wikipediaUrl,
-              image: details.image || existingMuseum.image,
-              coordinates: details.coordinates
-                ? details.coordinates
-                : ((existingMuseum.coordinates as {
-                    lat: number;
-                    lng: number;
-                  } | null) ?? undefined),
-              locationTags:
-                existingMuseum.locationTags.length > 0
-                  ? existingMuseum.locationTags
-                  : details.locationLabels,
-            },
-          });
-        }
+      // Existing records must have a Wikipedia URL to be considered valid museum selections
+      if (!existingMuseum.wikipediaUrl && !details?.wikipediaUrl) {
+        return res.status(422).json({
+          error: missingWikipediaError,
+        });
+      }
+
+      if (details) {
+        await prisma.museum.update({
+          where: { wikidataId: qid },
+          data: getMuseumUpdateData(existingMuseum, details),
+        });
       }
 
       return res.json({
@@ -526,6 +566,12 @@ app.post('/api/museums/select/:qid', async (req, res) => {
       });
     }
 
+    if (!details.wikipediaUrl) {
+      return res.status(422).json({
+        error: missingWikipediaError,
+      });
+    }
+
     const museumName =
       typeof details.label === 'string' && details.label.trim().length > 0
         ? details.label.trim()
@@ -540,7 +586,7 @@ app.post('/api/museums/select/:qid', async (req, res) => {
         name: museumName,
         slug: museumSlug,
         wikidataId: qid,
-        wikipediaUrl: details.wikipediaUrl || null,
+        wikipediaUrl: details.wikipediaUrl,
         image: details.image || null,
         coordinates: details.coordinates ?? undefined,
         locationTags: details.locationLabels || [],
@@ -559,9 +605,13 @@ app.post('/api/museums/select/:qid', async (req, res) => {
         name: museum.name,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle slug collision
-    if (error?.code === 'P2002' && error?.meta?.modelName === 'Museum') {
+    const prismaError = error as { code?: string; meta?: { modelName?: string } };
+    if (
+      prismaError.code === 'P2002' &&
+      prismaError.meta?.modelName === 'Museum'
+    ) {
       return res.status(409).json({
         error: 'A museum with a similar name already exists',
       });
@@ -768,11 +818,17 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
 
         if (existing) {
           // Update existing artifact
+          const artifactSlug = await buildUniqueArtifactSlug({
+            museumId: museum.id,
+            museumSlugOrName: museum.slug || museum.name,
+            artifactName: artifact.label,
+            currentArtifactId: existing.id,
+          });
           const updated = await prisma.artifact.update({
             where: { wikidataId: artifact.qid },
             data: {
               displayTitle: artifact.label,
-              slug: generateSlug(artifact.label),
+              slug: artifactSlug,
               wikipediaUrl: artifact.wikipediaUrl || existing.wikipediaUrl,
               wikimediaImageUrl: artifact.image || existing.wikimediaImageUrl,
             } as any,
@@ -787,10 +843,15 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
           });
         } else {
           // Create new artifact
+          const artifactSlug = await buildUniqueArtifactSlug({
+            museumId: museum.id,
+            museumSlugOrName: museum.slug || museum.name,
+            artifactName: artifact.label,
+          });
           const created = await prisma.artifact.create({
             data: {
               displayTitle: artifact.label,
-              slug: generateSlug(artifact.label),
+              slug: artifactSlug,
               museumId: museum.id,
               wikidataId: artifact.qid,
               wikipediaUrl: artifact.wikipediaUrl || null,
@@ -1958,7 +2019,11 @@ app.post('/artifacts', async (req, res) => {
         localTitleLanguage: localTitleLanguage || null,
         englishTitle: englishTitle || fallbackName,
       }),
-      slug: generateSlug(localTitle || fallbackName),
+      slug: await buildUniqueArtifactSlug({
+        museumId,
+        museumSlugOrName: museum.slug || museum.name,
+        artifactName: localTitle || fallbackName,
+      }),
       roomId: roomId || null,
       museumId,
       localTitle: localTitle || fallbackName,

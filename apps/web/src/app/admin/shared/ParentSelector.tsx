@@ -7,17 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { InlineEditableMuseumRoom } from '@/components/shared/InlineEditableMuseumRoom';
 import { updateNodeField, updateRoomParent } from './actions';
-
-type Museum = {
-  id: number;
-  name: string;
-};
-
-type Room = {
-  id: number;
-  name: string;
-  parentId: number | null;
-};
+import { Museum, Room } from '@/lib/types';
 
 type ParentSelectorProps =
   | {

@@ -1,18 +1,10 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { apiMutate } from '@/lib/api';
+import { RoomCreateInput } from '@/lib/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
-
-type RoomData = {
-  name: string;
-  museumId?: number;
-  parentRoomId?: number;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
-
-export async function createRoom(data: RoomData) {
+export async function createRoom(data: RoomCreateInput) {
   const body: Record<string, unknown> = {
     name: data.name,
     knowledgeText: data.knowledgeText || null,
@@ -25,19 +17,10 @@ export async function createRoom(data: RoomData) {
     body.parentRoomId = data.parentRoomId;
   }
 
-  const response = await fetch(`${API_URL}/rooms`, {
+  const room = await apiMutate<{ id: number }>('/rooms', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
+    body,
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to create room');
-  }
-
-  const room = await response.json();
   redirect(`/admin/rooms/${room.id}`);
 }

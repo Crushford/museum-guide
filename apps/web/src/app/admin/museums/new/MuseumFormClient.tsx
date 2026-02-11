@@ -6,16 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { SectionCard } from '@/components/shared/SectionCard';
 import { SaveBar } from '@/components/shared/SaveBar';
+import { MuseumInput } from '@/lib/types';
 import { createMuseum } from './actions';
 
-type MuseumData = {
-  name: string;
-  knowledgeText?: string;
-  furtherReading?: string[];
-};
-
 type MuseumFormClientProps = {
-  importedData?: MuseumData | null;
+  importedData?: MuseumInput | null;
 };
 
 export function MuseumFormClient({ importedData }: MuseumFormClientProps = {}) {
