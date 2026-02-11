@@ -59,8 +59,8 @@ export async function generateIntroduction(
 
   // 3. Build prompt
   const prompt = buildIntroductionPrompt({
-    artifactName: artifact.name,
-    plaqueText: artifact.knowledgeText,
+    artifactName: artifact.displayTitle,
+    plaqueText: artifact.rawPlaqueText ?? artifact.knowledgeTextEn,
     museumName: museum?.name ?? null,
     roomName: room?.name ?? null,
     parentRoomName: room?.parentRoom?.name ?? null,

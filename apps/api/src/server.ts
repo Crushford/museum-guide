@@ -36,6 +36,14 @@ import {
   parseArtifactResults,
   type WikidataArtifactBinding,
 } from './lib/wikidata';
+import {
+  extractTextFromImage,
+  searchDuplicatesFromRawText,
+  extractArtifactDraft,
+  searchDuplicatesFromDraft,
+  createArtifactAndAssets,
+  buildArtifactDisplayTitle,
+} from './lib/artifact-scan';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -61,7 +69,7 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 
 // Serve static audio files
 const audioDir = resolve(__dirname, '../public/audio');
@@ -69,6 +77,12 @@ if (!existsSync(audioDir)) {
   mkdir(audioDir, { recursive: true }).catch(() => {});
 }
 app.use('/audio', express.static(audioDir));
+
+const uploadsDir = resolve(__dirname, '../public/uploads');
+if (!existsSync(uploadsDir)) {
+  mkdir(uploadsDir, { recursive: true }).catch(() => {});
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // ============================================================================
 // MUSEUM, ROOM, AND ARTIFACT ENDPOINTS
@@ -143,8 +157,9 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
     const existingArtifacts = await prisma.artifact.findMany({
       select: {
         id: true,
-        name: true,
-        knowledgeText: true,
+        displayTitle: true,
+        rawPlaqueText: true,
+        knowledgeTextEn: true,
         furtherReading: true,
         room: {
           select: {
@@ -165,7 +180,8 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
       name: string;
       similarity: number;
       matchReasons: string[];
-      knowledgeText?: string | null;
+      rawPlaqueText?: string | null;
+      knowledgeTextEn?: string | null;
       furtherReading: string[];
       roomName?: string | null;
       museumName?: string | null;
@@ -176,7 +192,8 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
 
     for (const artifact of existingArtifacts) {
       const artifactWithFields = artifact as typeof artifact & {
-        knowledgeText: string | null;
+        rawPlaqueText: string | null;
+        knowledgeTextEn: string | null;
         furtherReading: string[];
         room: {
           name: string;
@@ -187,7 +204,7 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
       let maxSimilarity = 0;
 
       // Check name similarity
-      const nameSimilarity = stringSimilarity(name, artifact.name);
+      const nameSimilarity = stringSimilarity(name, artifact.displayTitle);
       if (nameSimilarity >= 0.7) {
         matchReasons.push(
           `Name similarity: ${Math.round(nameSimilarity * 100)}%`
@@ -195,11 +212,13 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
         maxSimilarity = Math.max(maxSimilarity, nameSimilarity);
       }
 
-      // Check knowledgeText similarity
-      if (newKnowledgeText && artifactWithFields.knowledgeText) {
+      // Check plaque/knowledge text similarity
+      const existingText =
+        artifactWithFields.rawPlaqueText || artifactWithFields.knowledgeTextEn;
+      if (newKnowledgeText && existingText) {
         const knowledgeSimilarity = stringSimilarity(
           newKnowledgeText,
-          artifactWithFields.knowledgeText.trim().toLowerCase()
+          existingText.trim().toLowerCase()
         );
         if (knowledgeSimilarity >= 0.6) {
           matchReasons.push(
@@ -210,13 +229,13 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
 
         // Also check for substring matches (one contains significant portion of the other)
         const shorter =
-          newKnowledgeText.length < artifactWithFields.knowledgeText.length
+          newKnowledgeText.length < existingText.length
             ? newKnowledgeText
-            : artifactWithFields.knowledgeText.trim().toLowerCase();
+            : existingText.trim().toLowerCase();
         const longer =
-          newKnowledgeText.length >= artifactWithFields.knowledgeText.length
+          newKnowledgeText.length >= existingText.length
             ? newKnowledgeText
-            : artifactWithFields.knowledgeText.trim().toLowerCase();
+            : existingText.trim().toLowerCase();
 
         if (shorter.length > 50 && longer.includes(shorter)) {
           const substringRatio = shorter.length / longer.length;
@@ -266,10 +285,11 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
       if (matchReasons.length > 0 && maxSimilarity >= 0.5) {
         duplicates.push({
           id: artifact.id,
-          name: artifact.name,
+          name: artifact.displayTitle,
           similarity: maxSimilarity,
           matchReasons,
-          knowledgeText: artifactWithFields.knowledgeText,
+          rawPlaqueText: artifactWithFields.rawPlaqueText,
+          knowledgeTextEn: artifactWithFields.knowledgeTextEn,
           furtherReading: artifactWithFields.furtherReading || [],
           roomName: artifactWithFields.room?.name || null,
           museumName: artifactWithFields.room?.museum?.name || null,
@@ -670,19 +690,26 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
         where: { museumId: museum.id },
         select: {
           id: true,
-          name: true,
+          displayTitle: true,
           slug: true,
           wikidataId: true,
           wikipediaUrl: true,
           wikimediaImageUrl: true,
         },
-        orderBy: { name: 'asc' },
+        orderBy: { displayTitle: 'asc' },
       });
 
       return res.json({
         cached: true,
         museumId: museum.id,
-        artifacts,
+        artifacts: artifacts.map((artifact) => ({
+          id: artifact.id,
+          name: artifact.displayTitle,
+          slug: artifact.slug,
+          wikidataId: artifact.wikidataId,
+          wikipediaUrl: artifact.wikipediaUrl,
+          wikimediaImageUrl: artifact.wikimediaImageUrl,
+        })),
         artifactsHydratedAt: museum.artifactsHydratedAt,
       });
     }
@@ -716,14 +743,14 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
           const updated = await prisma.artifact.update({
             where: { wikidataId: artifact.qid },
             data: {
-              name: artifact.label,
+              displayTitle: artifact.label,
               wikipediaUrl: artifact.wikipediaUrl || existing.wikipediaUrl,
               wikimediaImageUrl: artifact.image || existing.wikimediaImageUrl,
             } as any,
           });
           artifactResults.push({
             id: updated.id,
-            name: updated.name,
+            name: updated.displayTitle,
             slug: updated.slug,
             wikidataId: artifact.qid,
             wikipediaUrl: updated.wikipediaUrl,
@@ -733,12 +760,12 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
           // Create new artifact
           const created = await prisma.artifact.create({
             data: {
-              name: artifact.label,
+              displayTitle: artifact.label,
               museumId: museum.id,
               wikidataId: artifact.qid,
               wikipediaUrl: artifact.wikipediaUrl || null,
               wikimediaImageUrl: artifact.image || null,
-              knowledgeText: artifact.description || null,
+              knowledgeTextEn: artifact.description || null,
               furtherReading: artifact.wikipediaUrl
                 ? [artifact.wikipediaUrl]
                 : [],
@@ -746,7 +773,7 @@ app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
           });
           artifactResults.push({
             id: created.id,
-            name: created.name,
+            name: created.displayTitle,
             slug: created.slug,
             wikidataId: artifact.qid,
             wikipediaUrl: created.wikipediaUrl,
@@ -1004,8 +1031,9 @@ app.get('/admin/artifacts', async (req, res) => {
       const artifactWithRoom = artifact as typeof artifact & {
         roomId: number | null;
         museumId: number;
+        displayTitle: string;
         slug: string;
-        knowledgeText: string | null;
+        rawPlaqueText: string | null;
         furtherReading: string[];
         room: {
           id: number;
@@ -1031,13 +1059,13 @@ app.get('/admin/artifacts', async (req, res) => {
 
       return {
         id: artifactWithRoom.id,
-        name: artifactWithRoom.name,
+        name: artifactWithRoom.displayTitle,
         slug: artifactWithRoom.slug,
         roomId: artifactWithRoom.roomId,
         roomName: artifactWithRoom.room?.name || null,
         museumId: museum?.id || artifactWithRoom.museumId,
         museumName: museum?.name || null,
-        knowledgeText: artifactWithRoom.knowledgeText,
+        rawPlaqueText: artifactWithRoom.rawPlaqueText,
         furtherReading: artifactWithRoom.furtherReading,
         parentRoomId: artifactWithRoom.room?.parentRoomId || null,
         parentRoomName: parentRoom?.name || null,
@@ -1287,7 +1315,7 @@ app.get('/museums/:museumId/artifacts', async (req, res) => {
       } as Prisma.ArtifactWhereInput,
       select: {
         id: true,
-        name: true,
+        displayTitle: true,
         slug: true,
         roomId: true,
         createdAt: true,
@@ -1297,7 +1325,12 @@ app.get('/museums/:museumId/artifacts', async (req, res) => {
       },
     });
 
-    res.json(artifacts);
+    res.json(
+      artifacts.map((artifact) => ({
+        ...artifact,
+        name: artifact.displayTitle,
+      }))
+    );
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifacts';
@@ -1318,7 +1351,7 @@ app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
       where: { museumId },
       select: {
         id: true,
-        name: true,
+        displayTitle: true,
         slug: true,
         roomId: true,
         createdAt: true,
@@ -1328,7 +1361,12 @@ app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
       },
     });
 
-    res.json(artifacts);
+    res.json(
+      artifacts.map((artifact) => ({
+        ...artifact,
+        name: artifact.displayTitle,
+      }))
+    );
   } catch (error) {
     const errorMessage =
       error instanceof Error
@@ -1408,7 +1446,7 @@ app.get('/rooms/:roomId/artifacts', async (req, res) => {
     } as Prisma.ArtifactWhereInput,
     select: {
       id: true,
-      name: true,
+      displayTitle: true,
       slug: true,
       createdAt: true,
     } as Prisma.ArtifactSelect,
@@ -1417,7 +1455,12 @@ app.get('/rooms/:roomId/artifacts', async (req, res) => {
     },
   });
 
-  res.json(artifacts);
+  res.json(
+    artifacts.map((artifact) => ({
+      ...artifact,
+      name: artifact.displayTitle,
+    }))
+  );
 });
 
 // GET /rooms/:id/children - Get child rooms for a parent room
@@ -1564,7 +1607,7 @@ app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
       } as Prisma.ArtifactWhereInput,
       select: {
         id: true,
-        name: true,
+        displayTitle: true,
         roomId: true,
         createdAt: true,
       } as Prisma.ArtifactSelect,
@@ -1573,7 +1616,12 @@ app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
       },
     });
 
-    res.json(artifacts);
+    res.json(
+      artifacts.map((artifact) => ({
+        ...artifact,
+        name: artifact.displayTitle,
+      }))
+    );
   } catch (error) {
     const errorMessage =
       error instanceof Error
@@ -1583,11 +1631,252 @@ app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
   }
 });
 
-app.post('/artifacts', async (req, res) => {
-  const { name, roomId, museumId, knowledgeText, furtherReading } = req.body;
+// ============================================================================
+// PLAQUE SCAN PIPELINE ENDPOINTS
+// ============================================================================
 
-  if (!name) {
-    return res.status(400).json({ error: 'name is required' });
+function parseMuseumId(value: string): number | null {
+  const museumId = Number(value);
+  if (Number.isNaN(museumId)) return null;
+  return museumId;
+}
+
+app.post('/museums/:museumId/scan/ocr', async (req, res) => {
+  try {
+    const museumId = parseMuseumId(req.params.museumId);
+    const imageBase64 =
+      typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
+
+    if (!museumId) {
+      return res.status(400).json({ error: 'Invalid museumId' });
+    }
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'imageBase64 is required' });
+    }
+
+    const museum = await prisma.museum.findUnique({ where: { id: museumId } });
+    if (!museum) {
+      return res.status(404).json({ error: 'Museum not found' });
+    }
+
+    const ocr = await extractTextFromImage(imageBase64);
+    if (!ocr.rawText.trim()) {
+      return res.status(422).json({
+        error:
+          'Could not read text from plaque image. Try taking another photo.',
+      });
+    }
+
+    res.json({
+      museumId,
+      rawText: ocr.rawText,
+      ocr,
+    });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to read plaque text';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.post('/museums/:museumId/scan/duplicates-raw', async (req, res) => {
+  try {
+    const museumId = parseMuseumId(req.params.museumId);
+    const rawText =
+      typeof req.body?.rawText === 'string' ? req.body.rawText : '';
+
+    if (!museumId) {
+      return res.status(400).json({ error: 'Invalid museumId' });
+    }
+    if (!rawText.trim()) {
+      return res.status(400).json({ error: 'rawText is required' });
+    }
+
+    const duplicates = await searchDuplicatesFromRawText(museumId, rawText);
+    res.json(duplicates);
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to search duplicates';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.post('/museums/:museumId/scan/draft', async (req, res) => {
+  try {
+    const museumId = parseMuseumId(req.params.museumId);
+    const rawText =
+      typeof req.body?.rawText === 'string' ? req.body.rawText : '';
+
+    if (!museumId) {
+      return res.status(400).json({ error: 'Invalid museumId' });
+    }
+    if (!rawText.trim()) {
+      return res.status(400).json({ error: 'rawText is required' });
+    }
+
+    const museum = await prisma.museum.findUnique({
+      where: { id: museumId },
+      select: { id: true, name: true },
+    });
+    if (!museum) {
+      return res.status(404).json({ error: 'Museum not found' });
+    }
+
+    const draft = await extractArtifactDraft(rawText, museum.name);
+    res.json({ draft });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to extract artifact draft';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.post('/museums/:museumId/scan/duplicates-draft', async (req, res) => {
+  try {
+    const museumId = parseMuseumId(req.params.museumId);
+    const draft = req.body?.draft;
+
+    if (!museumId) {
+      return res.status(400).json({ error: 'Invalid museumId' });
+    }
+    if (!draft || typeof draft !== 'object') {
+      return res.status(400).json({ error: 'draft is required' });
+    }
+
+    const duplicates = await searchDuplicatesFromDraft(museumId, {
+      localTitle: typeof draft.localTitle === 'string' ? draft.localTitle : '',
+      localTitleLanguage:
+        typeof draft.localTitleLanguage === 'string'
+          ? draft.localTitleLanguage
+          : 'und',
+      englishTitle:
+        typeof draft.englishTitle === 'string' ? draft.englishTitle : '',
+      knowledgeText:
+        typeof draft.knowledgeText === 'string' ? draft.knowledgeText : '',
+      museumConfidence:
+        typeof draft.museumConfidence === 'number'
+          ? draft.museumConfidence
+          : 90,
+    });
+    res.json(duplicates);
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to search duplicates';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.post('/museums/:museumId/scan/create', async (req, res) => {
+  try {
+    const museumId = parseMuseumId(req.params.museumId);
+    const imageBase64 =
+      typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
+    const rawText =
+      typeof req.body?.rawText === 'string' ? req.body.rawText : '';
+    const draft = req.body?.draft;
+    const ocr = req.body?.ocr;
+    const enrichment = req.body?.enrichment ?? null;
+
+    if (!museumId) {
+      return res.status(400).json({ error: 'Invalid museumId' });
+    }
+    if (!imageBase64 || !rawText.trim() || !draft || !ocr) {
+      const missing: string[] = [];
+      if (!imageBase64) missing.push('imageBase64');
+      if (!rawText.trim()) missing.push('rawText');
+      if (!draft) missing.push('draft');
+      if (!ocr) missing.push('ocr');
+      return res.status(400).json({
+        error: `Invalid scan create payload. Missing: ${missing.join(', ')}.`,
+      });
+    }
+
+    const created = await createArtifactAndAssets({
+      museumId,
+      imageBase64,
+      plaqueText: rawText,
+      ocr: {
+        rawText,
+        languageHints: Array.isArray(ocr.languageHints)
+          ? ocr.languageHints
+          : [],
+        confidence: typeof ocr.confidence === 'number' ? ocr.confidence : null,
+        blocks: Array.isArray(ocr.blocks) ? ocr.blocks : [],
+        provider: 'google-vision',
+      },
+      draft: {
+        localTitle:
+          typeof draft.localTitle === 'string'
+            ? draft.localTitle
+            : 'Untitled artefact',
+        localTitleLanguage:
+          typeof draft.localTitleLanguage === 'string'
+            ? draft.localTitleLanguage
+            : 'und',
+        englishTitle:
+          typeof draft.englishTitle === 'string'
+            ? draft.englishTitle
+            : draft.localTitle || 'Untitled artefact',
+        knowledgeText:
+          typeof draft.knowledgeText === 'string'
+            ? draft.knowledgeText
+            : 'An English description is not available yet for this artefact.',
+        museumConfidence:
+          typeof draft.museumConfidence === 'number'
+            ? draft.museumConfidence
+            : 90,
+      },
+      enrichment: {
+        wikipediaUrl:
+          typeof enrichment?.wikipediaUrl === 'string'
+            ? enrichment.wikipediaUrl
+            : null,
+        wikipediaSummary:
+          typeof enrichment?.wikipediaSummary === 'string'
+            ? enrichment.wikipediaSummary
+            : null,
+        wikipediaSummaryLang:
+          typeof enrichment?.wikipediaSummaryLang === 'string'
+            ? enrichment.wikipediaSummaryLang
+            : null,
+        wikimediaImageUrl:
+          typeof enrichment?.wikimediaImageUrl === 'string'
+            ? enrichment.wikimediaImageUrl
+            : null,
+      },
+    });
+
+    res.json(created);
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to create artifact';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.post('/artifacts', async (req, res) => {
+  const {
+    name,
+    displayTitle,
+    roomId,
+    museumId,
+    knowledgeText,
+    furtherReading,
+    localTitle,
+    localTitleLanguage,
+    englishTitle,
+    rawPlaqueText,
+    knowledgeTextEn,
+  } = req.body;
+
+  const fallbackName =
+    (typeof displayTitle === 'string' && displayTitle.trim()) ||
+    (typeof name === 'string' && name.trim());
+
+  if (!fallbackName) {
+    return res.status(400).json({ error: 'name or displayTitle is required' });
   }
 
   if (!museumId) {
@@ -1634,11 +1923,19 @@ app.post('/artifacts', async (req, res) => {
 
   const artifact = await prisma.artifact.create({
     data: {
-      name,
-      slug: generateSlug(name),
+      displayTitle: buildArtifactDisplayTitle({
+        localTitle: localTitle || fallbackName,
+        localTitleLanguage: localTitleLanguage || null,
+        englishTitle: englishTitle || fallbackName,
+      }),
+      slug: generateSlug(localTitle || fallbackName),
       roomId: roomId || null,
       museumId,
-      knowledgeText: knowledgeText || null,
+      localTitle: localTitle || fallbackName,
+      localTitleLanguage: localTitleLanguage || null,
+      englishTitle: englishTitle || null,
+      rawPlaqueText: rawPlaqueText || knowledgeText || null,
+      knowledgeTextEn: knowledgeTextEn || null,
       furtherReading: furtherReading || [],
     } as Prisma.ArtifactUncheckedCreateInput,
   });
@@ -1655,7 +1952,7 @@ app.get('/artifacts', async (_req, res) => {
   res.json(
     artifacts.map((a) => ({
       id: a.id,
-      name: a.name,
+      name: a.displayTitle,
       createdAt: a.createdAt,
     }))
   );
@@ -1673,11 +1970,15 @@ app.get('/artifacts/:id', async (req, res) => {
       where: { id },
       select: {
         id: true,
-        name: true,
+        displayTitle: true,
+        localTitle: true,
+        localTitleLanguage: true,
+        englishTitle: true,
+        rawPlaqueText: true,
+        knowledgeTextEn: true,
         slug: true,
         roomId: true,
         museumId: true,
-        knowledgeText: true,
         furtherReading: true,
       } as Prisma.ArtifactSelect,
     });
@@ -1686,7 +1987,10 @@ app.get('/artifacts/:id', async (req, res) => {
       return res.status(404).json({ error: 'Artifact not found' });
     }
 
-    res.json(artifact);
+    res.json({
+      ...artifact,
+      name: artifact.displayTitle,
+    });
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifact';
@@ -1711,7 +2015,10 @@ app.get('/artifacts/by-slug/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Artifact not found' });
     }
 
-    res.json(artifact);
+    res.json({
+      ...artifact,
+      name: artifact.displayTitle,
+    });
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifact';
@@ -1911,8 +2218,9 @@ app.get('/admin/content/artifacts', async (_req, res) => {
       const artifactWithRoom = artifact as typeof artifact & {
         roomId: number | null;
         museumId: number;
+        displayTitle: string;
         slug: string;
-        knowledgeText: string | null;
+        rawPlaqueText: string | null;
         furtherReading: string[];
         room: {
           id: number;
@@ -1938,13 +2246,13 @@ app.get('/admin/content/artifacts', async (_req, res) => {
 
       return {
         id: artifactWithRoom.id,
-        name: artifactWithRoom.name,
+        name: artifactWithRoom.displayTitle,
         slug: artifactWithRoom.slug,
         roomId: artifactWithRoom.roomId,
         roomName: artifactWithRoom.room?.name || null,
         museumId: museum?.id || artifactWithRoom.museumId,
         museumName: museum?.name || null,
-        knowledgeText: artifactWithRoom.knowledgeText,
+        rawPlaqueText: artifactWithRoom.rawPlaqueText,
         furtherReading: artifactWithRoom.furtherReading,
         parentRoomId: artifactWithRoom.room?.parentRoomId || null,
         parentRoomName: parentRoom?.name || null,
@@ -2034,8 +2342,8 @@ async function fetchArtifactContext(artifactId: number) {
   const parentRoom = room?.parentRoom || null;
 
   const template = buildIntroductionPrompt({
-    artifactName: artifact.name,
-    plaqueText: artifact.knowledgeText,
+    artifactName: artifact.displayTitle,
+    plaqueText: artifact.rawPlaqueText ?? artifact.knowledgeTextEn,
     museumName: museum?.name ?? null,
     roomName: room?.name ?? null,
     parentRoomName: parentRoom?.name ?? null,

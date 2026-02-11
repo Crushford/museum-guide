@@ -52,5 +52,7 @@ docker-compose.override.yml
 # Generated audio files
 apps/api/public/audio/
 
+# Uploaded plaque scan images
+apps/api/src/public/uploads/
 
 

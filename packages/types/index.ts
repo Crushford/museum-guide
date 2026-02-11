@@ -38,7 +38,7 @@ export type ArtifactResponse = {
   roomName: string | null;
   museumId: number;
   museumName: string | null;
-  knowledgeText: string | null;
+  rawPlaqueText: string | null;
   furtherReading: string[];
   parentRoomId: number | null;
   parentRoomName: string | null;
@@ -46,3 +46,57 @@ export type ArtifactResponse = {
 
 // Base Artifact type from Prisma (use this when you don't need flattened fields)
 export type Artifact = Prisma.ArtifactGetPayload<{}>;
+
+// Artifact scan pipeline contracts (shared between API and web)
+export type ScanStage =
+  | 'ocr'
+  | 'duplicates_raw'
+  | 'draft'
+  | 'duplicates_draft'
+  | 'persist';
+
+export interface OcrBlock {
+  text: string;
+  confidence?: number;
+  boundingPoly?: unknown;
+}
+
+export interface OcrResult {
+  rawText: string;
+  languageHints: string[];
+  confidence: number | null;
+  blocks: OcrBlock[];
+  provider: 'google-vision';
+}
+
+export interface ArtifactDraft {
+  localTitle: string;
+  localTitleLanguage: string;
+  englishTitle: string;
+  knowledgeText: string;
+  museumConfidence: number;
+}
+
+export interface ArtifactCandidate {
+  artifactId: number;
+  slug: string;
+  localTitle: string;
+  englishTitle: string | null;
+  score: number;
+  reasons: string[];
+}
+
+export type DuplicateOutcome =
+  | 'single_strong_match'
+  | 'multiple_candidates'
+  | 'no_match';
+
+export interface DuplicateSearchResult {
+  outcome: DuplicateOutcome;
+  candidates: ArtifactCandidate[];
+  thresholds: {
+    strong: number;
+    plausible: number;
+    gap: number;
+  };
+}

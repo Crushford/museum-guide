@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { api } from '../../../../lib/api';
+import { api, API_URL } from '../../../../lib/api';
 import { notFound } from 'next/navigation';
 import type { MuseumResponse } from '@repo/types';
 import { AdminPageLayout } from '../../../../components/shared';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Globe, ExternalLink } from 'lucide-react';
 import { ArtifactIntroduction } from './ArtifactIntroduction';
 import { WikipediaSummaryDisplay } from './WikipediaSummaryDisplay';
+import { IncorrectMatchNotice } from './IncorrectMatchNotice';
 
 type WikipediaSummary = {
   extract: string;
@@ -30,10 +31,14 @@ type Room = {
 type Artifact = {
   id: number;
   name: string;
+  localTitle: string | null;
+  localTitleLanguage: string | null;
+  englishTitle: string | null;
   slug: string;
   roomId: number;
   museumId: number;
-  knowledgeText: string | null;
+  rawPlaqueText: string | null;
+  knowledgeTextEn: string | null;
   furtherReading: string[];
   wikimediaImageUrl: string | null;
   wikipediaUrl: string | null;
@@ -50,6 +55,13 @@ type Content = {
   updatedAt?: string;
 };
 
+function resolveImageUrl(imageUrl: string | null): string | null {
+  if (!imageUrl) return null;
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  if (imageUrl.startsWith('/')) return `${API_URL}${imageUrl}`;
+  return imageUrl;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -63,7 +75,7 @@ export async function generateMetadata({
     ).catch(() => null);
     if (artifact) {
       return {
-        title: artifact.name,
+        title: artifact.localTitle || artifact.name,
       };
     }
   } catch {
@@ -77,10 +89,13 @@ export async function generateMetadata({
 
 export default async function ArtifactPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ museum: string; artifact: string }>;
+  searchParams: Promise<{ scanMatched?: string }>;
 }) {
   const { museum: museumSlug, artifact: artifactSlug } = await params;
+  const query = await searchParams;
 
   // Fetch museum by slug
   const museum = await api<MuseumResponse>(
@@ -134,6 +149,7 @@ export default async function ArtifactPage({
     content[0];
   const qaItems = content.filter((c) => c.type === 'qa').slice(0, 3);
   const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
+  const artifactImageUrl = resolveImageUrl(artifact.wikimediaImageUrl);
 
   // Aggregate tags across all content
   const hasAdultContent = content.some((c) => c.isAdultContent);
@@ -144,7 +160,7 @@ export default async function ArtifactPage({
 
   return (
     <AdminPageLayout
-      title={artifact.name}
+      title={artifact.localTitle || artifact.name}
       actions={
         <Button asChild variant="secondary" size="sm">
           <Link
@@ -160,6 +176,15 @@ export default async function ArtifactPage({
       }
     >
       <div className="space-y-6">
+        {artifact.englishTitle &&
+          artifact.englishTitle !== (artifact.localTitle || artifact.name) && (
+            <p className="text-muted-foreground">
+              {artifact.localTitle || artifact.name} ({artifact.englishTitle})
+            </p>
+          )}
+
+        {query.scanMatched === '1' && <IncorrectMatchNotice />}
+
         {/* Content Tags */}
         {(hasAdultContent ||
           allSensitiveTopics.length > 0 ||
@@ -191,10 +216,10 @@ export default async function ArtifactPage({
           <SectionCard title="About">
             <div className="space-y-4">
               {/* Image */}
-              {artifact.wikimediaImageUrl && (
+              {artifactImageUrl && (
                 <div className="overflow-hidden rounded-lg bg-muted inline-block">
                   <img
-                    src={artifact.wikimediaImageUrl}
+                    src={artifactImageUrl}
                     alt={artifact.name}
                     className="max-w-sm max-h-96 object-contain"
                   />
@@ -211,14 +236,25 @@ export default async function ArtifactPage({
                 />
               )}
 
+              {!wikipediaSummary?.extract && artifact.knowledgeTextEn && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Knowledge
+                  </h4>
+                  <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                    {artifact.knowledgeTextEn}
+                  </p>
+                </div>
+              )}
+
               {/* Plaque Information */}
-              {artifact.knowledgeText && (
+              {artifact.rawPlaqueText && (
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium text-muted-foreground">
                     Plaque Information
                   </h4>
                   <p className="text-primary leading-relaxed whitespace-pre-wrap">
-                    {artifact.knowledgeText}
+                    {artifact.rawPlaqueText}
                   </p>
                 </div>
               )}

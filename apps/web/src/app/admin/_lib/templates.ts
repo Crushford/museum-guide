@@ -9,18 +9,18 @@ export type FullArtifact = {
   id: number;
   name: string;
   slug?: string;
-  knowledgeText: string | null;
+  rawPlaqueText: string | null;
   furtherReading?: string[];
   roomId: number;
   createdAt?: string | Date;
   updatedAt?: string | Date;
 };
 
-// Artifact with knowledgeText (minimal type for template generation)
+// Artifact with plaque text (minimal type for template generation)
 export type ArtifactWithKnowledge = {
   id: number;
   name: string;
-  knowledgeText: string | null;
+  rawPlaqueText: string | null;
   furtherReading?: string[];
   roomId: number;
 };
@@ -47,7 +47,7 @@ export function generateIntroductionTemplate(
       : roomName || parentRoomName || null;
 
   const plaqueInfo =
-    'knowledgeText' in artifact ? artifact.knowledgeText : null;
+    'rawPlaqueText' in artifact ? artifact.rawPlaqueText : null;
 
   const museumSummary = museum?.wikipediaSummary || null;
 

@@ -8,6 +8,7 @@ import { ChildEntityList } from '../../app/admin/shared/ChildEntityList';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { MuseumDetailsHydration, ArtifactsHydration } from './MuseumHydration';
+import { PlaqueScanner } from './PlaqueScanner';
 
 type Room = {
   id: number;
@@ -98,6 +99,8 @@ export default async function MuseumPage({
           initialImage={museumData.image}
           initialWikipediaUrl={museumData.wikipediaUrl}
         />
+
+        <PlaqueScanner museumId={museum.id} museumSlug={museumSlug} />
 
         {/* Intro Content (if exists from LLM generation) */}
         {intro && intro.text.trim() && (

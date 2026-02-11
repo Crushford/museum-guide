@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Loader2, RefreshCw, ExternalLink, MapPin, Globe } from 'lucide-react';
 import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
-import { apiPost } from '@/lib/api';
+import { apiPost, API_URL } from '@/lib/api';
 import Link from 'next/link';
 
 interface HydratedMuseum {
@@ -46,6 +46,13 @@ interface MuseumDetailsProps {
   museumSlug: string;
   initialImage?: string;
   initialWikipediaUrl?: string;
+}
+
+function resolveImageUrl(imageUrl?: string | null): string | undefined {
+  if (!imageUrl) return undefined;
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  if (imageUrl.startsWith('/')) return `${API_URL}${imageUrl}`;
+  return imageUrl;
 }
 
 export function MuseumDetailsHydration({
@@ -112,7 +119,7 @@ export function MuseumDetailsHydration({
     );
   }
 
-  const image = museum?.wikimediaImageUrl || initialImage;
+  const image = resolveImageUrl(museum?.wikimediaImageUrl || initialImage);
   const wikipediaUrl = museum?.wikipediaUrl || initialWikipediaUrl;
 
   return (
@@ -290,7 +297,7 @@ export function ArtifactsHydration({
             {artifact.wikimediaImageUrl && (
               <div className="aspect-square w-full mb-2 overflow-hidden rounded-md bg-muted">
                 <img
-                  src={artifact.wikimediaImageUrl}
+                  src={resolveImageUrl(artifact.wikimediaImageUrl)}
                   alt={artifact.name}
                   className="object-cover w-full h-full group-hover:scale-105 transition-transform"
                 />

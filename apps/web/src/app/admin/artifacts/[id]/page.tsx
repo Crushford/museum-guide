@@ -18,7 +18,8 @@ type Artifact = {
   slug: string;
   roomId: number;
   museumId: number;
-  knowledgeText: string | null;
+  rawPlaqueText: string | null;
+  knowledgeTextEn: string | null;
   furtherReading: string[];
 };
 
@@ -153,7 +154,10 @@ export default async function ArtifactEditPage({
     furtherReading: string[];
   }) => {
     'use server';
-    await updateArtifact(nodeId, data);
+    await updateArtifact(nodeId, {
+      ...data,
+      knowledgeText: data.knowledgeText,
+    });
   };
 
   // Find the museum for this artifact to build the public page link
@@ -196,7 +200,7 @@ export default async function ArtifactEditPage({
         entity={{
           id: artifact.id,
           name: artifact.name,
-          knowledgeText: artifact.knowledgeText,
+          knowledgeText: artifact.rawPlaqueText,
           furtherReading: artifact.furtherReading,
           type: 'artifact',
           parentId: artifact.roomId,
