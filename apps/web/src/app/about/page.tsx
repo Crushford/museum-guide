@@ -10,18 +10,35 @@ export default function AboutPage() {
   return (
     <PageLayout title="About Museum Guide">
       <div className="space-y-6">
+      <SectionCard title="Built by">
+          <div className="space-y-4 text-primary leading-relaxed">
+            <p>This app was built by James Rushford.</p>
+            <p>
+              For questions or partnership opportunities, connect with me on
+              LinkedIn:{' '}
+              <a
+                className="underline underline-offset-2"
+                href="https://www.linkedin.com/in/rushfordj/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                linkedin.com/in/rushfordj
+              </a>
+              .
+            </p>
+            <p>I&apos;m currently looking for a job. If you&apos;re hiring, let&apos;s talk.</p>
+          </div>
+        </SectionCard>
         <SectionCard title="Purpose of this app">
           <div className="space-y-4 text-primary leading-relaxed">
             <p>
-              Museum Guide is a companion for museum visitors who want to go
-              deeper than a plaque can go. Many museums have limited labels, no
+              Many museums have limited labels, no
               audio guide, or an audio guide that is outdated. This app helps
               you explore what you&apos;re seeing by letting you ask questions
               in the moment and listen to richer explanations while you walk.
             </p>
             <p>
-              This is not trying to replace museums, curators, or official
-              interpretation. Museums are the authority on their collections.
+              Museums are the authority on their collections.
               Museum Guide sits alongside that work and makes it easier for
               visitors to explore, learn, and share curiosity with other
               visitors.
@@ -93,32 +110,6 @@ export default function AboutPage() {
               </p>
             </div>
           </div>
-        </SectionCard>
-
-        <SectionCard title="How to interpret what you hear">
-          <div className="space-y-4 text-primary leading-relaxed">
-            <p>A simple rule of thumb is:</p>
-            <p>
-              Wikipedia and knowledge text are the editable foundation. AI
-              answers are a generated guide based on that foundation.
-            </p>
-            <p>
-              If something sounds wrong, the app is built so the correction
-              happens at the root, and future explanations get better
-              automatically.
-            </p>
-          </div>
-        </SectionCard>
-
-        <SectionCard title="A shared archive of curiosity">
-          <p className="text-primary leading-relaxed">
-            Museum Guide is also designed to capture the questions visitors ask,
-            because those questions are often the best part of a museum visit.
-            One person&apos;s curiosity can help another person notice details,
-            ask better questions, or understand an object in a new way. Over
-            time, this creates a living public guide built from real visits and
-            real questions.
-          </p>
         </SectionCard>
       </div>
     </PageLayout>
