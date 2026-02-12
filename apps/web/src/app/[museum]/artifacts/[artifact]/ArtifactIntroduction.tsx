@@ -110,9 +110,7 @@ export function ArtifactIntroduction({
     return (
       <SectionCard title="Introduction">
         <div className="space-y-4">
-          {error && (
-            <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
-          )}
+          {error && <p className="text-destructive text-sm">{error}</p>}
 
           {/* Status indicator */}
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
@@ -141,9 +139,7 @@ export function ArtifactIntroduction({
     return (
       <SectionCard title="Introduction">
         <div className="space-y-4">
-          {error && (
-            <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
-          )}
+          {error && <p className="text-destructive text-sm">{error}</p>}
           <p className="text-muted-foreground">
             No introduction has been generated for this artifact yet.
           </p>
@@ -159,9 +155,7 @@ export function ArtifactIntroduction({
   return (
     <SectionCard title="Introduction">
       <div className="space-y-4">
-        {error && (
-          <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
-        )}
+        {error && <p className="text-destructive text-sm">{error}</p>}
 
         {/* Audio Player */}
         {content.audioUrl && (

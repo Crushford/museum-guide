@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -180,9 +179,7 @@ function ContentGroupCell({
                 {hasAudio && (
                   <>
                     {' • '}
-                    <span className="text-green-600 dark:text-green-400">
-                      🎵 Audio
-                    </span>
+                    <span className="text-accent">🎵 Audio</span>
                   </>
                 )}
               </summary>

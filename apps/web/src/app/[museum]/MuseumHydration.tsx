@@ -109,7 +109,7 @@ export function MuseumDetailsHydration({
     return (
       <SectionCard title="About">
         <div className="py-4">
-          <p className="text-red-600 dark:text-red-400 mb-3">{error}</p>
+          <p className="text-destructive mb-3">{error}</p>
           <Button variant="secondary" size="sm" onClick={hydrate}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
@@ -255,7 +255,7 @@ export function ArtifactsHydration({
     return (
       <SectionCard title="Notable Artifacts">
         <div className="py-4">
-          <p className="text-red-600 dark:text-red-400 mb-3">{error}</p>
+          <p className="text-destructive mb-3">{error}</p>
           <Button variant="secondary" size="sm" onClick={hydrate}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry

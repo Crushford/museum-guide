@@ -185,11 +185,7 @@ export default async function ArtifactEditPage({
               <Badge variant="destructive">Adult Content</Badge>
             )}
             {allSensitiveTopics.map((topic) => (
-              <Badge
-                key={topic}
-                variant="outline"
-                className="border-amber-500 text-amber-700"
-              >
+              <Badge key={topic} variant="warning">
                 {topic}
               </Badge>
             ))}

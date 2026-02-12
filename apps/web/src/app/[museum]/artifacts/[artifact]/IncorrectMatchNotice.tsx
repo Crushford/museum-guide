@@ -7,7 +7,7 @@ export function IncorrectMatchNotice() {
   const [clicked, setClicked] = useState(false);
 
   return (
-    <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900">
+    <div className="rounded-md border border-warning/30 bg-warning/20 p-3 text-warning">
       <p className="text-sm">
         This page was opened from a scan duplicate match. If this is wrong, flag
         it.
@@ -23,7 +23,7 @@ export function IncorrectMatchNotice() {
         Incorrect match
       </Button>
       {clicked && (
-        <p className="mt-2 text-xs text-amber-800">
+        <p className="mt-2 text-xs text-warning">
           TODO: wire incorrect-match review flow.
         </p>
       )}

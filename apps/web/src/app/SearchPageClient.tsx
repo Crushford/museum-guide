@@ -316,13 +316,13 @@ export default function SearchPage() {
             )}
 
             {searchError && (
-              <div className="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-700 dark:text-red-300">
+              <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
                 {searchError}
               </div>
             )}
 
             {selectError && (
-              <div className="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-700 dark:text-red-300">
+              <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
                 {selectError}
               </div>
             )}
@@ -346,7 +346,7 @@ export default function SearchPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <Database className="h-4 w-4 text-green-600 flex-shrink-0" />
+                        <Database className="h-4 w-4 text-accent flex-shrink-0" />
                         <h3 className="font-medium truncate">{museum.name}</h3>
                       </div>
                     </div>
@@ -441,7 +441,7 @@ export default function SearchPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                          <MapPin className="h-4 w-4 text-accent flex-shrink-0" />
                           <h3 className="font-medium truncate">
                             {museum.label}
                           </h3>
@@ -498,7 +498,7 @@ export default function SearchPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                        <MapPin className="h-4 w-4 text-accent flex-shrink-0" />
                         <h3 className="font-medium truncate">{museum.label}</h3>
                       </div>
                       {museum.description && (
