@@ -6,21 +6,21 @@ type BreadcrumbItem = {
   href?: string;
 };
 
-type AdminPageLayoutProps = {
+type PageLayoutProps = {
   title: string;
   breadcrumbs?: BreadcrumbItem[];
   actions?: ReactNode;
   children: ReactNode;
 };
 
-export function AdminPageLayout({
+export function PageLayout({
   title,
   breadcrumbs,
   actions,
   children,
-}: AdminPageLayoutProps) {
+}: PageLayoutProps) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       <div className="max-w-6xl mx-auto px-6 py-8">
         <header className="mb-8">
           {breadcrumbs && breadcrumbs.length > 0 && (

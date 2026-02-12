@@ -34,11 +34,7 @@ export type Room = MaybeFields<
     | 'knowledgeText'
     | 'furtherReading'
   > & { parentId?: number | null },
-  | 'slug'
-  | 'museumId'
-  | 'parentRoomId'
-  | 'knowledgeText'
-  | 'furtherReading'
+  'slug' | 'museumId' | 'parentRoomId' | 'knowledgeText' | 'furtherReading'
 >;
 
 export type Artifact = MaybeFields<

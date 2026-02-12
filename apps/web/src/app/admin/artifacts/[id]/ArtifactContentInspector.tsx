@@ -109,7 +109,9 @@ export function ArtifactContentInspector({
                   <Badge variant="secondary">v{item.promptVersion}</Badge>
                 )}
                 <span className="text-xs text-muted-foreground ml-auto">
-                  {new Date(item.updatedAt || item.createdAt || '').toLocaleString()}
+                  {new Date(
+                    item.updatedAt || item.createdAt || ''
+                  ).toLocaleString()}
                 </span>
               </div>
 

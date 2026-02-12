@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AdminPageLayout, SectionCard } from '../../../components/shared';
+import { PageLayout, SectionCard } from '../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { API_URL } from '@/lib/api';
 
@@ -31,7 +31,7 @@ export default function CostsPage() {
   const totalEur = spend.reduce((sum, r) => sum + r.totalEur, 0);
 
   return (
-    <AdminPageLayout
+    <PageLayout
       title="LLM Costs"
       breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'LLM Costs' }]}
     >
@@ -73,6 +73,6 @@ export default function CostsPage() {
           )}
         </SectionCard>
       </div>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

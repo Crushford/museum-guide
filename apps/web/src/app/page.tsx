@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { api } from '../lib/api';
-import { AdminPageLayout } from '../components/shared';
+import { PageLayout } from '../components/shared';
 import { SectionCard } from '../components/shared';
 import { EntityList } from '../components/shared';
 import { EmptyState } from '../components/shared';
@@ -16,14 +14,7 @@ export default async function Home() {
   const museums = await api<MuseumResponse[]>('/museums');
 
   return (
-    <AdminPageLayout
-      title="Museum Guide"
-      actions={
-        <Button asChild variant="secondary">
-          <Link href="/admin">Admin</Link>
-        </Button>
-      }
-    >
+    <PageLayout title="Museum Guide">
       <SectionCard
         title="Select a Museum"
         subtitle="Choose the museum you want to start exploring"
@@ -47,6 +38,6 @@ export default async function Home() {
           }
         />
       </SectionCard>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

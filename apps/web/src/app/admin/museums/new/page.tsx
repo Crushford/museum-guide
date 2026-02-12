@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { AdminPageLayout } from '../../../../components/shared';
+import { PageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { PromptTemplateBox } from '../../../../components/shared';
 import Link from 'next/link';
@@ -21,7 +21,7 @@ export default async function NewMuseumPage() {
 }`;
 
   return (
-    <AdminPageLayout
+    <PageLayout
       title="Add Museum"
       breadcrumbs={[
         { label: 'Admin', href: '/admin' },
@@ -61,6 +61,6 @@ export default async function NewMuseumPage() {
         {/* Museum Form */}
         <MuseumFormWrapper />
       </div>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

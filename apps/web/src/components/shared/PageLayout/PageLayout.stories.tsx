@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { AdminPageLayout } from './AdminPageLayout';
+import { PageLayout } from './PageLayout';
 
 const meta = {
-  title: 'Shared/AdminPageLayout',
-  component: AdminPageLayout,
+  title: 'Shared/PageLayout',
+  component: PageLayout,
   parameters: {
     layout: 'fullscreen',
   },
-} satisfies Meta<typeof AdminPageLayout>;
+} satisfies Meta<typeof PageLayout>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AdminPageLayout } from '@/components/shared';
+import { PageLayout } from '@/components/shared';
 import { SectionCard } from '@/components/shared';
 import { ContentTabsClient } from './ContentTabsClient';
 import { Button } from '@/components/ui/button';
@@ -76,7 +76,7 @@ export default function AdminContentPage() {
   }, []);
 
   return (
-    <AdminPageLayout title="Content Management">
+    <PageLayout title="Content Management">
       <SectionCard title="">
         {loading && (
           <div className="flex items-center justify-center py-12">
@@ -106,6 +106,6 @@ export default function AdminContentPage() {
           </>
         )}
       </SectionCard>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { api, API_URL } from '../../../../lib/api';
 import { notFound } from 'next/navigation';
 import type { MuseumResponse } from '@repo/types';
-import { AdminPageLayout } from '../../../../components/shared';
+import { PageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -129,7 +129,7 @@ export default async function ArtifactPage({
   ];
 
   return (
-    <AdminPageLayout
+    <PageLayout
       title={artifact.localTitle || artifact.name}
       actions={
         <Button asChild variant="secondary" size="sm">
@@ -280,6 +280,6 @@ export default async function ArtifactPage({
           </SectionCard>
         )}
       </div>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

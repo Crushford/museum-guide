@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { AdminPageLayout, SectionCard } from '../../../components/shared';
+import { PageLayout, SectionCard } from '../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { API_URL } from '@/lib/api';
 
@@ -78,7 +78,7 @@ export default function ApiCallsPage() {
   const allServices = daily?.services.map((s) => s.service) ?? [];
 
   return (
-    <AdminPageLayout
+    <PageLayout
       title="API Calls"
       breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'API Calls' }]}
     >
@@ -240,6 +240,6 @@ export default function ApiCallsPage() {
           )}
         </SectionCard>
       </div>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }
