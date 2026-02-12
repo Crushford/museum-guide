@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { SectionCard } from '@/components/shared';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,12 +11,11 @@ import {
   MapPin,
   LocateFixed,
   ExternalLink,
-  ArrowLeft,
   Database,
   Globe,
 } from 'lucide-react';
-import { api, apiPost } from '../../lib/api';
-import { APP_NAME } from '../../lib/constants';
+import { api, apiPost } from '@/lib/api';
+import { APP_NAME } from '@/lib/constants';
 import type {
   WikidataSearchResult,
   WikidataSearchResponse,
@@ -262,13 +260,6 @@ export default function SearchPage() {
     <div className="min-h-screen bg-background">
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         <header className="mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to home
-          </Link>
           <h1 className="text-3xl font-bold text-primary">Find a Museum</h1>
         </header>
         <SectionCard
