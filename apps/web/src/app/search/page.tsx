@@ -36,6 +36,21 @@ interface WikidataSearchResponse {
   results: WikidataResult[];
 }
 
+interface LocationMuseum {
+  qid: string;
+  label: string;
+}
+
+interface LocationSearchResponse {
+  query: string;
+  location: {
+    qid: string;
+    label: string;
+    description?: string;
+  } | null;
+  museums: LocationMuseum[];
+}
+
 interface SelectResponse {
   created: boolean;
   museum: {
@@ -53,10 +68,18 @@ export default function SearchPage() {
   const [isLoadingLocal, setIsLoadingLocal] = useState(true);
   const [wikidataResults, setWikidataResults] = useState<WikidataResult[]>([]);
   const [isSearchingWikidata, setIsSearchingWikidata] = useState(false);
+  const [locationResults, setLocationResults] = useState<LocationMuseum[]>([]);
+  const [locationInfo, setLocationInfo] = useState<{
+    qid: string;
+    label: string;
+    description?: string;
+  } | null>(null);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [locationFilter, setLocationFilter] = useState('');
   const [isSelecting, setIsSelecting] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [selectError, setSelectError] = useState<string | null>(null);
-  const [hasSearchedWikidata, setHasSearchedWikidata] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   // Load all local museums on mount
   useEffect(() => {
@@ -84,32 +107,62 @@ export default function SearchPage() {
     );
   }, [searchQuery, allLocalMuseums]);
 
-  // Search Wikidata (only when user clicks search button)
-  const searchWikidata = useCallback(async () => {
+  // Filter location results client-side
+  const filteredLocationResults = useMemo(() => {
+    if (!locationFilter.trim()) {
+      return locationResults;
+    }
+    const filter = locationFilter.toLowerCase().trim();
+    return locationResults.filter((m) =>
+      m.label.toLowerCase().includes(filter)
+    );
+  }, [locationResults, locationFilter]);
+
+  // Search both Wikidata name and location in parallel
+  const handleSearch = useCallback(async () => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
       return;
     }
 
-    setIsSearchingWikidata(true);
+    const term = searchQuery.trim();
     setSearchError(null);
-    setHasSearchedWikidata(true);
+    setHasSearched(true);
+    setIsSearchingWikidata(true);
+    setIsSearchingLocation(true);
+    setLocationFilter('');
 
-    try {
-      const response = await api<WikidataSearchResponse>(
-        `/api/museums/search/wikidata?q=${encodeURIComponent(searchQuery.trim())}`
-      );
-      // Filter out museums that are already in our local database
-      const localQids = new Set(
-        allLocalMuseums.map((m) => m.wikidataId).filter(Boolean)
-      );
-      const filtered = response.results.filter((r) => !localQids.has(r.qid));
-      setWikidataResults(filtered);
-    } catch (error) {
-      console.error('Wikidata search error:', error);
-      setSearchError(error instanceof Error ? error.message : 'Search failed');
-    } finally {
-      setIsSearchingWikidata(false);
-    }
+    // Fire both searches in parallel
+    const wikidataPromise = api<WikidataSearchResponse>(
+      `/api/museums/search/wikidata?q=${encodeURIComponent(term)}`
+    )
+      .then((response) => {
+        const localQids = new Set(
+          allLocalMuseums.map((m) => m.wikidataId).filter(Boolean)
+        );
+        const filtered = response.results.filter((r) => !localQids.has(r.qid));
+        setWikidataResults(filtered);
+      })
+      .catch((error) => {
+        console.error('Wikidata search error:', error);
+        setSearchError(
+          error instanceof Error ? error.message : 'Search failed'
+        );
+      })
+      .finally(() => setIsSearchingWikidata(false));
+
+    const locationPromise = api<LocationSearchResponse>(
+      `/api/museums/search/location?q=${encodeURIComponent(term)}`
+    )
+      .then((response) => {
+        setLocationInfo(response.location);
+        setLocationResults(response.museums);
+      })
+      .catch((error) => {
+        console.error('Location search error:', error);
+      })
+      .finally(() => setIsSearchingLocation(false));
+
+    await Promise.allSettled([wikidataPromise, locationPromise]);
   }, [searchQuery, allLocalMuseums]);
 
   const handleSelectLocal = useCallback(
@@ -120,7 +173,7 @@ export default function SearchPage() {
   );
 
   const handleSelectWikidata = useCallback(
-    async (result: WikidataResult) => {
+    async (result: { qid: string; label: string }) => {
       setIsSelecting(result.qid);
       setSelectError(null);
 
@@ -144,12 +197,16 @@ export default function SearchPage() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      searchWikidata();
+      handleSearch();
     }
   };
 
   const showLocalResults = filteredLocalMuseums.length > 0;
-  const showWikidataResults = hasSearchedWikidata && !isSearchingWikidata;
+  const showWikidataResults =
+    hasSearched && !isSearchingWikidata && wikidataResults.length > 0;
+  const showLocationResults =
+    hasSearched && locationInfo !== null && locationResults.length > 0;
+  const isSearching = isSearchingWikidata || isSearchingLocation;
 
   return (
     <div className="min-h-screen bg-background">
@@ -166,7 +223,7 @@ export default function SearchPage() {
         </header>
         <SectionCard
           title="Search"
-          subtitle={`Search for a museum by name to add it to ${APP_NAME}.`}
+          subtitle={`Search by museum name or location to add it to ${APP_NAME}.`}
         >
           <div className="space-y-4">
             <div className="flex gap-2">
@@ -174,7 +231,7 @@ export default function SearchPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Start typing a museum name..."
+                  placeholder="Search by museum name or city..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -184,19 +241,19 @@ export default function SearchPage() {
                 />
               </div>
               <Button
-                onClick={searchWikidata}
+                onClick={handleSearch}
                 disabled={
-                  isSearchingWikidata ||
+                  isSearching ||
                   isSelecting !== null ||
                   searchQuery.trim().length < 2
                 }
               >
-                {isSearchingWikidata ? (
+                {isSearching ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Globe className="h-4 w-4" />
                 )}
-                <span className="ml-2">Search Wikidata</span>
+                <span className="ml-2">Search</span>
               </Button>
             </div>
 
@@ -245,51 +302,98 @@ export default function SearchPage() {
           </SectionCard>
         )}
 
-        {/* Wikidata Results (after explicit search) */}
+        {/* Wikidata Name Results (after explicit search) */}
         {showWikidataResults && (
           <SectionCard
-            title="Add from Wikidata"
-            subtitle={
-              wikidataResults.length > 0
-                ? `${wikidataResults.length} museum${wikidataResults.length !== 1 ? 's' : ''} found`
-                : undefined
-            }
+            title="Museum Name Matches"
+            subtitle={`${wikidataResults.length} museum${wikidataResults.length !== 1 ? 's' : ''} found on Wikidata`}
           >
-            {wikidataResults.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No museums found on Wikidata matching your search.</p>
-                <p className="text-sm mt-2">
-                  Try a different spelling or a more specific name.
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border border border-border rounded-md">
-                {wikidataResults.map((result) => (
+            <div className="divide-y divide-border border border-border rounded-md">
+              {wikidataResults.map((result) => (
+                <button
+                  key={result.qid}
+                  onClick={() => handleSelectWikidata(result)}
+                  disabled={isSelecting !== null}
+                  className="w-full text-left py-3 px-4 hover:bg-muted/50 transition-colors disabled:opacity-50"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
+                        <h3 className="font-medium truncate">{result.label}</h3>
+                      </div>
+                      {result.description && (
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          {result.description}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground/60 mt-1">
+                        {result.qid}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {isSelecting === result.qid ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      ) : (
+                        <ExternalLink className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </SectionCard>
+        )}
+
+        {/* Location-based Results */}
+        {isSearchingLocation && hasSearched && (
+          <SectionCard
+            title="Museums by Location"
+            subtitle="Searching for museums in matching locations..."
+          >
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              This may take a moment...
+            </div>
+          </SectionCard>
+        )}
+
+        {showLocationResults && !isSearchingLocation && (
+          <SectionCard
+            title={`Museums in ${locationInfo.label}`}
+            subtitle={`${locationResults.length} museum${locationResults.length !== 1 ? 's' : ''} found${locationInfo.description ? ` — ${locationInfo.description}` : ''}`}
+          >
+            <div className="space-y-3">
+              {locationResults.length > 10 && (
+                <Input
+                  type="text"
+                  placeholder="Filter results..."
+                  value={locationFilter}
+                  onChange={(e) => setLocationFilter(e.target.value)}
+                />
+              )}
+              <div className="divide-y divide-border border border-border rounded-md max-h-96 overflow-y-auto">
+                {filteredLocationResults.map((museum) => (
                   <button
-                    key={result.qid}
-                    onClick={() => handleSelectWikidata(result)}
+                    key={museum.qid}
+                    onClick={() => handleSelectWikidata(museum)}
                     disabled={isSelecting !== null}
                     className="w-full text-left py-3 px-4 hover:bg-muted/50 transition-colors disabled:opacity-50"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
+                          <MapPin className="h-4 w-4 text-orange-500 flex-shrink-0" />
                           <h3 className="font-medium truncate">
-                            {result.label}
+                            {museum.label}
                           </h3>
                         </div>
-                        {result.description && (
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                            {result.description}
-                          </p>
-                        )}
                         <p className="text-xs text-muted-foreground/60 mt-1">
-                          {result.qid}
+                          {museum.qid}
                         </p>
                       </div>
                       <div className="flex-shrink-0">
-                        {isSelecting === result.qid ? (
+                        {isSelecting === museum.qid ? (
                           <Loader2 className="h-5 w-5 animate-spin text-primary" />
                         ) : (
                           <ExternalLink className="h-5 w-5 text-muted-foreground" />
@@ -298,22 +402,43 @@ export default function SearchPage() {
                     </div>
                   </button>
                 ))}
+                {filteredLocationResults.length === 0 && locationFilter && (
+                  <div className="text-center py-4 text-muted-foreground text-sm">
+                    No museums matching &quot;{locationFilter}&quot;
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </SectionCard>
         )}
 
+        {/* No results message */}
+        {hasSearched &&
+          !isSearching &&
+          wikidataResults.length === 0 &&
+          locationResults.length === 0 && (
+            <SectionCard title="No Results">
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No museums found matching your search.</p>
+                <p className="text-sm mt-2">
+                  Try a different spelling, a more specific name, or search by
+                  city.
+                </p>
+              </div>
+            </SectionCard>
+          )}
+
         {/* How it works */}
-        {!showLocalResults && !hasSearchedWikidata && (
+        {!showLocalResults && !hasSearched && (
           <SectionCard title="How it works">
             <div className="text-sm text-muted-foreground space-y-2">
               <p>
-                <strong>1. Type:</strong> Start typing a museum name. Museums
+                <strong>1. Type:</strong> Enter a museum name or city. Museums
                 already in {APP_NAME} will appear instantly.
               </p>
               <p>
-                <strong>2. Search Wikidata:</strong> Click the button to search
-                Wikidata&apos;s database of millions of museums worldwide.
+                <strong>2. Search:</strong> Click the button to search
+                Wikidata&apos;s database for museums by name and location.
               </p>
               <p>
                 <strong>3. Select:</strong> Click on a museum to add it.
