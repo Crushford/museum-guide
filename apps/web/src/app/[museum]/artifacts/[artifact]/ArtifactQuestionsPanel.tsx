@@ -1,9 +1,12 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { Loader2, ThumbsDown, ThumbsUp, Volume2 } from 'lucide-react';
+import { ThumbsDown, ThumbsUp, Volume2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/ui/alert';
+import { ErrorText } from '@/components/ui/error-text';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -283,7 +286,7 @@ export function ArtifactQuestionsPanel({
             disabled={isAsking || isPreviewing}
           >
             {(isAsking || isPreviewing) && (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner className="mr-2" />
             )}
             Ask Question
           </Button>
@@ -300,9 +303,7 @@ export function ArtifactQuestionsPanel({
           ))}
         </div>
 
-        {error && (
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        )}
+        {error && <ErrorText>{error}</ErrorText>}
 
         {sortedQuestions.length === 0 ? (
           <p className="text-muted-foreground text-sm">
@@ -414,7 +415,7 @@ export function ArtifactQuestionsPanel({
           <div className="space-y-3">
             {isPreviewing ? (
               <div className="flex items-center gap-2 rounded-md border p-3">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner />
                 <p className="text-sm text-muted-foreground">
                   Preparing your question for publishing...
                 </p>
@@ -509,7 +510,7 @@ export function ArtifactQuestionsPanel({
 
             {similarPrompt?.requiresConfirmation &&
               similarPrompt.similarQuestion && (
-                <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900 space-y-2">
+                <Alert variant="warning" className="space-y-2">
                   <p className="text-sm">
                     Similar question found (
                     {Math.round(similarPrompt.similarQuestion.similarity * 100)}
@@ -540,14 +541,10 @@ export function ArtifactQuestionsPanel({
                       Ask Anyway
                     </Button>
                   </div>
-                </div>
+                </Alert>
               )}
 
-            {modalError && (
-              <p className="text-sm text-red-600 dark:text-red-400">
-                {modalError}
-              </p>
-            )}
+            {modalError && <ErrorText>{modalError}</ErrorText>}
 
             {!modalAnsweredQuestion && !isPreviewing && (
               <div className="flex gap-2">
@@ -562,9 +559,7 @@ export function ArtifactQuestionsPanel({
                   onClick={() => void submitQuestion(false)}
                   disabled={isAsking || !selectedPublishQuestion.trim()}
                 >
-                  {isAsking && (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  )}
+                  {isAsking && <Spinner className="mr-2" />}
                   Publish and Answer
                 </Button>
               </div>

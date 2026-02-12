@@ -1,4 +1,4 @@
-export * from './AdminPageLayout';
+export * from './PageLayout';
 export * from './Breadcrumbs';
 export * from './HasUnsavedChanges';
 export * from './EditableFieldRow';

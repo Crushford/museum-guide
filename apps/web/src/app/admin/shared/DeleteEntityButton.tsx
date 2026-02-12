@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
+import { ErrorText } from '@/components/ui/error-text';
 
 type EntityType = 'museum' | 'room' | 'artifact';
 
@@ -72,7 +73,7 @@ export function DeleteEntityButton({
       >
         {isPending ? 'Deleting...' : `Delete ${entityLabel}`}
       </Button>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <ErrorText>{error}</ErrorText>}
     </div>
   );
 }

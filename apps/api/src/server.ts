@@ -44,17 +44,18 @@ import { recordApiCall } from './lib/telemetry/api-call-tracker';
 import {
   queryWikidata,
   buildMuseumQuery,
+  buildNearbyMuseumsQuery,
   buildArtifactsQuery,
   extractQId,
-  SUPPORTED_CITIES,
   searchWikidata,
+  searchWikidataLocations,
   fetchWikidataEntity,
   fetchWikipediaSummary,
   fetchWikipediaSummaryWithTranslation,
   parseArtifactResults,
   type WikidataArtifactBinding,
-  type WikidataSearchResult,
 } from './lib/wikidata';
+import type { WikidataSearchResult } from '@repo/types';
 import {
   extractTextFromImage,
   searchDuplicatesFromRawText,
@@ -324,46 +325,6 @@ app.post('/artifacts/check-duplicates', async (req, res) => {
   }
 });
 
-// GET /cities - Get list of available cities from SUPPORTED_CITIES
-app.get('/cities', (_req, res) => {
-  try {
-    // Return the keys from SUPPORTED_CITIES, sorted alphabetically
-    const cities = Object.keys(SUPPORTED_CITIES).sort();
-    res.json(cities);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to fetch cities';
-    res.status(500).json({ error: errorMessage });
-  }
-});
-
-// GET /cities/stats - Get museum counts per city
-app.get('/cities/stats', async (_req, res) => {
-  try {
-    const supportedCities = Object.keys(SUPPORTED_CITIES).sort();
-
-    // Get counts for each city
-    const stats = await Promise.all(
-      supportedCities.map(async (city) => {
-        const count = await prisma.museum.count({
-          where: { citySlug: city },
-        });
-        return {
-          city,
-          museumCount: count,
-          lastSeeded: null as string | null, // Could be added later with a separate table
-        };
-      })
-    );
-
-    res.json(stats);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to fetch city stats';
-    res.status(500).json({ error: errorMessage });
-  }
-});
-
 // ============================================================================
 // MUSEUM SEARCH API - Search-first flow
 // ============================================================================
@@ -410,7 +371,9 @@ app.get('/api/museums/search', async (req, res) => {
     const localQids = new Set(
       localMuseums.map((m) => m.wikidataId).filter(Boolean)
     );
-    const filteredByLocalQid = wikidataResults.filter((r) => !localQids.has(r.qid));
+    const filteredByLocalQid = wikidataResults.filter(
+      (r) => !localQids.has(r.qid)
+    );
     const resultsWithWikipedia = await Promise.all(
       filteredByLocalQid.map(async (result) => {
         try {
@@ -452,7 +415,7 @@ app.get('/api/museums/search/wikidata', async (req, res) => {
     const searchTerm = query.trim();
 
     // Search Wikidata only
-    const wikidataResults = await searchWikidata(searchTerm, 10);
+    const wikidataResults = await searchWikidata(searchTerm, 100);
     const withWikipedia = await Promise.all(
       wikidataResults.map(async (result) => {
         try {
@@ -474,6 +437,195 @@ app.get('/api/museums/search/wikidata', async (req, res) => {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to search Wikidata';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /api/museums/search/location - Search for museums by location/city name
+app.get('/api/museums/search/location', async (req, res) => {
+  try {
+    const query = req.query.q as string;
+
+    if (!query || query.trim().length < 2) {
+      return res.status(400).json({
+        error: 'Search query must be at least 2 characters',
+      });
+    }
+
+    const searchTerm = query.trim();
+
+    // Find matching locations
+    const locations = await searchWikidataLocations(searchTerm, 3);
+
+    if (locations.length === 0) {
+      return res.json({
+        query: searchTerm,
+        location: null,
+        museums: [],
+      });
+    }
+
+    // Take the first (best) match and find museums in that location
+    const location = locations[0];
+    const sparqlQuery = buildMuseumQuery(location.qid);
+    const results = await queryWikidata(sparqlQuery);
+
+    const museums = results
+      .map((binding) => {
+        const museumUri = binding.museum?.value;
+        const museumLabel = binding.museumLabel?.value;
+        if (!museumUri || !museumLabel) return null;
+        const wikidataId = extractQId(museumUri);
+        if (!wikidataId) return null;
+        return { qid: wikidataId, label: museumLabel };
+      })
+      .filter((m): m is { qid: string; label: string } => m !== null);
+
+    res.json({
+      query: searchTerm,
+      location: {
+        qid: location.qid,
+        label: location.label,
+        description: location.description,
+      },
+      museums,
+    });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to search museums by location';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /api/museums/search/nearby - Search for museums near coordinates
+app.get('/api/museums/search/nearby', async (req, res) => {
+  const requestStartNs = process.hrtime.bigint();
+  let lastMarkNs = requestStartNs;
+  const elapsedMs = (startNs: bigint, endNs: bigint) =>
+    Number(endNs - startNs) / 1_000_000;
+  const markStage = (label: string) => {
+    const nowNs = process.hrtime.bigint();
+    const stageMs = elapsedMs(lastMarkNs, nowNs);
+    const totalMs = elapsedMs(requestStartNs, nowNs);
+    lastMarkNs = nowNs;
+    console.log(
+      `[Nearby Search] ${label} stage=${stageMs.toFixed(1)}ms total=${totalMs.toFixed(1)}ms`
+    );
+  };
+
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const radiusKmRaw = Number(req.query.radiusKm ?? 5);
+    const limitRaw = Number(req.query.limit ?? 20);
+
+    if (
+      Number.isNaN(lat) ||
+      Number.isNaN(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      return res.status(400).json({
+        error:
+          'Invalid coordinates. Expected lat in [-90, 90] and lng in [-180, 180].',
+      });
+    }
+
+    const radiusKm = Math.min(Math.max(radiusKmRaw || 5, 1), 100);
+    const limit = Math.min(Math.max(limitRaw || 20, 1), 100);
+    console.log(
+      `[Nearby Search] Start lat=${lat} lng=${lng} radiusKm=${radiusKm} limit=${limit}`
+    );
+    markStage('validated-input');
+
+    const sparqlQuery = buildNearbyMuseumsQuery(lat, lng, radiusKm, limit);
+    type NearbyBinding = {
+      museum?: { value: string };
+      museumLabel?: { value: string };
+      museumDescription?: { value: string };
+      distance?: { value: string };
+      location?: { value: string };
+    };
+    const results = await queryWikidata<NearbyBinding>(sparqlQuery);
+    console.log(`[Nearby Search] SPARQL returned ${results.length} rows`);
+    markStage('sparql-finished');
+    type NearbyMuseumItem = {
+      qid: string;
+      label: string;
+      description?: string;
+      distanceKm: number;
+      coordinates?: { lat: number; lng: number };
+    };
+
+    const parseWktPoint = (
+      wkt: string | undefined
+    ): { lat: number; lng: number } | null => {
+      if (!wkt) return null;
+      const match = /^Point\((-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)\)$/.exec(wkt);
+      if (!match) return null;
+      const lngVal = Number(match[1]);
+      const latVal = Number(match[2]);
+      if (Number.isNaN(latVal) || Number.isNaN(lngVal)) return null;
+      return { lat: latVal, lng: lngVal };
+    };
+
+    const museums = results
+      .map((binding): NearbyMuseumItem | null => {
+        const museumUri = binding.museum?.value;
+        const museumLabel = binding.museumLabel?.value;
+        if (!museumUri || !museumLabel) return null;
+        const qid = extractQId(museumUri);
+        if (!qid) return null;
+
+        const distance = Number(binding.distance?.value);
+        const coordinates = parseWktPoint(binding.location?.value) ?? undefined;
+        return {
+          qid,
+          label: museumLabel,
+          description: binding.museumDescription?.value,
+          distanceKm: Number.isNaN(distance)
+            ? Number.POSITIVE_INFINITY
+            : distance,
+          coordinates,
+        };
+      })
+      .filter((museum): museum is NearbyMuseumItem => museum !== null)
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+    console.log(`[Nearby Search] Parsed ${museums.length} museums`);
+
+    // Deduplicate by QID; keep the closest row when a museum has multiple coordinates.
+    const dedupedByQid = new Map<string, NearbyMuseumItem>();
+    for (const museum of museums) {
+      const existing = dedupedByQid.get(museum.qid);
+      if (!existing || museum.distanceKm < existing.distanceKm) {
+        dedupedByQid.set(museum.qid, museum);
+      }
+    }
+    const dedupedMuseums = Array.from(dedupedByQid.values()).sort(
+      (a, b) => a.distanceKm - b.distanceKm
+    );
+    console.log(
+      `[Nearby Search] Deduped to ${dedupedMuseums.length} museums by QID`
+    );
+    markStage('parsed-results');
+
+    res.json({
+      center: { lat, lng },
+      radiusKm,
+      results: dedupedMuseums,
+    });
+    markStage('response-sent');
+  } catch (error) {
+    console.error('[Nearby Search] Failed:', error);
+    markStage('error');
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to search nearby museums';
     res.status(500).json({ error: errorMessage });
   }
 });
@@ -510,8 +662,10 @@ app.post('/api/museums/select/:qid', async (req, res) => {
       image: details.image || existingMuseum.image,
       coordinates: details.coordinates
         ? details.coordinates
-        : ((existingMuseum.coordinates as { lat: number; lng: number } | null) ??
-          undefined),
+        : ((existingMuseum.coordinates as {
+            lat: number;
+            lng: number;
+          } | null) ?? undefined),
       locationTags:
         existingMuseum.locationTags.length > 0
           ? existingMuseum.locationTags
@@ -607,7 +761,10 @@ app.post('/api/museums/select/:qid', async (req, res) => {
     });
   } catch (error: unknown) {
     // Handle slug collision
-    const prismaError = error as { code?: string; meta?: { modelName?: string } };
+    const prismaError = error as {
+      code?: string;
+      meta?: { modelName?: string };
+    };
     if (
       prismaError.code === 'P2002' &&
       prismaError.meta?.modelName === 'Museum'
@@ -3335,136 +3492,6 @@ Make sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentia
     res.status(500).json({ error: errorMessage });
   }
 });
-
-// ============================================================================
-// WIKIDATA SEEDING ENDPOINT
-// ============================================================================
-
-const handleSeedMuseums = async (
-  req: express.Request,
-  res: express.Response
-) => {
-  const { city } = req.params;
-
-  // Validate city slug
-  if (!SUPPORTED_CITIES[city]) {
-    return res.status(400).json({
-      error: `City "${city}" is not supported. Supported cities: ${Object.keys(SUPPORTED_CITIES).join(', ')}`,
-    });
-  }
-
-  const cityQId = SUPPORTED_CITIES[city];
-
-  try {
-    // Build and execute SPARQL query
-    const sparqlQuery = buildMuseumQuery(cityQId);
-    const results = await queryWikidata(sparqlQuery);
-
-    let inserted = 0;
-    let updated = 0;
-
-    // Process each result
-    for (const binding of results) {
-      const museumUri = binding.museum?.value;
-      const museumLabel = binding.museumLabel?.value;
-
-      if (!museumUri || !museumLabel) {
-        continue;
-      }
-
-      const wikidataId = extractQId(museumUri);
-      if (!wikidataId) {
-        continue;
-      }
-
-      // Upsert museum - preserve existing knowledgeText and furtherReading
-      // Note: slug is a generated column in PostgreSQL, so we don't set it
-      try {
-        // Check if museum exists by wikidataId
-        const existingByWikidataId = await prisma.museum.findUnique({
-          where: { wikidataId } as any,
-          select: { id: true },
-        });
-
-        if (existingByWikidataId) {
-          // Museum exists, update it
-          await prisma.museum.update({
-            where: { wikidataId } as any,
-            data: {
-              name: museumLabel,
-              slug: generateSlug(museumLabel),
-              citySlug: city,
-              updatedAt: new Date(),
-            } as any,
-          });
-          updated++;
-        } else {
-          // Museum doesn't exist, try to create it
-          try {
-            await prisma.museum.create({
-              data: {
-                name: museumLabel,
-                slug: generateSlug(museumLabel),
-                wikidataId,
-                citySlug: city,
-                knowledgeText: null,
-                furtherReading: [],
-                updatedAt: new Date(),
-              } as any,
-            });
-            inserted++;
-          } catch (createError: any) {
-            // Handle slug collision (P2002 = unique constraint violation)
-            if (
-              createError?.code === 'P2002' &&
-              createError?.meta?.modelName === 'Museum'
-            ) {
-              // Slug collision - a museum with a similar name already exists
-              // This can happen when Wikidata has multiple entries for similar museums
-              // Skip this museum
-            } else {
-              throw createError;
-            }
-          }
-        }
-      } catch (error) {
-        // Continue with other museums even if one fails
-      }
-    }
-
-    // Get total count for this city
-    const total = await prisma.museum.count({
-      where: { citySlug: city } as any,
-    });
-
-    res.json({
-      city,
-      inserted,
-      updated,
-      total,
-    });
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'Failed to seed museums from Wikidata';
-
-    // Return 502 for Wikidata service errors
-    if (
-      errorMessage.includes('Wikidata') ||
-      errorMessage.includes('timeout') ||
-      errorMessage.includes('query')
-    ) {
-      return res.status(502).json({
-        error: `Wikidata service error: ${errorMessage}`,
-      });
-    }
-
-    res.status(500).json({ error: errorMessage });
-  }
-};
-
-app.post('/api/seed-museums/:city', handleSeedMuseums);
 
 // POST /admin/artifacts/:artifactId/generate-introduction
 app.post(

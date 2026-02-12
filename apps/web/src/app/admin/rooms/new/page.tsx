@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { api } from '../../../../lib/api';
-import { AdminPageLayout } from '../../../../components/shared';
+import { PageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { PromptTemplateBox } from '../../../../components/shared';
 import Link from 'next/link';
@@ -58,7 +58,7 @@ export default async function NewRoomPage({
 }`;
 
   return (
-    <AdminPageLayout
+    <PageLayout
       title="Add Room"
       breadcrumbs={[
         { label: 'Admin', href: '/admin' },
@@ -111,6 +111,6 @@ export default async function NewRoomPage({
         {/* Room Form */}
         <RoomFormWrapper museumId={museum.id} rooms={rooms} />
       </div>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

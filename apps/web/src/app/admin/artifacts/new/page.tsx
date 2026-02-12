@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { api } from '../../../../lib/api';
-import { AdminPageLayout } from '../../../../components/shared';
+import { PageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { PromptTemplateBox } from '../../../../components/shared';
 import { ArtifactFormWrapper } from './ArtifactFormWrapper';
@@ -83,7 +83,7 @@ export default async function NewArtifactPage({
 }`;
 
   return (
-    <AdminPageLayout
+    <PageLayout
       title="Add Artifact"
       breadcrumbs={[
         { label: 'Admin', href: '/admin' },
@@ -181,6 +181,6 @@ The information about the artifact I want to add is below, please search and try
           initialParentName={selectedRoom?.name}
         />
       </div>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

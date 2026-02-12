@@ -217,7 +217,7 @@ export function InlineEditableMuseumRoom({
           {saveStatus === 'success' && (
             <div className="flex items-center gap-2">
               <svg
-                className="h-4 w-4 text-green-500"
+                className="h-4 w-4 text-accent"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -229,7 +229,7 @@ export function InlineEditableMuseumRoom({
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              <span className="text-xs text-green-500">Saved!</span>
+              <span className="text-xs text-accent">Saved!</span>
             </div>
           )}
           {saveStatus === 'error' && (

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { api } from '../../../../lib/api';
-import { AdminPageLayout } from '../../../../components/shared';
+import { PageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
 import { updateMuseum } from '../../shared/actions';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
@@ -84,7 +84,7 @@ export default async function MuseumEditPage({
   };
 
   return (
-    <AdminPageLayout
+    <PageLayout
       title={`Museum: ${museum.name}`}
       breadcrumbs={[
         { label: 'Admin', href: '/admin' },
@@ -152,6 +152,6 @@ export default async function MuseumEditPage({
           />
         </div>
       </div>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }
