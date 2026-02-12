@@ -211,7 +211,9 @@ export default function SearchPage() {
 
       for (const radiusKm of NEARBY_RADIUS_STEPS_KM) {
         setNearbyRadiusKm(radiusKm);
-        setNearbyStatus(`No museums found yet. Searching within ${radiusKm} km...`);
+        setNearbyStatus(
+          `No museums found yet. Searching within ${radiusKm} km...`
+        );
         const response = await api<NearbyMuseumSearchResponse>(
           `/api/museums/search/nearby?lat=${encodeURIComponent(String(latitude))}&lng=${encodeURIComponent(String(longitude))}&radiusKm=${radiusKm}&limit=20`
         );
