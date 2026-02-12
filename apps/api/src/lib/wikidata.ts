@@ -6,7 +6,11 @@ import { TranslationServiceClient } from '@google-cloud/translate';
 import type { WikidataSearchResult } from '@repo/types';
 import { recordApiCall } from './telemetry/api-call-tracker';
 
-export { buildMuseumQuery, buildArtifactsQuery } from './sparql-queries';
+export {
+  buildMuseumQuery,
+  buildArtifactsQuery,
+  buildNearbyMuseumsQuery,
+} from './sparql-queries';
 
 const WIKIDATA_QUERY_SERVICE_URL = 'https://query.wikidata.org/sparql';
 const WIKIDATA_API_URL = 'https://www.wikidata.org/w/api.php';

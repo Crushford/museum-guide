@@ -44,6 +44,7 @@ import { recordApiCall } from './lib/telemetry/api-call-tracker';
 import {
   queryWikidata,
   buildMuseumQuery,
+  buildNearbyMuseumsQuery,
   buildArtifactsQuery,
   extractQId,
   searchWikidata,
@@ -494,6 +495,135 @@ app.get('/api/museums/search/location', async (req, res) => {
       error instanceof Error
         ? error.message
         : 'Failed to search museums by location';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// GET /api/museums/search/nearby - Search for museums near coordinates
+app.get('/api/museums/search/nearby', async (req, res) => {
+  const requestStartNs = process.hrtime.bigint();
+  let lastMarkNs = requestStartNs;
+  const elapsedMs = (startNs: bigint, endNs: bigint) =>
+    Number(endNs - startNs) / 1_000_000;
+  const markStage = (label: string) => {
+    const nowNs = process.hrtime.bigint();
+    const stageMs = elapsedMs(lastMarkNs, nowNs);
+    const totalMs = elapsedMs(requestStartNs, nowNs);
+    lastMarkNs = nowNs;
+    console.log(
+      `[Nearby Search] ${label} stage=${stageMs.toFixed(1)}ms total=${totalMs.toFixed(1)}ms`
+    );
+  };
+
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const radiusKmRaw = Number(req.query.radiusKm ?? 5);
+    const limitRaw = Number(req.query.limit ?? 20);
+
+    if (
+      Number.isNaN(lat) ||
+      Number.isNaN(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      return res.status(400).json({
+        error:
+          'Invalid coordinates. Expected lat in [-90, 90] and lng in [-180, 180].',
+      });
+    }
+
+    const radiusKm = Math.min(Math.max(radiusKmRaw || 5, 1), 100);
+    const limit = Math.min(Math.max(limitRaw || 20, 1), 100);
+    console.log(
+      `[Nearby Search] Start lat=${lat} lng=${lng} radiusKm=${radiusKm} limit=${limit}`
+    );
+    markStage('validated-input');
+
+    const sparqlQuery = buildNearbyMuseumsQuery(lat, lng, radiusKm, limit);
+    type NearbyBinding = {
+      museum?: { value: string };
+      museumLabel?: { value: string };
+      museumDescription?: { value: string };
+      distance?: { value: string };
+      location?: { value: string };
+    };
+    const results = await queryWikidata<NearbyBinding>(sparqlQuery);
+    console.log(
+      `[Nearby Search] SPARQL returned ${results.length} rows`
+    );
+    markStage('sparql-finished');
+    type NearbyMuseumItem = {
+      qid: string;
+      label: string;
+      description?: string;
+      distanceKm: number;
+      coordinates?: { lat: number; lng: number };
+    };
+
+    const parseWktPoint = (
+      wkt: string | undefined
+    ): { lat: number; lng: number } | null => {
+      if (!wkt) return null;
+      const match = /^Point\((-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)\)$/.exec(wkt);
+      if (!match) return null;
+      const lngVal = Number(match[1]);
+      const latVal = Number(match[2]);
+      if (Number.isNaN(latVal) || Number.isNaN(lngVal)) return null;
+      return { lat: latVal, lng: lngVal };
+    };
+
+    const museums = results
+      .map((binding): NearbyMuseumItem | null => {
+        const museumUri = binding.museum?.value;
+        const museumLabel = binding.museumLabel?.value;
+        if (!museumUri || !museumLabel) return null;
+        const qid = extractQId(museumUri);
+        if (!qid) return null;
+
+        const distance = Number(binding.distance?.value);
+        const coordinates = parseWktPoint(binding.location?.value) ?? undefined;
+        return {
+          qid,
+          label: museumLabel,
+          description: binding.museumDescription?.value,
+          distanceKm: Number.isNaN(distance) ? Number.POSITIVE_INFINITY : distance,
+          coordinates,
+        };
+      })
+      .filter((museum): museum is NearbyMuseumItem => museum !== null)
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+    console.log(`[Nearby Search] Parsed ${museums.length} museums`);
+
+    // Deduplicate by QID; keep the closest row when a museum has multiple coordinates.
+    const dedupedByQid = new Map<string, NearbyMuseumItem>();
+    for (const museum of museums) {
+      const existing = dedupedByQid.get(museum.qid);
+      if (!existing || museum.distanceKm < existing.distanceKm) {
+        dedupedByQid.set(museum.qid, museum);
+      }
+    }
+    const dedupedMuseums = Array.from(dedupedByQid.values()).sort(
+      (a, b) => a.distanceKm - b.distanceKm
+    );
+    console.log(
+      `[Nearby Search] Deduped to ${dedupedMuseums.length} museums by QID`
+    );
+    markStage('parsed-results');
+
+    res.json({
+      center: { lat, lng },
+      radiusKm,
+      results: dedupedMuseums,
+    });
+    markStage('response-sent');
+  } catch (error) {
+    console.error('[Nearby Search] Failed:', error);
+    markStage('error');
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to search nearby museums';
     res.status(500).json({ error: errorMessage });
   }
 });

@@ -134,6 +134,20 @@ export interface MuseumSelectResponse {
   };
 }
 
+export interface NearbyMuseumResult {
+  qid: string;
+  label: string;
+  description?: string;
+  distanceKm: number;
+  coordinates?: { lat: number; lng: number };
+}
+
+export interface NearbyMuseumSearchResponse {
+  center: { lat: number; lng: number };
+  radiusKm: number;
+  results: NearbyMuseumResult[];
+}
+
 // Wikipedia summary as returned by the API to the client
 export type WikipediaSummary = {
   extract: string;

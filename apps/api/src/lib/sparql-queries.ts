@@ -76,3 +76,40 @@ SELECT DISTINCT ?item ?itemLabel ?itemDescription ?image ?article WHERE {
 ORDER BY ?itemLabel
 LIMIT 200`;
 }
+
+/**
+ * Query for museums near a latitude/longitude point.
+ *
+ * @param lat - Latitude in decimal degrees
+ * @param lng - Longitude in decimal degrees
+ * @param radiusKm - Search radius in kilometers
+ * @param limit - Max number of results
+ */
+export function buildNearbyMuseumsQuery(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  limit: number
+): string {
+  return `# Museums near a coordinate (lat/lng)
+SELECT DISTINCT ?museum ?museumLabel ?museumDescription ?distance ?location WHERE {
+  # wd:Q33506 = museum; include subclasses
+  ?museum wdt:P31/wdt:P279* wd:Q33506 .
+
+  # Geospatial search around a center point
+  SERVICE wikibase:around {
+    ?museum wdt:P625 ?location .
+    bd:serviceParam wikibase:center "Point(${lng} ${lat})"^^geo:wktLiteral .
+    bd:serviceParam wikibase:radius "${radiusKm}" .
+    bd:serviceParam wikibase:distance ?distance .
+  }
+
+  # P582 = end time (exclude defunct museums)
+  FILTER NOT EXISTS { ?museum wdt:P582 ?endTime . }
+
+  # Labels/descriptions in English first
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,de". }
+}
+ORDER BY ?distance
+LIMIT ${limit}`;
+}

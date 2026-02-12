@@ -10,6 +10,7 @@ import {
   Loader2,
   Search,
   MapPin,
+  LocateFixed,
   ExternalLink,
   ArrowLeft,
   Database,
@@ -22,7 +23,10 @@ import type {
   WikidataSearchResponse,
   LocationSearchResponse,
   MuseumSelectResponse,
+  NearbyMuseumSearchResponse,
 } from '@repo/types';
+
+const NEARBY_RADIUS_STEPS_KM = [1, 5, 25] as const;
 
 interface LocalMuseum {
   id: number;
@@ -49,6 +53,12 @@ export default function SearchPage() {
     description?: string;
   } | null>(null);
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [nearbyResults, setNearbyResults] = useState<
+    NearbyMuseumSearchResponse['results']
+  >([]);
+  const [nearbyRadiusKm, setNearbyRadiusKm] = useState(1);
+  const [isSearchingNearby, setIsSearchingNearby] = useState(false);
+  const [nearbyStatus, setNearbyStatus] = useState<string | null>(null);
   const [locationFilter, setLocationFilter] = useState('');
   const [isSelecting, setIsSelecting] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -175,11 +185,77 @@ export default function SearchPage() {
     }
   };
 
+  const handleSearchNearby = useCallback(async () => {
+    if (!navigator.geolocation) {
+      setSearchError('Geolocation is not supported in this browser.');
+      return;
+    }
+
+    setSearchError(null);
+    setIsSearchingNearby(true);
+    setNearbyResults([]);
+    setNearbyStatus('Getting your location...');
+
+    const getCurrentPosition = () =>
+      new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000,
+        });
+      });
+
+    try {
+      const position = await getCurrentPosition();
+      const { latitude, longitude } = position.coords;
+      let foundResults: NearbyMuseumSearchResponse['results'] = [];
+      let foundRadius: number | null = null;
+
+      for (const radiusKm of NEARBY_RADIUS_STEPS_KM) {
+        setNearbyRadiusKm(radiusKm);
+        setNearbyStatus(`No museums found yet. Searching within ${radiusKm} km...`);
+        const response = await api<NearbyMuseumSearchResponse>(
+          `/api/museums/search/nearby?lat=${encodeURIComponent(String(latitude))}&lng=${encodeURIComponent(String(longitude))}&radiusKm=${radiusKm}&limit=20`
+        );
+
+        if (response.results.length > 0) {
+          foundResults = response.results;
+          foundRadius = radiusKm;
+          break;
+        }
+
+        setNearbyStatus(
+          `No museums found within ${radiusKm} km. Expanding search radius...`
+        );
+      }
+
+      setNearbyResults(foundResults);
+      if (foundRadius !== null) {
+        setNearbyStatus(
+          `Found ${foundResults.length} museum${foundResults.length !== 1 ? 's' : ''} within ${foundRadius} km.`
+        );
+      } else {
+        setNearbyStatus('No museums found within 25 km of your location.');
+      }
+    } catch (error) {
+      console.error('Nearby search error:', error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch nearby museums';
+      setSearchError(message);
+      setNearbyStatus(null);
+    } finally {
+      setIsSearchingNearby(false);
+    }
+  }, []);
+
   const showLocalResults = filteredLocalMuseums.length > 0;
   const showWikidataResults =
     hasSearched && !isSearchingWikidata && wikidataResults.length > 0;
   const showLocationResults =
     hasSearched && locationInfo !== null && locationResults.length > 0;
+  const showNearbyResults = !isSearchingNearby && nearbyResults.length > 0;
   const isSearching = isSearchingWikidata || isSearchingLocation;
 
   return (
@@ -229,7 +305,22 @@ export default function SearchPage() {
                 )}
                 <span className="ml-2">Search</span>
               </Button>
+              <Button
+                onClick={handleSearchNearby}
+                disabled={isSearchingNearby || isSelecting !== null}
+                variant="outline"
+              >
+                {isSearchingNearby ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LocateFixed className="h-4 w-4" />
+                )}
+                <span className="ml-2">Near Me</span>
+              </Button>
             </div>
+            {nearbyStatus && (
+              <p className="text-sm text-muted-foreground">{nearbyStatus}</p>
+            )}
 
             {searchError && (
               <div className="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-700 dark:text-red-300">
@@ -382,6 +473,60 @@ export default function SearchPage() {
                   </div>
                 )}
               </div>
+            </div>
+          </SectionCard>
+        )}
+
+        {isSearchingNearby && (
+          <SectionCard
+            title="Nearby Museums"
+            subtitle={`Searching within ${nearbyRadiusKm} km of your location...`}
+          >
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              Finding nearby museums...
+            </div>
+          </SectionCard>
+        )}
+
+        {showNearbyResults && (
+          <SectionCard
+            title="Museums Near You"
+            subtitle={`${nearbyResults.length} museum${nearbyResults.length !== 1 ? 's' : ''} found within ${nearbyRadiusKm} km`}
+          >
+            <div className="divide-y divide-border border border-border rounded-md max-h-96 overflow-y-auto">
+              {nearbyResults.map((museum) => (
+                <button
+                  key={museum.qid}
+                  onClick={() => handleSelectWikidata(museum)}
+                  disabled={isSelecting !== null}
+                  className="w-full text-left py-3 px-4 hover:bg-muted/50 transition-colors disabled:opacity-50"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                        <h3 className="font-medium truncate">{museum.label}</h3>
+                      </div>
+                      {museum.description && (
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          {museum.description}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground/60 mt-1">
+                        {museum.qid} · {museum.distanceKm.toFixed(1)} km away
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {isSelecting === museum.qid ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      ) : (
+                        <ExternalLink className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
           </SectionCard>
         )}
