@@ -28,12 +28,99 @@ import type {
 } from '@repo/types';
 
 const NEARBY_RADIUS_STEPS_KM = [1, 5, 25] as const;
+const MIN_SEARCH_LENGTH = 2;
 
 interface LocalMuseum {
   id: number;
   name: string;
   slug: string;
   wikidataId?: string;
+}
+
+function ResultsContainer({
+  className,
+  scrollable = false,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { scrollable?: boolean }) {
+  return (
+    <div
+      className={[
+        'divide-y divide-border border border-border rounded-md',
+        scrollable ? 'max-h-96 overflow-y-auto' : '',
+        className ?? '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      {...props}
+    />
+  );
+}
+
+interface MuseumResultRowProps {
+  label: string;
+  description?: string;
+  meta?: string;
+  onClick: () => void;
+  disabled: boolean;
+  isSelecting: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  iconClassName: string;
+}
+
+function MuseumResultRow({
+  label,
+  description,
+  meta,
+  onClick,
+  disabled,
+  isSelecting,
+  icon: Icon,
+  iconClassName,
+}: MuseumResultRowProps) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full text-left py-3 px-4 hover:bg-muted/50 transition-colors disabled:opacity-50"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <Icon className={iconClassName} />
+            <h3 className="font-medium truncate">{label}</h3>
+          </div>
+          {description && <MutedText className="mt-1 line-clamp-2">{description}</MutedText>}
+          {meta && <p className="text-xs text-muted-foreground/60 mt-1">{meta}</p>}
+        </div>
+        <div className="flex-shrink-0">
+          {isSelecting ? (
+            <Spinner size="md" className="text-primary" />
+          ) : (
+            <ExternalLink className="h-5 w-5 text-muted-foreground" />
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function SearchLoadingCard({
+  title,
+  subtitle,
+  message,
+}: {
+  title: string;
+  subtitle: string;
+  message: string;
+}) {
+  return (
+    <SectionCard title={title} subtitle={subtitle}>
+      <div className="flex items-center justify-center py-8 text-muted-foreground">
+        <Spinner size="md" className="mr-2" />
+        {message}
+      </div>
+    </SectionCard>
+  );
 }
 
 export default function SearchPage() {
@@ -83,7 +170,7 @@ export default function SearchPage() {
 
   // Filter local museums based on search query (client-side)
   const filteredLocalMuseums = useMemo(() => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+    if (!searchQuery.trim() || searchQuery.trim().length < MIN_SEARCH_LENGTH) {
       return [];
     }
     const query = searchQuery.toLowerCase().trim();
@@ -105,7 +192,7 @@ export default function SearchPage() {
 
   // Search both Wikidata name and location in parallel
   const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+    if (!searchQuery.trim() || searchQuery.trim().length < MIN_SEARCH_LENGTH) {
       return;
     }
 
@@ -260,6 +347,9 @@ export default function SearchPage() {
     hasSearched && locationInfo !== null && locationResults.length > 0;
   const showNearbyResults = !isSearchingNearby && nearbyResults.length > 0;
   const isSearching = isSearchingWikidata || isSearchingLocation;
+  const isSearchDisabled =
+    isSearching || isSelecting !== null || searchQuery.trim().length < MIN_SEARCH_LENGTH;
+  const isNearbyDisabled = isSearchingNearby || isSelecting !== null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -288,11 +378,7 @@ export default function SearchPage() {
               </div>
               <Button
                 onClick={handleSearch}
-                disabled={
-                  isSearching ||
-                  isSelecting !== null ||
-                  searchQuery.trim().length < 2
-                }
+                disabled={isSearchDisabled}
               >
                 {isSearching ? (
                   <Spinner />
@@ -303,7 +389,7 @@ export default function SearchPage() {
               </Button>
               <Button
                 onClick={handleSearchNearby}
-                disabled={isSearchingNearby || isSelecting !== null}
+                disabled={isNearbyDisabled}
                 className="min-w-28"
               >
                 {isSearchingNearby ? (
@@ -328,28 +414,19 @@ export default function SearchPage() {
             title={`In ${APP_NAME}`}
             subtitle={`${filteredLocalMuseums.length} museum${filteredLocalMuseums.length !== 1 ? 's' : ''} in your collection`}
           >
-            <div className="divide-y divide-border border border-border rounded-md">
+            <ResultsContainer>
               {filteredLocalMuseums.map((museum) => (
-                <button
+                <MuseumResultRow
                   key={museum.id}
+                  label={museum.name}
                   onClick={() => handleSelectLocal(museum)}
                   disabled={isSelecting !== null}
-                  className="w-full text-left py-3 px-4 hover:bg-muted/50 transition-colors disabled:opacity-50"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Database className="h-4 w-4 text-accent flex-shrink-0" />
-                        <h3 className="font-medium truncate">{museum.name}</h3>
-                      </div>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <ExternalLink className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  </div>
-                </button>
+                  isSelecting={false}
+                  icon={Database}
+                  iconClassName="h-4 w-4 text-accent flex-shrink-0"
+                />
               ))}
-            </div>
+            </ResultsContainer>
           </SectionCard>
         )}
 
@@ -359,55 +436,33 @@ export default function SearchPage() {
             title="Museum Name Matches"
             subtitle={`${wikidataResults.length} museum${wikidataResults.length !== 1 ? 's' : ''} found on Wikidata`}
           >
-            <div className="divide-y divide-border border border-border rounded-md">
+            <ResultsContainer>
               {wikidataResults.map((result) => (
-                <button
+                <MuseumResultRow
                   key={result.qid}
+                  label={result.label}
+                  description={result.description}
+                  meta={result.qid}
                   onClick={() => handleSelectWikidata(result)}
                   disabled={isSelecting !== null}
-                  className="w-full text-left py-3 px-4 hover:bg-muted/50 transition-colors disabled:opacity-50"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
-                        <h3 className="font-medium truncate">{result.label}</h3>
-                      </div>
-                      {result.description && (
-                        <MutedText className="mt-1 line-clamp-2">
-                          {result.description}
-                        </MutedText>
-                      )}
-                      <p className="text-xs text-muted-foreground/60 mt-1">
-                        {result.qid}
-                      </p>
-                    </div>
-                    <div className="flex-shrink-0">
-                      {isSelecting === result.qid ? (
-                        <Spinner size="md" className="text-primary" />
-                      ) : (
-                        <ExternalLink className="h-5 w-5 text-muted-foreground" />
-                      )}
-                    </div>
-                  </div>
-                </button>
+                  isSelecting={isSelecting === result.qid}
+                  icon={MapPin}
+                  iconClassName="h-4 w-4 text-primary flex-shrink-0"
+                />
               ))}
-            </div>
+            </ResultsContainer>
           </SectionCard>
         )}
 
         {/* Location-based Results */}
-        {isSearchingLocation && hasSearched && (
-          <SectionCard
-            title="Museums by Location"
-            subtitle="Searching for museums in matching locations..."
-          >
-            <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Spinner size="md" className="mr-2" />
-              This may take a moment...
-            </div>
-          </SectionCard>
-        )}
+        {isSearchingLocation &&
+          hasSearched && (
+            <SearchLoadingCard
+              title="Museums by Location"
+              subtitle="Searching for museums in matching locations..."
+              message="This may take a moment..."
+            />
+          )}
 
         {showLocationResults && !isSearchingLocation && (
           <SectionCard
@@ -423,56 +478,35 @@ export default function SearchPage() {
                   onChange={(e) => setLocationFilter(e.target.value)}
                 />
               )}
-              <div className="divide-y divide-border border border-border rounded-md max-h-96 overflow-y-auto">
+              <ResultsContainer scrollable>
                 {filteredLocationResults.map((museum) => (
-                  <button
+                  <MuseumResultRow
                     key={museum.qid}
+                    label={museum.label}
+                    meta={museum.qid}
                     onClick={() => handleSelectWikidata(museum)}
                     disabled={isSelecting !== null}
-                    className="w-full text-left py-3 px-4 hover:bg-muted/50 transition-colors disabled:opacity-50"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-accent flex-shrink-0" />
-                          <h3 className="font-medium truncate">
-                            {museum.label}
-                          </h3>
-                        </div>
-                        <p className="text-xs text-muted-foreground/60 mt-1">
-                          {museum.qid}
-                        </p>
-                      </div>
-                      <div className="flex-shrink-0">
-                        {isSelecting === museum.qid ? (
-                          <Spinner size="md" className="text-primary" />
-                        ) : (
-                          <ExternalLink className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </div>
-                    </div>
-                  </button>
+                    isSelecting={isSelecting === museum.qid}
+                    icon={MapPin}
+                    iconClassName="h-4 w-4 text-accent flex-shrink-0"
+                  />
                 ))}
                 {filteredLocationResults.length === 0 && locationFilter && (
                   <div className="text-center py-4 text-muted-foreground text-sm">
                     No museums matching &quot;{locationFilter}&quot;
                   </div>
                 )}
-              </div>
+              </ResultsContainer>
             </div>
           </SectionCard>
         )}
 
         {isSearchingNearby && (
-          <SectionCard
+          <SearchLoadingCard
             title="Nearby Museums"
             subtitle={`Searching within ${nearbyRadiusKm} km of your location...`}
-          >
-            <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Spinner size="md" className="mr-2" />
-              Finding nearby museums...
-            </div>
-          </SectionCard>
+            message="Finding nearby museums..."
+          />
         )}
 
         {showNearbyResults && (
@@ -480,40 +514,21 @@ export default function SearchPage() {
             title="Museums Near You"
             subtitle={`${nearbyResults.length} museum${nearbyResults.length !== 1 ? 's' : ''} found within ${nearbyRadiusKm} km`}
           >
-            <div className="divide-y divide-border border border-border rounded-md max-h-96 overflow-y-auto">
+            <ResultsContainer scrollable>
               {nearbyResults.map((museum) => (
-                <button
+                <MuseumResultRow
                   key={museum.qid}
+                  label={museum.label}
+                  description={museum.description}
+                  meta={`${museum.qid} · ${museum.distanceKm.toFixed(1)} km away`}
                   onClick={() => handleSelectWikidata(museum)}
                   disabled={isSelecting !== null}
-                  className="w-full text-left py-3 px-4 hover:bg-muted/50 transition-colors disabled:opacity-50"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-accent flex-shrink-0" />
-                        <h3 className="font-medium truncate">{museum.label}</h3>
-                      </div>
-                      {museum.description && (
-                        <MutedText className="mt-1 line-clamp-2">
-                          {museum.description}
-                        </MutedText>
-                      )}
-                      <p className="text-xs text-muted-foreground/60 mt-1">
-                        {museum.qid} · {museum.distanceKm.toFixed(1)} km away
-                      </p>
-                    </div>
-                    <div className="flex-shrink-0">
-                      {isSelecting === museum.qid ? (
-                        <Spinner size="md" className="text-primary" />
-                      ) : (
-                        <ExternalLink className="h-5 w-5 text-muted-foreground" />
-                      )}
-                    </div>
-                  </div>
-                </button>
+                  isSelecting={isSelecting === museum.qid}
+                  icon={MapPin}
+                  iconClassName="h-4 w-4 text-accent flex-shrink-0"
+                />
               ))}
-            </div>
+            </ResultsContainer>
           </SectionCard>
         )}
 
