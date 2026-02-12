@@ -454,7 +454,7 @@ app.get('/api/museums/search/location', async (req, res) => {
     const searchTerm = query.trim();
 
     // Find matching locations
-    const locations = await searchWikidataLocations(searchTerm, 5);
+    const locations = await searchWikidataLocations(searchTerm, 3);
 
     if (locations.length === 0) {
       return res.json({
