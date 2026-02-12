@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { SectionCard } from '../../../../components/shared';
+import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { API_URL } from '@/lib/api';
@@ -180,11 +181,7 @@ export function ArtifactContentInspector({
         </div>
       )}
 
-      {error && (
-        <div className="mt-3 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      {error && <Alert className="mt-3">{error}</Alert>}
     </SectionCard>
   );
 }

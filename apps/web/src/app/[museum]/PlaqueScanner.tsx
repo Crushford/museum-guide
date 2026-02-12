@@ -11,7 +11,9 @@ import type {
 } from '@repo/types';
 import { API_URL } from '@/lib/api';
 import { SectionCard } from '@/components/shared';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ErrorText } from '@/components/ui/error-text';
 import {
   Dialog,
   DialogContent,
@@ -401,7 +403,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
           />
         )}
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <ErrorText>{error}</ErrorText>}
       </div>
 
       <Dialog
@@ -442,7 +444,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
             )}
 
             {museumConfidenceNeedsConfirm && draft && (
-              <div className="rounded-md border border-warning/30 bg-warning/20 p-3 text-warning space-y-2">
+              <Alert variant="warning" className="space-y-2">
                 <p className="text-sm font-medium">
                   Museum confidence is {draft.museumConfidence.toFixed(0)}%
                 </p>
@@ -453,7 +455,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
                 <Button type="button" size="sm" onClick={continueFlow}>
                   Continue for now
                 </Button>
-              </div>
+              </Alert>
             )}
 
             {duplicateGate && (
@@ -491,7 +493,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
               </div>
             )}
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <ErrorText>{error}</ErrorText>}
           </div>
         </DialogContent>
       </Dialog>

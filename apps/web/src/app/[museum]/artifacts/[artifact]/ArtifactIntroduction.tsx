@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Loader2, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ErrorText } from '@/components/ui/error-text';
 import { SectionCard } from '@/components/shared';
 import { API_URL } from '@/lib/api';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
@@ -110,7 +111,7 @@ export function ArtifactIntroduction({
     return (
       <SectionCard title="Introduction">
         <div className="space-y-4">
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {error && <ErrorText>{error}</ErrorText>}
 
           {/* Status indicator */}
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
@@ -139,7 +140,7 @@ export function ArtifactIntroduction({
     return (
       <SectionCard title="Introduction">
         <div className="space-y-4">
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {error && <ErrorText>{error}</ErrorText>}
           <p className="text-muted-foreground">
             No introduction has been generated for this artifact yet.
           </p>
@@ -155,7 +156,7 @@ export function ArtifactIntroduction({
   return (
     <SectionCard title="Introduction">
       <div className="space-y-4">
-        {error && <p className="text-destructive text-sm">{error}</p>}
+        {error && <ErrorText>{error}</ErrorText>}
 
         {/* Audio Player */}
         {content.audioUrl && (

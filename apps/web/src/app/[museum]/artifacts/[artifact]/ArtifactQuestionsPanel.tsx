@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from 'react';
 import { Loader2, ThumbsDown, ThumbsUp, Volume2 } from 'lucide-react';
 import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/ui/alert';
+import { ErrorText } from '@/components/ui/error-text';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -300,7 +302,7 @@ export function ArtifactQuestionsPanel({
           ))}
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <ErrorText>{error}</ErrorText>}
 
         {sortedQuestions.length === 0 ? (
           <p className="text-muted-foreground text-sm">
@@ -507,7 +509,7 @@ export function ArtifactQuestionsPanel({
 
             {similarPrompt?.requiresConfirmation &&
               similarPrompt.similarQuestion && (
-                <div className="rounded-md border border-warning/30 bg-warning/20 p-3 text-warning space-y-2">
+                <Alert variant="warning" className="space-y-2">
                   <p className="text-sm">
                     Similar question found (
                     {Math.round(similarPrompt.similarQuestion.similarity * 100)}
@@ -538,12 +540,10 @@ export function ArtifactQuestionsPanel({
                       Ask Anyway
                     </Button>
                   </div>
-                </div>
+                </Alert>
               )}
 
-            {modalError && (
-              <p className="text-sm text-destructive">{modalError}</p>
-            )}
+            {modalError && <ErrorText>{modalError}</ErrorText>}
 
             {!modalAnsweredQuestion && !isPreviewing && (
               <div className="flex gap-2">

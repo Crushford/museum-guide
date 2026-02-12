@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 
 export function IncorrectMatchNotice() {
   const [clicked, setClicked] = useState(false);
 
   return (
-    <div className="rounded-md border border-warning/30 bg-warning/20 p-3 text-warning">
+    <Alert variant="warning">
       <p className="text-sm">
         This page was opened from a scan duplicate match. If this is wrong, flag
         it.
@@ -27,6 +28,6 @@ export function IncorrectMatchNotice() {
           TODO: wire incorrect-match review flow.
         </p>
       )}
-    </div>
+    </Alert>
   );
 }

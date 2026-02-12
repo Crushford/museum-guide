@@ -3,6 +3,7 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { InlineEditableMuseumRoom } from '@/components/shared/InlineEditableMuseumRoom';
@@ -305,9 +306,9 @@ export function ParentSelector(props: ParentSelectorProps) {
           <div className="space-y-2">
             <Label>Parent</Label>
             <div className="flex items-center gap-2">
-              <p className="text-sm text-destructive">
+              <ErrorText>
                 There is no parent attached and you should attach one.
-              </p>
+              </ErrorText>
               {props.isEditing === undefined && (
                 <Button
                   type="button"

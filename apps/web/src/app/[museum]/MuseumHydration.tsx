@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Loader2, RefreshCw, ExternalLink, MapPin, Globe } from 'lucide-react';
 import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
+import { ErrorText } from '@/components/ui/error-text';
 import { apiPost, API_URL } from '@/lib/api';
 import Link from 'next/link';
 
@@ -109,7 +110,7 @@ export function MuseumDetailsHydration({
     return (
       <SectionCard title="About">
         <div className="py-4">
-          <p className="text-destructive mb-3">{error}</p>
+          <ErrorText>{error}</ErrorText>
           <Button variant="secondary" size="sm" onClick={hydrate}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
@@ -255,7 +256,7 @@ export function ArtifactsHydration({
     return (
       <SectionCard title="Notable Artifacts">
         <div className="py-4">
-          <p className="text-destructive mb-3">{error}</p>
+          <ErrorText>{error}</ErrorText>
           <Button variant="secondary" size="sm" onClick={hydrate}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { SectionCard } from '@/components/shared';
 import { Input } from '@/components/ui/input';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Loader2,
@@ -315,17 +316,9 @@ export default function SearchPage() {
               <p className="text-sm text-muted-foreground">{nearbyStatus}</p>
             )}
 
-            {searchError && (
-              <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
-                {searchError}
-              </div>
-            )}
+            {searchError && <Alert>{searchError}</Alert>}
 
-            {selectError && (
-              <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
-                {selectError}
-              </div>
-            )}
+            {selectError && <Alert>{selectError}</Alert>}
           </div>
         </SectionCard>
 

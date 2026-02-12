@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PageLayout, SectionCard } from '../../../components/shared';
 import { Badge } from '@/components/ui/badge';
+import { ErrorText } from '@/components/ui/error-text';
 import { API_URL } from '@/lib/api';
 import type { SpendRow } from '@repo/types';
 
@@ -36,7 +37,7 @@ export default function CostsPage() {
           {loading && (
             <p className="text-sm text-muted-foreground">Loading...</p>
           )}
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <ErrorText>{error}</ErrorText>}
           {!loading && !error && spend.length === 0 && (
             <p className="text-sm text-muted-foreground">
               No usage recorded this month.

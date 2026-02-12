@@ -115,9 +115,8 @@ Do **not** use `text-foreground` for explicit styling — the body inherits the 
 - **Cards**: Use the `<Card>` component — styling is built into the component
 - **Nav links**: Use the `<NavLink>` component (`components/ui/nav-link.tsx`) — muted text that brightens on hover
 - **Active nav**: `bg-primary/10 text-primary`
-- **Error text**: `text-destructive`
-- **Error boxes**: `bg-destructive/10 border border-destructive/30 text-destructive`
-- **Warning boxes**: `bg-warning/20 border border-warning/30 text-warning`
+- **Error text**: Use the `<ErrorText>` component (`components/ui/error-text.tsx`)
+- **Error/warning boxes**: Use the `<Alert>` component (`components/ui/alert.tsx`) — `variant="destructive"` (default) or `variant="warning"`
 - **Focus rings**: `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`
 - **Hover on rows**: `hover:bg-muted/50`
 
