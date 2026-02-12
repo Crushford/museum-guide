@@ -352,7 +352,7 @@ export default function SearchPage() {
   const isNearbyDisabled = isSearchingNearby || isSelecting !== null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         <header className="mb-8">
           <PageTitle>Find a Museum</PageTitle>
