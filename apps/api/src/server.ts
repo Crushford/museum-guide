@@ -414,7 +414,7 @@ app.get('/api/museums/search/wikidata', async (req, res) => {
     const searchTerm = query.trim();
 
     // Search Wikidata only
-    const wikidataResults = await searchWikidata(searchTerm, 10);
+    const wikidataResults = await searchWikidata(searchTerm, 100);
     const withWikipedia = await Promise.all(
       wikidataResults.map(async (result) => {
         try {
