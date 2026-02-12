@@ -273,7 +273,7 @@ export default function SearchPage() {
         </header>
         <SectionCard
           title="Search"
-          subtitle={`Search by museum name or location to add it to ${APP_NAME}.`}
+          subtitle="Start by finding the museum you would like to tour, you can sarch for the name (must be exact) the location or near you"
         >
           <div className="space-y-4">
             <div className="flex gap-2">
@@ -308,7 +308,7 @@ export default function SearchPage() {
               <Button
                 onClick={handleSearchNearby}
                 disabled={isSearchingNearby || isSelecting !== null}
-                variant="outline"
+                className="min-w-28"
               >
                 {isSearchingNearby ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -546,27 +546,6 @@ export default function SearchPage() {
               </div>
             </SectionCard>
           )}
-
-        {/* How it works */}
-        {!showLocalResults && !hasSearched && (
-          <SectionCard title="How it works">
-            <div className="text-sm text-muted-foreground space-y-2">
-              <p>
-                <strong>1. Type:</strong> Enter a museum name or city. Museums
-                already in {APP_NAME} will appear instantly.
-              </p>
-              <p>
-                <strong>2. Search:</strong> Click the button to search
-                Wikidata&apos;s database for museums by name and location.
-              </p>
-              <p>
-                <strong>3. Select:</strong> Click on a museum to add it.
-                We&apos;ll fetch its details including images, coordinates, and
-                Wikipedia links.
-              </p>
-            </div>
-          </SectionCard>
-        )}
 
         {/* Loading indicator for initial load */}
         {isLoadingLocal && (
