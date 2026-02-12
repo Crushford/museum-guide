@@ -6,7 +6,8 @@ import { PageLayout } from '@/components/shared';
 import { SectionCard } from '@/components/shared';
 import { AdminTabsClient } from './AdminTabsClient';
 import { Button } from '@/components/ui/button';
-import { Database, Loader2 } from 'lucide-react';
+import { Database } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import type {
   MuseumResponse,
   RoomResponse,
@@ -63,7 +64,7 @@ export default function AdminPage() {
       <PageLayout title="Admin">
         <SectionCard title="">
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size="lg" className="text-muted-foreground" />
           </div>
         </SectionCard>
       </PageLayout>

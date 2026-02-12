@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { SectionCard } from '@/components/shared';
 import { Input } from '@/components/ui/input';
 import { Alert } from '@/components/ui/alert';
+import { PageTitle } from '@/components/ui/page-title';
 import { Button } from '@/components/ui/button';
+import { MutedText } from '@/components/ui/muted-text';
 import {
-  Loader2,
   Search,
   MapPin,
   LocateFixed,
@@ -15,6 +16,7 @@ import {
   Database,
   Globe,
 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { api, apiPost } from '@/lib/api';
 import { APP_NAME } from '@/lib/constants';
 import type {
@@ -263,7 +265,7 @@ export default function SearchPage() {
     <div className="min-h-screen bg-background">
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold text-primary">Find a Museum</h1>
+          <PageTitle>Find a Museum</PageTitle>
         </header>
         <SectionCard
           title="Search"
@@ -293,7 +295,7 @@ export default function SearchPage() {
                 }
               >
                 {isSearching ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner />
                 ) : (
                   <Globe className="h-4 w-4" />
                 )}
@@ -305,16 +307,14 @@ export default function SearchPage() {
                 className="min-w-28"
               >
                 {isSearchingNearby ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner />
                 ) : (
                   <LocateFixed className="h-4 w-4" />
                 )}
                 <span className="ml-2">Near Me</span>
               </Button>
             </div>
-            {nearbyStatus && (
-              <p className="text-sm text-muted-foreground">{nearbyStatus}</p>
-            )}
+            {nearbyStatus && <MutedText>{nearbyStatus}</MutedText>}
 
             {searchError && <Alert>{searchError}</Alert>}
 
@@ -374,9 +374,9 @@ export default function SearchPage() {
                         <h3 className="font-medium truncate">{result.label}</h3>
                       </div>
                       {result.description && (
-                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                        <MutedText className="mt-1 line-clamp-2">
                           {result.description}
-                        </p>
+                        </MutedText>
                       )}
                       <p className="text-xs text-muted-foreground/60 mt-1">
                         {result.qid}
@@ -384,7 +384,7 @@ export default function SearchPage() {
                     </div>
                     <div className="flex-shrink-0">
                       {isSelecting === result.qid ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        <Spinner size="md" className="text-primary" />
                       ) : (
                         <ExternalLink className="h-5 w-5 text-muted-foreground" />
                       )}
@@ -403,7 +403,7 @@ export default function SearchPage() {
             subtitle="Searching for museums in matching locations..."
           >
             <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              <Spinner size="md" className="mr-2" />
               This may take a moment...
             </div>
           </SectionCard>
@@ -445,7 +445,7 @@ export default function SearchPage() {
                       </div>
                       <div className="flex-shrink-0">
                         {isSelecting === museum.qid ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                          <Spinner size="md" className="text-primary" />
                         ) : (
                           <ExternalLink className="h-5 w-5 text-muted-foreground" />
                         )}
@@ -469,7 +469,7 @@ export default function SearchPage() {
             subtitle={`Searching within ${nearbyRadiusKm} km of your location...`}
           >
             <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              <Spinner size="md" className="mr-2" />
               Finding nearby museums...
             </div>
           </SectionCard>
@@ -495,9 +495,9 @@ export default function SearchPage() {
                         <h3 className="font-medium truncate">{museum.label}</h3>
                       </div>
                       {museum.description && (
-                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                        <MutedText className="mt-1 line-clamp-2">
                           {museum.description}
-                        </p>
+                        </MutedText>
                       )}
                       <p className="text-xs text-muted-foreground/60 mt-1">
                         {museum.qid} · {museum.distanceKm.toFixed(1)} km away
@@ -505,7 +505,7 @@ export default function SearchPage() {
                     </div>
                     <div className="flex-shrink-0">
                       {isSelecting === museum.qid ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        <Spinner size="md" className="text-primary" />
                       ) : (
                         <ExternalLink className="h-5 w-5 text-muted-foreground" />
                       )}
@@ -536,7 +536,7 @@ export default function SearchPage() {
         {/* Loading indicator for initial load */}
         {isLoadingLocal && (
           <div className="flex items-center justify-center py-4 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            <Spinner className="mr-2" />
             Loading museums...
           </div>
         )}

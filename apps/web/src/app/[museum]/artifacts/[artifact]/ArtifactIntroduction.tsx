@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { Loader2, Volume2 } from 'lucide-react';
+import { Volume2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { ErrorText } from '@/components/ui/error-text';
 import { SectionCard } from '@/components/shared';
@@ -115,7 +116,7 @@ export function ArtifactIntroduction({
 
           {/* Status indicator */}
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-            <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+            <Spinner size="md" className="text-primary shrink-0" />
             <div>
               <p className="text-primary font-medium">{statusMessage}</p>
             </div>

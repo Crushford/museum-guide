@@ -5,7 +5,7 @@ import { PageLayout } from '@/components/shared';
 import { SectionCard } from '@/components/shared';
 import { ContentTabsClient } from './ContentTabsClient';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import type {
   MuseumResponse,
   RoomResponse,
@@ -70,7 +70,7 @@ export default function AdminContentPage() {
       <SectionCard title="">
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size="lg" className="text-muted-foreground" />
           </div>
         )}
         {error && (

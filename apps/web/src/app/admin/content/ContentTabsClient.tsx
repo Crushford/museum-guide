@@ -18,7 +18,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { PromptTemplateBox } from '@/components/shared';
 import { generateIntroductionTemplate } from '../_lib/templates';
@@ -221,7 +222,7 @@ function ContentGroupCell({
                     >
                       {isGeneratingAudio ? (
                         <>
-                          <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                          <Spinner size="xs" className="mr-2" />
                           Generating...
                         </>
                       ) : hasAudio ? (
@@ -499,7 +500,7 @@ function DataTable({
             >
               {isGenerating ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner className="mr-2" />
                   Generating...
                 </>
               ) : (
@@ -518,7 +519,7 @@ function DataTable({
               >
                 {isGeneratingAudio ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner className="mr-2" />
                     Generating...
                   </>
                 ) : (

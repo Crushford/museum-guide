@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { Loader2, ThumbsDown, ThumbsUp, Volume2 } from 'lucide-react';
+import { ThumbsDown, ThumbsUp, Volume2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -285,7 +286,7 @@ export function ArtifactQuestionsPanel({
             disabled={isAsking || isPreviewing}
           >
             {(isAsking || isPreviewing) && (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner className="mr-2" />
             )}
             Ask Question
           </Button>
@@ -414,7 +415,7 @@ export function ArtifactQuestionsPanel({
           <div className="space-y-3">
             {isPreviewing ? (
               <div className="flex items-center gap-2 rounded-md border p-3">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner />
                 <p className="text-sm text-muted-foreground">
                   Preparing your question for publishing...
                 </p>
@@ -558,9 +559,7 @@ export function ArtifactQuestionsPanel({
                   onClick={() => void submitQuestion(false)}
                   disabled={isAsking || !selectedPublishQuestion.trim()}
                 >
-                  {isAsking && (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  )}
+                  {isAsking && <Spinner className="mr-2" />}
                   Publish and Answer
                 </Button>
               </div>

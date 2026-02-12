@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import type {
   ArtifactDraft,
   DuplicateSearchResult,
@@ -424,7 +424,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
           <div className="space-y-4">
             {isRunning && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner />
                 Working on this scan...
               </div>
             )}

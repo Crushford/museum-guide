@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, RefreshCw, ExternalLink, MapPin, Globe } from 'lucide-react';
+import { RefreshCw, ExternalLink, MapPin, Globe } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { ErrorText } from '@/components/ui/error-text';
@@ -92,7 +93,7 @@ export function MuseumDetailsHydration({
     return (
       <SectionCard title="About">
         <div className="flex items-center gap-3 py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <Spinner size="md" className="text-primary" />
           <div>
             <p className="text-muted-foreground">
               Fetching museum information from Wikipedia...
@@ -238,7 +239,7 @@ export function ArtifactsHydration({
         subtitle="Items with Wikipedia pages"
       >
         <div className="flex items-center gap-3 py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <Spinner size="md" className="text-primary" />
           <div>
             <p className="text-muted-foreground">
               Fetching notable artifacts from Wikipedia...
