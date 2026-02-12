@@ -525,7 +525,7 @@ export async function isMuseum(qid: string): Promise<boolean> {
 // WIKIPEDIA SUMMARY API
 // ============================================================================
 
-export interface WikipediaSummary {
+export interface WikipediaSummaryInternal {
   title: string;
   extract: string;
   description?: string;
@@ -547,7 +547,7 @@ export interface WikipediaSummary {
  */
 export async function fetchWikipediaSummary(
   wikipediaUrl: string
-): Promise<WikipediaSummary | null> {
+): Promise<WikipediaSummaryInternal | null> {
   try {
     // Parse the Wikipedia URL to extract language and title
     const url = new URL(wikipediaUrl);
@@ -815,7 +815,7 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 export async function fetchWikipediaSummaryWithTranslation(
   wikipediaUrl: string
-): Promise<WikipediaSummary | null> {
+): Promise<WikipediaSummaryInternal | null> {
   try {
     const url = new URL(wikipediaUrl);
     const originalLang = url.hostname.split('.')[0];

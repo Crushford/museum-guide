@@ -133,3 +133,18 @@ export interface MuseumSelectResponse {
     name: string;
   };
 }
+
+// Wikipedia summary as returned by the API to the client
+export type WikipediaSummary = {
+  extract: string;
+  title: string;
+  translated?: boolean;
+  originalLanguage?: string;
+  originalExtract?: string;
+};
+
+// LLM cost tracking
+export type SpendRow = {
+  provider: string;
+  totalEur: number;
+};

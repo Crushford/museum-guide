@@ -36,17 +36,7 @@ import type {
   RoomResponse,
   ArtifactResponse,
 } from '@repo/types';
-
-type ContentRow = {
-  id: number;
-  type: string | null;
-  text: string;
-  createdAt: string;
-  museumId: number | null;
-  roomId: number | null;
-  artifactId: number | null;
-  audioUrl: string | null;
-};
+import type { ContentRow } from '@/lib/types';
 
 type ContentTabsClientProps = {
   museums: MuseumResponse[];

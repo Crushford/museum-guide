@@ -1,4 +1,5 @@
 import { prisma } from '@repo/db';
+import type { SpendRow } from '@repo/types';
 
 // Cost per 1M tokens in EUR (conservative estimates)
 const COST_TABLE: Record<string, { input: number; output: number }> = {
@@ -81,7 +82,7 @@ export async function recordUsage(params: {
 
 export async function getMonthlySpendEur(
   provider?: string
-): Promise<{ provider: string; totalEur: number }[]> {
+): Promise<SpendRow[]> {
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
@@ -143,9 +144,7 @@ export async function checkSpendLimit(provider: string): Promise<{
   };
 }
 
-export async function getDailySpendEur(
-  provider?: string
-): Promise<{ provider: string; totalEur: number }[]> {
+export async function getDailySpendEur(provider?: string): Promise<SpendRow[]> {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 

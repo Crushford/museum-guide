@@ -4,11 +4,7 @@ import { useState, useEffect } from 'react';
 import { PageLayout, SectionCard } from '../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { API_URL } from '@/lib/api';
-
-type SpendRow = {
-  provider: string;
-  totalEur: number;
-};
+import type { SpendRow } from '@repo/types';
 
 export default function CostsPage() {
   const [spend, setSpend] = useState<SpendRow[]>([]);
