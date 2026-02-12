@@ -551,9 +551,7 @@ app.get('/api/museums/search/nearby', async (req, res) => {
       location?: { value: string };
     };
     const results = await queryWikidata<NearbyBinding>(sparqlQuery);
-    console.log(
-      `[Nearby Search] SPARQL returned ${results.length} rows`
-    );
+    console.log(`[Nearby Search] SPARQL returned ${results.length} rows`);
     markStage('sparql-finished');
     type NearbyMuseumItem = {
       qid: string;
@@ -589,7 +587,9 @@ app.get('/api/museums/search/nearby', async (req, res) => {
           qid,
           label: museumLabel,
           description: binding.museumDescription?.value,
-          distanceKm: Number.isNaN(distance) ? Number.POSITIVE_INFINITY : distance,
+          distanceKm: Number.isNaN(distance)
+            ? Number.POSITIVE_INFINITY
+            : distance,
           coordinates,
         };
       })
@@ -623,7 +623,9 @@ app.get('/api/museums/search/nearby', async (req, res) => {
     console.error('[Nearby Search] Failed:', error);
     markStage('error');
     const errorMessage =
-      error instanceof Error ? error.message : 'Failed to search nearby museums';
+      error instanceof Error
+        ? error.message
+        : 'Failed to search nearby museums';
     res.status(500).json({ error: errorMessage });
   }
 });
