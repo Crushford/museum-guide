@@ -100,3 +100,36 @@ export interface DuplicateSearchResult {
     gap: number;
   };
 }
+
+// Wikidata search types (shared between API and web)
+
+export interface WikidataSearchResult {
+  qid: string;
+  label: string;
+  description?: string;
+}
+
+export interface WikidataSearchResponse {
+  query: string;
+  results: WikidataSearchResult[];
+}
+
+export interface LocationSearchResponse {
+  query: string;
+  location: {
+    qid: string;
+    label: string;
+    description?: string;
+  } | null;
+  museums: { qid: string; label: string }[];
+}
+
+export interface MuseumSelectResponse {
+  created: boolean;
+  museum: {
+    id: number;
+    qid: string;
+    slug: string;
+    name: string;
+  };
+}

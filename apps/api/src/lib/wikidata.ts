@@ -3,6 +3,7 @@
  */
 
 import { TranslationServiceClient } from '@google-cloud/translate';
+import type { WikidataSearchResult } from '@repo/types';
 import { recordApiCall } from './telemetry/api-call-tracker';
 
 export { buildMuseumQuery, buildArtifactsQuery } from './sparql-queries';
@@ -239,12 +240,6 @@ export function extractQId(uri: string): string | null {
 // ============================================================================
 // WIKIDATA SEARCH API (wbsearchentities) - Fast name search
 // ============================================================================
-
-export interface WikidataSearchResult {
-  qid: string;
-  label: string;
-  description?: string;
-}
 
 /**
  * Search Wikidata for entities by name using the wbsearchentities API.

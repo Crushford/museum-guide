@@ -17,6 +17,12 @@ import {
 } from 'lucide-react';
 import { api, apiPost } from '../../lib/api';
 import { APP_NAME } from '../../lib/constants';
+import type {
+  WikidataSearchResult,
+  WikidataSearchResponse,
+  LocationSearchResponse,
+  MuseumSelectResponse,
+} from '@repo/types';
 
 interface LocalMuseum {
   id: number;
@@ -25,50 +31,18 @@ interface LocalMuseum {
   wikidataId?: string;
 }
 
-interface WikidataResult {
-  qid: string;
-  label: string;
-  description?: string;
-}
-
-interface WikidataSearchResponse {
-  query: string;
-  results: WikidataResult[];
-}
-
-interface LocationMuseum {
-  qid: string;
-  label: string;
-}
-
-interface LocationSearchResponse {
-  query: string;
-  location: {
-    qid: string;
-    label: string;
-    description?: string;
-  } | null;
-  museums: LocationMuseum[];
-}
-
-interface SelectResponse {
-  created: boolean;
-  museum: {
-    id: number;
-    qid: string;
-    slug: string;
-    name: string;
-  };
-}
-
 export default function SearchPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [allLocalMuseums, setAllLocalMuseums] = useState<LocalMuseum[]>([]);
   const [isLoadingLocal, setIsLoadingLocal] = useState(true);
-  const [wikidataResults, setWikidataResults] = useState<WikidataResult[]>([]);
+  const [wikidataResults, setWikidataResults] = useState<
+    WikidataSearchResult[]
+  >([]);
   const [isSearchingWikidata, setIsSearchingWikidata] = useState(false);
-  const [locationResults, setLocationResults] = useState<LocationMuseum[]>([]);
+  const [locationResults, setLocationResults] = useState<
+    LocationSearchResponse['museums']
+  >([]);
   const [locationInfo, setLocationInfo] = useState<{
     qid: string;
     label: string;
@@ -178,7 +152,7 @@ export default function SearchPage() {
       setSelectError(null);
 
       try {
-        const response = await apiPost<SelectResponse>(
+        const response = await apiPost<MuseumSelectResponse>(
           `/api/museums/select/${result.qid}`
         );
 

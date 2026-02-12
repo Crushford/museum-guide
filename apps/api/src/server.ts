@@ -53,8 +53,8 @@ import {
   fetchWikipediaSummaryWithTranslation,
   parseArtifactResults,
   type WikidataArtifactBinding,
-  type WikidataSearchResult,
 } from './lib/wikidata';
+import type { WikidataSearchResult } from '@repo/types';
 import {
   extractTextFromImage,
   searchDuplicatesFromRawText,
