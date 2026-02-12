@@ -80,20 +80,13 @@ export default function AdminContentPage() {
           </div>
         )}
         {!loading && !error && (
-          <>
-            <div className="mb-4 p-4 bg-muted/50 rounded-md border border-border">
-              <p className="text-sm text-muted-foreground">
-                View-only table. Editing happens on entity pages.
-              </p>
-            </div>
-            <ContentTabsClient
-              museums={museums}
-              rooms={rooms}
-              artifacts={artifacts}
-              content={content}
-              onRefresh={fetchData}
-            />
-          </>
+          <ContentTabsClient
+            museums={museums}
+            rooms={rooms}
+            artifacts={artifacts}
+            content={content}
+            onRefresh={fetchData}
+          />
         )}
       </SectionCard>
     </PageLayout>
