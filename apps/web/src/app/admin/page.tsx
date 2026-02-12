@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { AdminPageLayout } from '@/components/shared';
+import { PageLayout } from '@/components/shared';
 import { SectionCard } from '@/components/shared';
 import { AdminTabsClient } from './AdminTabsClient';
 import { Button } from '@/components/ui/button';
-import { Database, Loader2 } from 'lucide-react';
+import { Database } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import type {
   MuseumResponse,
   RoomResponse,
@@ -60,31 +61,31 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <AdminPageLayout title="Admin">
+      <PageLayout title="Admin">
         <SectionCard title="">
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size="lg" className="text-muted-foreground" />
           </div>
         </SectionCard>
-      </AdminPageLayout>
+      </PageLayout>
     );
   }
 
   if (error) {
     return (
-      <AdminPageLayout title="Admin">
+      <PageLayout title="Admin">
         <SectionCard title="">
           <div className="text-center py-12">
             <p className="text-destructive mb-4">{error}</p>
             <Button onClick={fetchData}>Retry</Button>
           </div>
         </SectionCard>
-      </AdminPageLayout>
+      </PageLayout>
     );
   }
 
   return (
-    <AdminPageLayout
+    <PageLayout
       title="Admin"
       actions={
         <Button asChild variant="secondary">
@@ -102,6 +103,6 @@ export default function AdminPage() {
           artifacts={artifacts}
         />
       </SectionCard>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

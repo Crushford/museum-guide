@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import type {
   ArtifactDraft,
   DuplicateSearchResult,
@@ -11,7 +11,9 @@ import type {
 } from '@repo/types';
 import { API_URL } from '@/lib/api';
 import { SectionCard } from '@/components/shared';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ErrorText } from '@/components/ui/error-text';
 import {
   Dialog,
   DialogContent,
@@ -401,7 +403,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
           />
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <ErrorText>{error}</ErrorText>}
       </div>
 
       <Dialog
@@ -422,7 +424,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
           <div className="space-y-4">
             {isRunning && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner />
                 Working on this scan...
               </div>
             )}
@@ -442,7 +444,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
             )}
 
             {museumConfidenceNeedsConfirm && draft && (
-              <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900 space-y-2">
+              <Alert variant="warning" className="space-y-2">
                 <p className="text-sm font-medium">
                   Museum confidence is {draft.museumConfidence.toFixed(0)}%
                 </p>
@@ -453,7 +455,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
                 <Button type="button" size="sm" onClick={continueFlow}>
                   Continue for now
                 </Button>
-              </div>
+              </Alert>
             )}
 
             {duplicateGate && (
@@ -491,7 +493,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
               </div>
             )}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <ErrorText>{error}</ErrorText>}
           </div>
         </DialogContent>
       </Dialog>

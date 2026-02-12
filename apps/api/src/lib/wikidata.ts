@@ -3,9 +3,14 @@
  */
 
 import { TranslationServiceClient } from '@google-cloud/translate';
+import type { WikidataSearchResult } from '@repo/types';
 import { recordApiCall } from './telemetry/api-call-tracker';
 
-export { buildMuseumQuery, buildArtifactsQuery } from './sparql-queries';
+export {
+  buildMuseumQuery,
+  buildArtifactsQuery,
+  buildNearbyMuseumsQuery,
+} from './sparql-queries';
 
 const WIKIDATA_QUERY_SERVICE_URL = 'https://query.wikidata.org/sparql';
 const WIKIDATA_API_URL = 'https://www.wikidata.org/w/api.php';
@@ -25,13 +30,95 @@ const RETRY_DELAY_MS = 1000; // 1 second
 const RATE_LIMIT_RETRY_DELAY_MS = 10000; // 10 seconds for 429
 
 /**
- * Supported cities configuration
+ * Search Wikidata for location/city entities by name using the wbsearchentities API.
+ * Filters results to only include cities, towns, municipalities, etc.
  */
-export const SUPPORTED_CITIES: Record<string, string> = {
-  berlin: 'Q64',
-  amsterdam: 'Q9899',
-  brisbane: 'Q34932',
-};
+export async function searchWikidataLocations(
+  query: string,
+  limit: number = 10
+): Promise<WikidataSearchResult[]> {
+  const params = new URLSearchParams({
+    action: 'wbsearchentities',
+    search: query,
+    language: 'en',
+    uselang: 'en',
+    type: 'item',
+    limit: String(limit),
+    format: 'json',
+    origin: '*',
+  });
+
+  const url = `${WIKIDATA_API_URL}?${params}`;
+  console.log(`[Wikidata Location Search] Searching for: "${query}"`);
+
+  const searchStart = Date.now();
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'MuseumGuide/1.0 (museum-guide@example.com)',
+    },
+  });
+
+  if (!response.ok) {
+    recordApiCall({
+      service: 'Wikidata',
+      endpoint: 'wbsearchentities/locations',
+      durationMs: Date.now() - searchStart,
+      status: 'error',
+      statusCode: response.status,
+      metadata: { query },
+      error: `Wikidata location search failed: ${response.status}`,
+    });
+    throw new Error(`Wikidata location search failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (!data.search || !Array.isArray(data.search)) {
+    return [];
+  }
+
+  const locationKeywords = [
+    'city',
+    'town',
+    'municipality',
+    'capital',
+    'metropolis',
+    'borough',
+    'district',
+    'village',
+    'commune',
+    'county',
+    'prefecture',
+    'province',
+    'state of',
+    'region',
+    'urban area',
+  ];
+
+  const results: WikidataSearchResult[] = data.search
+    .map((item: { id: string; label: string; description?: string }) => ({
+      qid: item.id,
+      label: item.label,
+      description: item.description,
+    }))
+    .filter((item: WikidataSearchResult) => {
+      const desc = (item.description || '').toLowerCase();
+      return locationKeywords.some((keyword) => desc.includes(keyword));
+    });
+
+  console.log(
+    `[Wikidata Location Search] Found ${results.length} location results`
+  );
+  recordApiCall({
+    service: 'Wikidata',
+    endpoint: 'wbsearchentities/locations',
+    durationMs: Date.now() - searchStart,
+    status: 'success',
+    statusCode: response.status,
+    metadata: { query, resultCount: results.length },
+  });
+  return results;
+}
 
 /**
  * Execute a SPARQL query against Wikidata Query Service with retry logic
@@ -157,12 +244,6 @@ export function extractQId(uri: string): string | null {
 // ============================================================================
 // WIKIDATA SEARCH API (wbsearchentities) - Fast name search
 // ============================================================================
-
-export interface WikidataSearchResult {
-  qid: string;
-  label: string;
-  description?: string;
-}
 
 /**
  * Search Wikidata for entities by name using the wbsearchentities API.
@@ -312,16 +393,6 @@ const PROPS = {
   LOCATED_IN: 'P131',
 };
 
-// Q IDs for museum types
-const MUSEUM_TYPES = [
-  'Q33506', // museum
-  'Q207694', // art museum
-  'Q17431399', // science museum
-  'Q16735822', // history museum
-  'Q1970365', // natural history museum
-  'Q7328910', // archaeological museum
-];
-
 /**
  * Fetch full details for a Wikidata entity by QID.
  * Returns museum details including wikipedia URL, image, coordinates, etc.
@@ -458,7 +529,7 @@ export async function isMuseum(qid: string): Promise<boolean> {
 // WIKIPEDIA SUMMARY API
 // ============================================================================
 
-export interface WikipediaSummary {
+export interface WikipediaSummaryInternal {
   title: string;
   extract: string;
   description?: string;
@@ -480,7 +551,7 @@ export interface WikipediaSummary {
  */
 export async function fetchWikipediaSummary(
   wikipediaUrl: string
-): Promise<WikipediaSummary | null> {
+): Promise<WikipediaSummaryInternal | null> {
   try {
     // Parse the Wikipedia URL to extract language and title
     const url = new URL(wikipediaUrl);
@@ -748,7 +819,7 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 export async function fetchWikipediaSummaryWithTranslation(
   wikipediaUrl: string
-): Promise<WikipediaSummary | null> {
+): Promise<WikipediaSummaryInternal | null> {
   try {
     const url = new URL(wikipediaUrl);
     const originalLang = url.hostname.split('.')[0];

@@ -1,27 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AdminPageLayout } from '@/components/shared';
+import { PageLayout } from '@/components/shared';
 import { SectionCard } from '@/components/shared';
 import { ContentTabsClient } from './ContentTabsClient';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import type {
   MuseumResponse,
   RoomResponse,
   ArtifactResponse,
 } from '@repo/types';
-
-type ContentRow = {
-  id: number;
-  type: string | null;
-  text: string;
-  createdAt: string;
-  museumId: number | null;
-  roomId: number | null;
-  artifactId: number | null;
-  audioUrl: string | null;
-};
+import type { ContentRow } from '@/lib/types';
 
 export default function AdminContentPage() {
   const [museums, setMuseums] = useState<MuseumResponse[]>([]);
@@ -76,11 +66,11 @@ export default function AdminContentPage() {
   }, []);
 
   return (
-    <AdminPageLayout title="Content Management">
+    <PageLayout title="Content Management">
       <SectionCard title="">
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size="lg" className="text-muted-foreground" />
           </div>
         )}
         {error && (
@@ -90,22 +80,15 @@ export default function AdminContentPage() {
           </div>
         )}
         {!loading && !error && (
-          <>
-            <div className="mb-4 p-4 bg-muted/50 rounded-md border border-border">
-              <p className="text-sm text-muted-foreground">
-                View-only table. Editing happens on entity pages.
-              </p>
-            </div>
-            <ContentTabsClient
-              museums={museums}
-              rooms={rooms}
-              artifacts={artifacts}
-              content={content}
-              onRefresh={fetchData}
-            />
-          </>
+          <ContentTabsClient
+            museums={museums}
+            rooms={rooms}
+            artifacts={artifacts}
+            content={content}
+            onRefresh={fetchData}
+          />
         )}
       </SectionCard>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

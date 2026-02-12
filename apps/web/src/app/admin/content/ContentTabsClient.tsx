@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -19,7 +18,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { PromptTemplateBox } from '@/components/shared';
 import { generateIntroductionTemplate } from '../_lib/templates';
@@ -36,17 +36,7 @@ import type {
   RoomResponse,
   ArtifactResponse,
 } from '@repo/types';
-
-type ContentRow = {
-  id: number;
-  type: string | null;
-  text: string;
-  createdAt: string;
-  museumId: number | null;
-  roomId: number | null;
-  artifactId: number | null;
-  audioUrl: string | null;
-};
+import type { ContentRow } from '@/lib/types';
 
 type ContentTabsClientProps = {
   museums: MuseumResponse[];
@@ -190,9 +180,7 @@ function ContentGroupCell({
                 {hasAudio && (
                   <>
                     {' • '}
-                    <span className="text-green-600 dark:text-green-400">
-                      🎵 Audio
-                    </span>
+                    <span className="text-accent">🎵 Audio</span>
                   </>
                 )}
               </summary>
@@ -234,7 +222,7 @@ function ContentGroupCell({
                     >
                       {isGeneratingAudio ? (
                         <>
-                          <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                          <Spinner size="xs" className="mr-2" />
                           Generating...
                         </>
                       ) : hasAudio ? (
@@ -512,7 +500,7 @@ function DataTable({
             >
               {isGenerating ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner className="mr-2" />
                   Generating...
                 </>
               ) : (
@@ -531,7 +519,7 @@ function DataTable({
               >
                 {isGeneratingAudio ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner className="mr-2" />
                     Generating...
                   </>
                 ) : (

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { api } from '../../lib/api';
 import { notFound } from 'next/navigation';
 import type { MuseumResponse } from '@repo/types';
-import { AdminPageLayout } from '../../components/shared';
+import { PageLayout } from '../../components/shared';
 import { SectionCard } from '../../components/shared';
 import { ChildEntityList } from '../../app/admin/shared/ChildEntityList';
 import { Button } from '@/components/ui/button';
@@ -65,7 +65,7 @@ export default async function MuseumPage({
   const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
 
   return (
-    <AdminPageLayout
+    <PageLayout
       title={museum.name}
       actions={
         <Button asChild variant="secondary" size="sm">
@@ -135,6 +135,6 @@ export default async function MuseumPage({
           </SectionCard>
         )}
       </div>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

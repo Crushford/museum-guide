@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { SectionCard } from '../../../../components/shared';
+import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { API_URL } from '@/lib/api';
@@ -109,7 +110,9 @@ export function ArtifactContentInspector({
                   <Badge variant="secondary">v{item.promptVersion}</Badge>
                 )}
                 <span className="text-xs text-muted-foreground ml-auto">
-                  {new Date(item.updatedAt || item.createdAt || '').toLocaleString()}
+                  {new Date(
+                    item.updatedAt || item.createdAt || ''
+                  ).toLocaleString()}
                 </span>
               </div>
 
@@ -122,11 +125,7 @@ export function ArtifactContentInspector({
                     <Badge variant="destructive">Adult Content</Badge>
                   )}
                   {item.sensitiveTopics?.map((topic) => (
-                    <Badge
-                      key={topic}
-                      variant="outline"
-                      className="border-amber-500 text-amber-700"
-                    >
+                    <Badge key={topic} variant="warning">
                       {topic}
                     </Badge>
                   ))}
@@ -182,11 +181,7 @@ export function ArtifactContentInspector({
         </div>
       )}
 
-      {error && (
-        <div className="mt-3 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      {error && <Alert className="mt-3">{error}</Alert>}
     </SectionCard>
   );
 }

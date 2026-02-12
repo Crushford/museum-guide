@@ -5,6 +5,8 @@ import type {
   Room as PrismaRoom,
 } from '@repo/types';
 
+export type { WikipediaSummary, SpendRow } from '@repo/types';
+
 type JsonDate<T> = T extends Date
   ? string
   : T extends (infer U)[]
@@ -34,11 +36,7 @@ export type Room = MaybeFields<
     | 'knowledgeText'
     | 'furtherReading'
   > & { parentId?: number | null },
-  | 'slug'
-  | 'museumId'
-  | 'parentRoomId'
-  | 'knowledgeText'
-  | 'furtherReading'
+  'slug' | 'museumId' | 'parentRoomId' | 'knowledgeText' | 'furtherReading'
 >;
 
 export type Artifact = MaybeFields<
@@ -101,12 +99,15 @@ export type AskResponse = {
   question?: ArtifactQuestion;
 };
 
-export type WikipediaSummary = {
-  extract: string;
-  title: string;
-  translated?: boolean;
-  originalLanguage?: string;
-  originalExtract?: string;
+export type ContentRow = {
+  id: number;
+  type: string | null;
+  text: string;
+  createdAt: string;
+  museumId: number | null;
+  roomId: number | null;
+  artifactId: number | null;
+  audioUrl: string | null;
 };
 
 export type RoomDraft = {

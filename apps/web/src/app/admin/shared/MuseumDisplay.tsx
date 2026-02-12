@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { updateNodeField } from './actions';
@@ -130,9 +131,9 @@ export function MuseumDisplay({
       <div className="space-y-2">
         <Label>Museum</Label>
         <div className="flex items-center gap-2">
-          <p className="text-sm text-destructive">
+          <ErrorText>
             There is no museum attached and you should attach one.
-          </p>
+          </ErrorText>
           {allowEdit && (
             <Button
               type="button"

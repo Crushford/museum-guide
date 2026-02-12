@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, RefreshCw, ExternalLink, MapPin, Globe } from 'lucide-react';
+import { RefreshCw, ExternalLink, MapPin, Globe } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
+import { ErrorText } from '@/components/ui/error-text';
 import { apiPost, API_URL } from '@/lib/api';
 import Link from 'next/link';
 
@@ -91,7 +93,7 @@ export function MuseumDetailsHydration({
     return (
       <SectionCard title="About">
         <div className="flex items-center gap-3 py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <Spinner size="md" className="text-primary" />
           <div>
             <p className="text-muted-foreground">
               Fetching museum information from Wikipedia...
@@ -109,7 +111,7 @@ export function MuseumDetailsHydration({
     return (
       <SectionCard title="About">
         <div className="py-4">
-          <p className="text-red-600 dark:text-red-400 mb-3">{error}</p>
+          <ErrorText>{error}</ErrorText>
           <Button variant="secondary" size="sm" onClick={hydrate}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
@@ -237,7 +239,7 @@ export function ArtifactsHydration({
         subtitle="Items with Wikipedia pages"
       >
         <div className="flex items-center gap-3 py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <Spinner size="md" className="text-primary" />
           <div>
             <p className="text-muted-foreground">
               Fetching notable artifacts from Wikipedia...
@@ -255,7 +257,7 @@ export function ArtifactsHydration({
     return (
       <SectionCard title="Notable Artifacts">
         <div className="py-4">
-          <p className="text-red-600 dark:text-red-400 mb-3">{error}</p>
+          <ErrorText>{error}</ErrorText>
           <Button variant="secondary" size="sm" onClick={hydrate}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry

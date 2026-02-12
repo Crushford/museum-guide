@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { api } from '../../../../lib/api';
 import { notFound } from 'next/navigation';
 import type { MuseumResponse } from '@repo/types';
-import { AdminPageLayout } from '../../../../components/shared';
+import { PageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { EntityDetailsForm } from '../../../../app/admin/shared/EntityDetailsForm';
 import { ChildEntityList } from '../../../../app/admin/shared/ChildEntityList';
@@ -84,7 +84,7 @@ export default async function RoomPage({
   };
 
   return (
-    <AdminPageLayout
+    <PageLayout
       title={room.name}
       actions={
         <Button asChild variant="secondary" size="sm">
@@ -163,6 +163,6 @@ export default async function RoomPage({
           </SectionCard>
         )}
       </div>
-    </AdminPageLayout>
+    </PageLayout>
   );
 }

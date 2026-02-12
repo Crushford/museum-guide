@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { updateNodeField } from './actions';
@@ -103,9 +104,7 @@ export function RoomDisplay({
           </Button>
         </div>
         {!currentMuseumId && (
-          <p className="text-sm text-destructive">
-            Please select a museum first to choose a room.
-          </p>
+          <ErrorText>Please select a museum first to choose a room.</ErrorText>
         )}
       </div>
     );
@@ -116,9 +115,9 @@ export function RoomDisplay({
       <div className="space-y-2">
         <Label>Room</Label>
         <div className="flex items-center gap-2">
-          <p className="text-sm text-destructive">
+          <ErrorText>
             There is no room attached and you should attach one.
-          </p>
+          </ErrorText>
           <Button
             type="button"
             variant="secondary"

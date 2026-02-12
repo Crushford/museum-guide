@@ -100,3 +100,65 @@ export interface DuplicateSearchResult {
     gap: number;
   };
 }
+
+// Wikidata search types (shared between API and web)
+
+export interface WikidataSearchResult {
+  qid: string;
+  label: string;
+  description?: string;
+}
+
+export interface WikidataSearchResponse {
+  query: string;
+  results: WikidataSearchResult[];
+}
+
+export interface LocationSearchResponse {
+  query: string;
+  location: {
+    qid: string;
+    label: string;
+    description?: string;
+  } | null;
+  museums: { qid: string; label: string }[];
+}
+
+export interface MuseumSelectResponse {
+  created: boolean;
+  museum: {
+    id: number;
+    qid: string;
+    slug: string;
+    name: string;
+  };
+}
+
+export interface NearbyMuseumResult {
+  qid: string;
+  label: string;
+  description?: string;
+  distanceKm: number;
+  coordinates?: { lat: number; lng: number };
+}
+
+export interface NearbyMuseumSearchResponse {
+  center: { lat: number; lng: number };
+  radiusKm: number;
+  results: NearbyMuseumResult[];
+}
+
+// Wikipedia summary as returned by the API to the client
+export type WikipediaSummary = {
+  extract: string;
+  title: string;
+  translated?: boolean;
+  originalLanguage?: string;
+  originalExtract?: string;
+};
+
+// LLM cost tracking
+export type SpendRow = {
+  provider: string;
+  totalEur: number;
+};

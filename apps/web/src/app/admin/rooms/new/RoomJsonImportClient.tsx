@@ -61,7 +61,9 @@ function validateJson(jsonString: string): {
   };
 }
 
-export function RoomJsonImportClient({ onValidJson }: RoomJsonImportClientProps) {
+export function RoomJsonImportClient({
+  onValidJson,
+}: RoomJsonImportClientProps) {
   const [jsonString, setJsonString] = useState('');
 
   const validation = validateJson(jsonString);
