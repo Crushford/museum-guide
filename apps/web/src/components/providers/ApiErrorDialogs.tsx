@@ -17,7 +17,7 @@ import { apiErrorEventName } from '@/lib/api-errors';
 
 const FEEDBACK_URL =
   process.env.NEXT_PUBLIC_FEEDBACK_URL || process.env.NEXT_PUBLIC_WAITLIST_URL || 'https://forms.gle/';
-const LINKEDIN_URL = 'https://linkedin.com/in/jrushford';
+const LINKEDIN_URL = 'https://www.linkedin.com/in/rushfordj/';
 
 export function ApiErrorDialogs() {
   const router = useRouter();
@@ -65,14 +65,17 @@ export function ApiErrorDialogs() {
           <DialogHeader>
             <DialogTitle>Prototype limit reached for today</DialogTitle>
             <DialogDescription>
-              We appreciate you using Museum Guide. This app is still in prototype stage and
-              we have hit the usage limits set for today. For the rest of the day, Museum Guide
-              will not run any more actions.
+              We appreciate you using Museum Guide. This app is still in prototype stage and we
+              have hit the usage limits set for today.
             </DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            I am keen to hear your feedback on what we can improve. Please use the feedback form
-            below. It goes straight to my email address and I read every message.
+            I am still working out how this app works and I am trying to avoid running up large
+            bills, so for the rest of today Museum Guide will not run more actions.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            I am super keen to hear your feedback on anything we can improve. The form below goes
+            straight to my email and I really appreciate any feedback you have.
           </p>
           <p className="text-sm text-muted-foreground">Thanks again, James Rushford</p>
           <DialogFooter>
@@ -101,7 +104,7 @@ export function ApiErrorDialogs() {
             <DialogTitle>You have reached your daily limit</DialogTitle>
             <DialogDescription>
               Museum Guide is in prototype stage, so each user has a daily usage limit. You have
-              reached yours for today.
+              reached your limit for today.
             </DialogDescription>
           </DialogHeader>
 
@@ -121,7 +124,20 @@ export function ApiErrorDialogs() {
 
           <p className="text-sm text-muted-foreground">
             To increase your limits, contact me for a promo code to try the premium experience.
+            You can reach me on LinkedIn:{' '}
+            <a
+              href={LINKEDIN_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              linkedin.com/in/rushfordj
+            </a>
           </p>
+          <p className="text-sm text-muted-foreground">
+            Thanks again for using Museum Guide.
+          </p>
+          <p className="text-sm text-muted-foreground">James Rushford</p>
 
           <DialogFooter>
             <Button variant="secondary" onClick={() => setUserLimitUsage(null)}>

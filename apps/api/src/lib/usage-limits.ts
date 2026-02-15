@@ -266,6 +266,29 @@ export async function enforceUsageLimits(options: {
     return true;
   }
 
+  const globalCaps = getGlobalCaps();
+  const userCaps = getUserCaps();
+  const dateKey = getTodayDateKey();
+
+  if (hasAnyCounters(userIncrements) && options.actor?.uid) {
+    const usageFromLogs = await deriveUsageFromApiLogs(options.actor.uid, dateKey);
+    if (userLimitExceeded(usageFromLogs, userIncrements, userCaps)) {
+      sendBlocked(
+        options.res,
+        429,
+        'LIMIT_USER_DAILY',
+        'You have reached your daily usage limit.',
+        {
+          usage: {
+            user: usageFromLogs,
+            limits: buildUserLimitSummary(userCaps),
+          },
+        }
+      );
+      return false;
+    }
+  }
+
   if (!usageSchemaAvailable()) {
     warnMissingUsageSchema('enforceUsageLimits:client-check');
     debugUsageLog('Schema unavailable at client check.', {
@@ -276,9 +299,6 @@ export async function enforceUsageLimits(options: {
     return true;
   }
 
-  const globalCaps = getGlobalCaps();
-  const userCaps = getUserCaps();
-  const dateKey = getTodayDateKey();
   debugUsageLog('Starting enforcement transaction.', {
     actorUid: options.actor?.uid ?? null,
     dateKey,
@@ -585,7 +605,6 @@ function usageFromApiEndpoint(endpoint: string): UserUsageSummary {
     usage.museumCreates += 1;
   }
   if (normalized.startsWith('POST /api/museums/select/')) {
-    usage.museumCreates += 1;
     usage.wikiCalls += 1;
   }
   if (
@@ -651,7 +670,9 @@ function extractUserUidFromMetadata(metadata: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
-function extractUsageDeltaFromMetadata(metadata: unknown): UserUsageSummary | null {
+function extractUsageDeltaFromMetadata(
+  metadata: unknown
+): Partial<UserUsageSummary> | null {
   if (!metadata || typeof metadata !== 'object') {
     return null;
   }
@@ -665,7 +686,7 @@ function extractUsageDeltaFromMetadata(metadata: unknown): UserUsageSummary | nu
   const toNumber = (value: unknown) =>
     typeof value === 'number' && Number.isFinite(value) && value > 0
       ? Math.floor(value)
-      : 0;
+      : undefined;
 
   return {
     llmCalls: toNumber(delta.llmCalls),

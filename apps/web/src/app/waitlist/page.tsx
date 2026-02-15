@@ -16,8 +16,10 @@ export default function WaitlistPage() {
             costs under control.
           </p>
           <p>
-            You can join the waitlist and I will invite more people as capacity opens up.
+            You are very welcome to join the waitlist below, and I will invite more people as
+            capacity opens up.
           </p>
+          <p>Thanks for your interest, I really appreciate it.</p>
           <div className="flex gap-2">
             <Button asChild>
               <a href={WAITLIST_URL} target="_blank" rel="noreferrer">

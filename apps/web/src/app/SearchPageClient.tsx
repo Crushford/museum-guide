@@ -20,6 +20,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
 import { APP_NAME } from '@/lib/constants';
 import { useAuthedApi } from '@/lib/useAuthedApi';
+import { ApiRequestError } from '@/lib/api-errors';
 import type {
   WikidataSearchResult,
   WikidataSearchResponse,
@@ -265,6 +266,19 @@ export default function SearchPage() {
         router.push(`/${response.museum.slug}`);
       } catch (error) {
         console.error('Select error:', error);
+        if (
+          error instanceof ApiRequestError &&
+          (error.status === 503 ||
+            error.message.toLowerCase().includes('rate-limit') ||
+            error.message.toLowerCase().includes('rate limit') ||
+            error.message.toLowerCase().includes('wikidata'))
+        ) {
+          setSelectError(
+            'Wikidata is temporarily rate-limiting requests. Please wait a moment and try again.'
+          );
+          setIsSelecting(null);
+          return;
+        }
         setSelectError(
           error instanceof Error ? error.message : 'Failed to add museum'
         );

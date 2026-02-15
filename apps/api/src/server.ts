@@ -889,6 +889,11 @@ app.post('/api/museums/select/:qid', requireAuth, requireAdmin, async (req, res)
       },
     });
 
+    (res.locals as { usageDelta?: Record<string, number> }).usageDelta = {
+      museumCreates: 1,
+      wikiCalls: 1,
+    };
+
     res.json({
       created: true,
       museum: {
@@ -908,27 +913,20 @@ app.post('/api/museums/select/:qid', requireAuth, requireAdmin, async (req, res)
       prismaError.code === 'P2002' &&
       prismaError.meta?.modelName === 'Museum'
     ) {
-      // If creation failed due to a slug/name collision, route to the existing museum.
-      const details = await fetchWikidataEntity(qid);
-      const fallbackName =
-        typeof details?.label === 'string' && details.label.trim().length > 0
-          ? details.label.trim()
-          : qid;
-      const fallbackSlug =
-        generateSlug(fallbackName) || `museum-${qid.toLowerCase()}`;
-
-      const existingBySlug = await prisma.museum.findFirst({
-        where: { slug: fallbackSlug },
+      // If creation failed due to uniqueness, try resolving a now-existing row
+      // without making another Wikidata request (which may be rate-limited).
+      const existingByQid = await prisma.museum.findUnique({
+        where: { wikidataId: qid },
       });
 
-      if (existingBySlug) {
+      if (existingByQid) {
         return res.json({
           created: false,
           museum: {
-            id: existingBySlug.id,
-            qid: existingBySlug.wikidataId || qid,
-            slug: existingBySlug.slug,
-            name: existingBySlug.name,
+            id: existingByQid.id,
+            qid: existingByQid.wikidataId || qid,
+            slug: existingByQid.slug,
+            name: existingByQid.name,
           },
         });
       }
@@ -940,6 +938,16 @@ app.post('/api/museums/select/:qid', requireAuth, requireAdmin, async (req, res)
 
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to select museum';
+    if (
+      errorMessage.includes('Wikidata entity fetch failed: 429') ||
+      errorMessage.includes('Wikidata search failed: 429')
+    ) {
+      return res.status(503).json({
+        error:
+          'Wikidata is rate-limiting requests right now. Please wait a moment and try again.',
+      });
+    }
+
     res.status(500).json({ error: errorMessage });
   }
 });
@@ -1540,6 +1548,11 @@ app.post('/museums', requireAuth, requireAdmin, async (req, res) => {
       furtherReading: furtherReading || [],
     } as Prisma.MuseumCreateInput,
   });
+
+  (res.locals as { usageDelta?: Record<string, number> }).usageDelta = {
+    museumCreates: 1,
+  };
+
   res.json(museum);
 });
 
