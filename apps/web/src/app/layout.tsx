@@ -48,7 +48,13 @@ export default function RootLayout({
               href="/"
               className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
             >
-              <Image src="/favicon.png" alt="" width={24} height={24} />
+              <Image
+                src="/favicon.png"
+                alt=""
+                width={24}
+                height={24}
+                style={{ width: 'auto', height: 'auto' }}
+              />
               <span className="font-semibold">Museum Guide</span>
             </Link>
             <div className="ml-auto">

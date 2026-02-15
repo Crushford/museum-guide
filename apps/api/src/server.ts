@@ -71,7 +71,9 @@ import {
   enforceUsageLimits,
   enforceSignupPolicy,
   getUserUsageForToday,
+  enforcePlaqueScanLimit,
 } from './lib/usage-limits';
+import { GLOBAL_DAILY_LIMITS } from './lib/usage-limit-constants';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -80,6 +82,14 @@ dotenv.config({ path: resolve(__dirname, '../../web/.env.local') });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const ENABLE_DB_QUERY_BILLING_LOGS = process.env.DB_QUERY_BILLING_LOGS !== '0';
+
+function shouldLogDbQuery(query: string): boolean {
+  const normalized = query.toLowerCase();
+  if (normalized.includes('"apicall"')) return false;
+  if (normalized.includes('_prisma_migrations')) return false;
+  return true;
+}
 
 // Enable CORS for all routes
 app.use(
@@ -91,6 +101,33 @@ app.use(
 
 app.use(express.json({ limit: '20mb' }));
 app.use(attachActorIfPresent);
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+
+  res.on('finish', () => {
+    const path = req.path;
+    if (path.startsWith('/admin/api-calls')) {
+      return;
+    }
+
+    recordApiCall({
+      service: 'API',
+      endpoint: `${req.method} ${path}`,
+      durationMs: Date.now() - startedAt,
+      status: res.statusCode >= 400 ? 'error' : 'success',
+      statusCode: res.statusCode,
+      metadata: {
+        userUid: req.actor?.uid ?? null,
+        isAdmin: req.actor?.isAdmin ?? null,
+        usageDelta:
+          (res.locals as { usageDelta?: Record<string, number> }).usageDelta ??
+          null,
+      },
+    });
+  });
+
+  next();
+});
 
 // Serve static audio files
 const audioDir = resolve(__dirname, '../public/audio');
@@ -104,6 +141,30 @@ if (!existsSync(uploadsDir)) {
   mkdir(uploadsDir, { recursive: true }).catch(() => {});
 }
 app.use('/uploads', express.static(uploadsDir));
+
+if (ENABLE_DB_QUERY_BILLING_LOGS) {
+  (prisma as any).$on('query', (event: any) => {
+    const query = typeof event?.query === 'string' ? event.query : '';
+    if (!query || !shouldLogDbQuery(query)) {
+      return;
+    }
+
+    const firstWord = query.trim().split(/\s+/)[0]?.toUpperCase() || 'QUERY';
+    const target = typeof event?.target === 'string' ? event.target : 'prisma';
+    const durationMs =
+      typeof event?.duration === 'number' ? event.duration : 0;
+
+    recordApiCall({
+      service: 'Database',
+      endpoint: `prisma.${firstWord.toLowerCase()}`,
+      durationMs,
+      status: 'success',
+      metadata: {
+        target,
+      },
+    });
+  });
+}
 
 app.get('/auth/status', requireAuth, async (req, res) => {
   if (!req.actor) {
@@ -847,6 +908,31 @@ app.post('/api/museums/select/:qid', requireAuth, requireAdmin, async (req, res)
       prismaError.code === 'P2002' &&
       prismaError.meta?.modelName === 'Museum'
     ) {
+      // If creation failed due to a slug/name collision, route to the existing museum.
+      const details = await fetchWikidataEntity(qid);
+      const fallbackName =
+        typeof details?.label === 'string' && details.label.trim().length > 0
+          ? details.label.trim()
+          : qid;
+      const fallbackSlug =
+        generateSlug(fallbackName) || `museum-${qid.toLowerCase()}`;
+
+      const existingBySlug = await prisma.museum.findFirst({
+        where: { slug: fallbackSlug },
+      });
+
+      if (existingBySlug) {
+        return res.json({
+          created: false,
+          museum: {
+            id: existingBySlug.id,
+            qid: existingBySlug.wikidataId || qid,
+            slug: existingBySlug.slug,
+            name: existingBySlug.name,
+          },
+        });
+      }
+
       return res.status(409).json({
         error: 'A museum with a similar name already exists',
       });
@@ -986,6 +1072,15 @@ app.post('/api/museums/:slug/hydrate-artifacts', requireAuth, requireAdmin, asyn
   const force = req.query.force === '1';
 
   try {
+    if (!req.actor) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+    if (!signupAllowed) {
+      return;
+    }
+
     // Find museum by slug
     const museum = await prisma.museum.findFirst({
       where: { slug },
@@ -1122,6 +1217,10 @@ app.post('/api/museums/:slug/hydrate-artifacts', requireAuth, requireAdmin, asyn
       where: { id: museum.id },
       data: { artifactsHydratedAt: new Date() } as any,
     });
+
+    (res.locals as { usageDelta?: Record<string, number> }).usageDelta = {
+      wikiCalls: 1,
+    };
 
     res.json({
       cached: false,
@@ -1992,6 +2091,23 @@ function parseMuseumId(value: string): number | null {
 
 app.post('/museums/:museumId/scan/ocr', requireAuth, requireAdmin, async (req, res) => {
   try {
+    if (!req.actor) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+    if (!signupAllowed) {
+      return;
+    }
+
+    const scanAllowed = await enforcePlaqueScanLimit({
+      res,
+      actor: req.actor,
+    });
+    if (!scanAllowed) {
+      return;
+    }
+
     const museumId = parseMuseumId(req.params.museumId);
     const imageBase64 =
       typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
@@ -2119,6 +2235,25 @@ app.post('/museums/:museumId/scan/duplicates-draft', requireAuth, requireAdmin, 
 
 app.post('/museums/:museumId/scan/create', requireAuth, requireAdmin, async (req, res) => {
   try {
+    if (!req.actor) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+    if (!signupAllowed) {
+      return;
+    }
+
+    const createAllowed = await enforceUsageLimits({
+      res,
+      actor: req.actor,
+      globalIncrements: { artifactCreates: 1, dbOps: 1 },
+      userIncrements: { artifactCreates: 1 },
+    });
+    if (!createAllowed) {
+      return;
+    }
+
     const museumId = parseMuseumId(req.params.museumId);
     const imageBase64 =
       typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
@@ -2218,8 +2353,7 @@ app.post('/artifacts', requireAuth, requireAdmin, async (req, res) => {
   const limitsAllowed = await enforceUsageLimits({
     res,
     actor: req.actor,
-    globalIncrements: { dbOps: 1, artifactCreates: 1 },
-    userIncrements: { artifactCreates: 1 },
+    globalIncrements: { dbOps: 1 },
   });
   if (!limitsAllowed) {
     return;
@@ -3846,7 +3980,7 @@ app.get('/admin/api-calls/daily', requireAuth, requireAdmin, async (_req, res) =
       avgDurationMs: Math.round(data.totalDurationMs / data.count),
     }));
 
-    res.json({ totalCalls, services });
+    res.json({ totalCalls, services, globalLimits: GLOBAL_DAILY_LIMITS });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch daily API call data' });
   }

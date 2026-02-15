@@ -10,6 +10,7 @@ import type {
   ScanStage,
 } from '@repo/types';
 import { API_URL } from '@/lib/api';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import { SectionCard } from '@/components/shared';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -47,27 +48,6 @@ const stageLabels: Record<StageKey, string> = {
   persist: 'Creating artefact...',
 };
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    let message = `Request failed (${response.status})`;
-    try {
-      const payload = await response.json();
-      if (typeof payload?.error === 'string') message = payload.error;
-    } catch {
-      // Ignore JSON parse failures.
-    }
-    throw new Error(message);
-  }
-
-  return response.json();
-}
-
 function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -90,6 +70,7 @@ interface PlaqueScannerProps {
 
 export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
   const router = useRouter();
+  const authedApi = useAuthedApi();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const ocrRef = useRef<OcrPayload | null>(null);
   const imageBase64Ref = useRef<string | null>(null);
@@ -176,15 +157,44 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
     }
 
     setStageRunning('persist');
-    const created = await postJson<{
-      artifactId: number;
-      artifactSlug: string;
-    }>(`/museums/${museumId}/scan/create`, {
-      imageBase64: imagePayload,
-      rawText: text,
-      ocr: ocrPayload,
-      draft: draftData,
-    });
+    const created = await authedApi.run(
+      async (token) => {
+        const response = await fetch(`${API_URL}/museums/${museumId}/scan/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            imageBase64: imagePayload,
+            rawText: text,
+            ocr: ocrPayload,
+            draft: draftData,
+          }),
+        });
+
+        if (!response.ok) {
+          let message = `Request failed (${response.status})`;
+          try {
+            const payload = await response.json();
+            if (typeof payload?.error === 'string') message = payload.error;
+          } catch {
+            // Ignore JSON parse failures.
+          }
+          throw new Error(message);
+        }
+
+        return response.json() as Promise<{
+          artifactId: number;
+          artifactSlug: string;
+        }>;
+      },
+      {
+        requireAdmin: true,
+        adminErrorMessage:
+          'Sign in with an admin account to scan plaques and create artifacts.',
+      }
+    );
     setStageDone('persist');
     setIsModalOpen(false);
     router.push(`/${museumSlug}/artifacts/${created.artifactSlug}`);
@@ -192,9 +202,14 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
 
   const runSecondDuplicateCheck = async (text: string, draftData: Draft) => {
     setStageRunning('duplicates_draft');
-    const draftDupes = await postJson<DuplicateResponse>(
+    const draftDupes = await authedApi.mutate<DuplicateResponse>(
       `/museums/${museumId}/scan/duplicates-draft`,
-      { draft: draftData }
+      { method: 'POST', body: { draft: draftData } },
+      {
+        requireAdmin: true,
+        adminErrorMessage:
+          'Sign in with an admin account to scan plaques and create artifacts.',
+      }
     );
     setStageDone('duplicates_draft');
 
@@ -220,9 +235,14 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
 
   const runDraftStage = async (text: string) => {
     setStageRunning('draft');
-    const draftResponse = await postJson<{ draft: Draft }>(
+    const draftResponse = await authedApi.mutate<{ draft: Draft }>(
       `/museums/${museumId}/scan/draft`,
-      { rawText: text }
+      { method: 'POST', body: { rawText: text } },
+      {
+        requireAdmin: true,
+        adminErrorMessage:
+          'Sign in with an admin account to scan plaques and create artifacts.',
+      }
     );
     setDraft(draftResponse.draft);
     setStageDone('draft');
@@ -263,10 +283,13 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
       imageBase64Ref.current = encodedImage;
 
       setStageRunning('ocr');
-      const ocrResponse = await postJson<{ rawText: string; ocr: OcrPayload }>(
+      const ocrResponse = await authedApi.mutate<{ rawText: string; ocr: OcrPayload }>(
         `/museums/${museumId}/scan/ocr`,
+        { method: 'POST', body: { imageBase64: encodedImage } },
         {
-          imageBase64: encodedImage,
+          requireAdmin: true,
+          adminErrorMessage:
+            'Sign in with an admin account to scan plaques and create artifacts.',
         }
       );
 
@@ -276,9 +299,14 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
       setStageDone('ocr');
 
       setStageRunning('duplicates_raw');
-      const rawDupes = await postJson<DuplicateResponse>(
+      const rawDupes = await authedApi.mutate<DuplicateResponse>(
         `/museums/${museumId}/scan/duplicates-raw`,
-        { rawText: ocrResponse.rawText }
+        { method: 'POST', body: { rawText: ocrResponse.rawText } },
+        {
+          requireAdmin: true,
+          adminErrorMessage:
+            'Sign in with an admin account to scan plaques and create artifacts.',
+        }
       );
       setStageDone('duplicates_raw');
 

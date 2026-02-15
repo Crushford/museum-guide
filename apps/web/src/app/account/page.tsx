@@ -124,7 +124,7 @@ export default function AccountPage() {
                     Museum creates: {data.usage.usage.museumCreates} / {limitLabel(data.usage.limits.museumCreates)}
                   </li>
                   <li>
-                    Artifact creates: {data.usage.usage.artifactCreates} / {limitLabel(data.usage.limits.artifactCreates)}
+                    Scanned artifact creates: {data.usage.usage.artifactCreates} / {limitLabel(data.usage.limits.artifactCreates)}
                   </li>
                 </ul>
                 <p className="text-xs text-muted-foreground">

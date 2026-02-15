@@ -1,7 +1,13 @@
 import type { Response } from 'express';
 import { prisma } from '@repo/db';
 import type { Actor } from '../middleware/auth';
+import {
+  GLOBAL_DAILY_LIMITS,
+  USER_DAILY_LIMITS,
+} from './usage-limit-constants';
 const db = prisma as any;
+let didWarnMissingUsageSchema = false;
+const DEBUG_USAGE_LIMITS = process.env.DEBUG_USAGE_LIMITS === '1';
 
 export type BlockedCode =
   | 'LIMIT_GLOBAL_DAILY'
@@ -63,22 +69,20 @@ function parsePositiveInt(envName: string): number | null {
 
 function getGlobalCaps(): LimitCaps {
   return {
-    llmCalls: parsePositiveInt('GLOBAL_DAILY_LLM_CAP') ?? undefined,
-    wikiCalls: parsePositiveInt('GLOBAL_DAILY_WIKI_CAP') ?? undefined,
-    dbOps: parsePositiveInt('GLOBAL_DAILY_DB_OPS_CAP') ?? undefined,
-    museumCreates: parsePositiveInt('GLOBAL_DAILY_MUSEUM_CREATES_CAP') ?? undefined,
-    artifactCreates:
-      parsePositiveInt('GLOBAL_DAILY_ARTIFACT_CREATES_CAP') ?? undefined,
+    llmCalls: GLOBAL_DAILY_LIMITS.llmCalls ?? undefined,
+    wikiCalls: GLOBAL_DAILY_LIMITS.wikiCalls ?? undefined,
+    dbOps: GLOBAL_DAILY_LIMITS.dbOps ?? undefined,
+    museumCreates: GLOBAL_DAILY_LIMITS.museumCreates ?? undefined,
+    artifactCreates: GLOBAL_DAILY_LIMITS.artifactCreates ?? undefined,
   };
 }
 
 function getUserCaps(): UserLimitCaps {
   return {
-    llmCalls: parsePositiveInt('FREE_DAILY_LLM_CAP') ?? undefined,
-    wikiCalls: parsePositiveInt('FREE_DAILY_WIKI_CAP') ?? undefined,
-    museumCreates: parsePositiveInt('FREE_DAILY_MUSEUM_CREATES_CAP') ?? undefined,
-    artifactCreates:
-      parsePositiveInt('FREE_DAILY_ARTIFACT_CREATES_CAP') ?? undefined,
+    llmCalls: USER_DAILY_LIMITS.llmCalls ?? undefined,
+    wikiCalls: USER_DAILY_LIMITS.wikiCalls ?? undefined,
+    museumCreates: USER_DAILY_LIMITS.museumCreates ?? undefined,
+    artifactCreates: USER_DAILY_LIMITS.artifactCreates ?? undefined,
   };
 }
 
@@ -92,6 +96,54 @@ function getNextResetAtIso(): string {
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
   );
   return reset.toISOString();
+}
+
+function usageSchemaAvailable(): boolean {
+  return Boolean(
+    db?.appUser &&
+      db?.dailyUserUsage &&
+      db?.dailyGlobalUsage &&
+      db?.$transaction
+  );
+}
+
+function isMissingUsageSchemaError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const err = error as { code?: string; message?: string };
+  if (err.code === 'P2021' || err.code === 'P2022') {
+    return true;
+  }
+
+  const message = (err.message || '').toLowerCase();
+  return (
+    message.includes('dailyglobalusage') ||
+    message.includes('dailyuserusage') ||
+    message.includes('appuser') ||
+    message.includes('does not exist') ||
+    message.includes('undefined')
+  );
+}
+
+function warnMissingUsageSchema(context: string, error?: unknown) {
+  if (didWarnMissingUsageSchema) {
+    return;
+  }
+
+  didWarnMissingUsageSchema = true;
+  console.warn(
+    `[usage-limits] Skipping usage/signup enforcement in ${context}. New Prisma tables are not available yet. Run your Prisma migration to enable limits.`,
+    error
+  );
+}
+
+function debugUsageLog(message: string, payload?: unknown) {
+  if (!DEBUG_USAGE_LIMITS) {
+    return;
+  }
+  console.log(`[usage-limits:debug] ${message}`, payload ?? '');
 }
 
 function hasAnyCounters(counters: LimitCounters | UserLimitCounters): boolean {
@@ -210,71 +262,109 @@ export async function enforceUsageLimits(options: {
   const userIncrements = options.userIncrements ?? {};
 
   if (!hasAnyCounters(globalIncrements) && !hasAnyCounters(userIncrements)) {
+    debugUsageLog('No counters supplied, skipping enforcement.');
+    return true;
+  }
+
+  if (!usageSchemaAvailable()) {
+    warnMissingUsageSchema('enforceUsageLimits:client-check');
+    debugUsageLog('Schema unavailable at client check.', {
+      actorUid: options.actor?.uid ?? null,
+      globalIncrements,
+      userIncrements,
+    });
     return true;
   }
 
   const globalCaps = getGlobalCaps();
   const userCaps = getUserCaps();
   const dateKey = getTodayDateKey();
-
-  const result = await db.$transaction(async (tx: any) => {
-    if (hasAnyCounters(globalIncrements)) {
-      const globalUsage = await tx.dailyGlobalUsage.upsert({
-        where: { dateKey },
-        update: {},
-        create: { dateKey },
-      });
-
-      if (globalLimitExceeded(globalUsage, globalIncrements, globalCaps)) {
-        return { blocked: 'global' };
-      }
-    }
-
-    if (hasAnyCounters(userIncrements) && options.actor?.uid) {
-      const userUsage = await tx.dailyUserUsage.upsert({
-        where: {
-          dateKey_userUid: {
-            dateKey,
-            userUid: options.actor.uid,
-          },
-        },
-        update: {},
-        create: {
-          dateKey,
-          userUid: options.actor.uid,
-        },
-      });
-
-      if (userLimitExceeded(userUsage, userIncrements, userCaps)) {
-        return {
-          blocked: 'user',
-          usage: buildUserUsageSummary(userUsage),
-          limits: buildUserLimitSummary(userCaps),
-        };
-      }
-    }
-
-    if (hasAnyCounters(globalIncrements)) {
-      await tx.dailyGlobalUsage.update({
-        where: { dateKey },
-        data: buildGlobalIncrementData(globalIncrements),
-      });
-    }
-
-    if (hasAnyCounters(userIncrements) && options.actor?.uid) {
-      await tx.dailyUserUsage.update({
-        where: {
-          dateKey_userUid: {
-            dateKey,
-            userUid: options.actor.uid,
-          },
-        },
-        data: buildUserIncrementData(userIncrements),
-      });
-    }
-
-    return { blocked: null };
+  debugUsageLog('Starting enforcement transaction.', {
+    actorUid: options.actor?.uid ?? null,
+    dateKey,
+    globalIncrements,
+    userIncrements,
+    globalCaps,
+    userCaps,
   });
+
+  let result:
+    | { blocked: 'global' }
+    | { blocked: 'user'; usage: UserUsageSummary; limits: UserLimitSummary }
+    | { blocked: null };
+
+  try {
+    result = await db.$transaction(async (tx: any) => {
+      if (hasAnyCounters(globalIncrements)) {
+        const globalUsage = await tx.dailyGlobalUsage.upsert({
+          where: { dateKey },
+          update: {},
+          create: { dateKey },
+        });
+
+        if (globalLimitExceeded(globalUsage, globalIncrements, globalCaps)) {
+          return { blocked: 'global' as const };
+        }
+      }
+
+      if (hasAnyCounters(userIncrements) && options.actor?.uid) {
+        const userUsage = await tx.dailyUserUsage.upsert({
+          where: {
+            dateKey_userUid: {
+              dateKey,
+              userUid: options.actor.uid,
+            },
+          },
+          update: {},
+          create: {
+            dateKey,
+            userUid: options.actor.uid,
+          },
+        });
+
+        if (userLimitExceeded(userUsage, userIncrements, userCaps)) {
+          return {
+            blocked: 'user' as const,
+            usage: buildUserUsageSummary(userUsage),
+            limits: buildUserLimitSummary(userCaps),
+          };
+        }
+      }
+
+      if (hasAnyCounters(globalIncrements)) {
+        await tx.dailyGlobalUsage.update({
+          where: { dateKey },
+          data: buildGlobalIncrementData(globalIncrements),
+        });
+      }
+
+      if (hasAnyCounters(userIncrements) && options.actor?.uid) {
+        await tx.dailyUserUsage.update({
+          where: {
+            dateKey_userUid: {
+              dateKey,
+              userUid: options.actor.uid,
+            },
+          },
+          data: buildUserIncrementData(userIncrements),
+        });
+      }
+
+      return { blocked: null };
+    });
+  } catch (error) {
+    if (isMissingUsageSchemaError(error)) {
+      warnMissingUsageSchema('enforceUsageLimits:transaction', error);
+      debugUsageLog('Schema unavailable during transaction.', {
+        actorUid: options.actor?.uid ?? null,
+        error,
+      });
+      return true;
+    }
+    throw error;
+  }
+
+  debugUsageLog('Enforcement transaction result.', result);
 
   if (result.blocked === 'global') {
     sendBlocked(
@@ -328,6 +418,11 @@ function isAllowlisted(actor: Actor, allowlist: Set<string>): boolean {
 }
 
 async function upsertUser(actor: Actor) {
+  if (!usageSchemaAvailable()) {
+    warnMissingUsageSchema('upsertUser:client-check');
+    return;
+  }
+
   await db.appUser.upsert({
     where: { uid: actor.uid },
     update: {
@@ -354,8 +449,36 @@ export async function enforceSignupPolicy(options: {
   const allowlist = parseAllowlist();
   const signupCap = parsePositiveInt('SIGNUP_CAP');
 
+  if (!usageSchemaAvailable()) {
+    warnMissingUsageSchema('enforceSignupPolicy:client-check');
+    debugUsageLog('Signup policy running without usage schema.', {
+      mode,
+      actorUid: options.actor.uid,
+    });
+    if (mode === 'allowlist') {
+      if (!isAllowlisted(options.actor, allowlist)) {
+        sendBlocked(
+          options.res,
+          403,
+          'SIGNUP_WAITLIST',
+          'Signups are limited right now. Join the waitlist to get access.'
+        );
+        return false;
+      }
+    }
+    return true;
+  }
+
   if (mode === 'open') {
-    await upsertUser(options.actor);
+    try {
+      await upsertUser(options.actor);
+    } catch (error) {
+      if (isMissingUsageSchemaError(error)) {
+        warnMissingUsageSchema('enforceSignupPolicy:open-upsert', error);
+        return true;
+      }
+      throw error;
+    }
     return true;
   }
 
@@ -370,27 +493,54 @@ export async function enforceSignupPolicy(options: {
       return false;
     }
 
-    await upsertUser(options.actor);
+    try {
+      await upsertUser(options.actor);
+    } catch (error) {
+      if (isMissingUsageSchemaError(error)) {
+        warnMissingUsageSchema('enforceSignupPolicy:allowlist-upsert', error);
+        return true;
+      }
+      throw error;
+    }
     return true;
   }
 
-  const result = await db.$transaction(async (tx: any) => {
-    const existing = await tx.appUser.findUnique({
-      where: { uid: options.actor.uid },
-    });
-
-    if (existing) {
-      await tx.appUser.update({
+  let result: { allowed: boolean };
+  try {
+    result = await db.$transaction(async (tx: any) => {
+      const existing = await tx.appUser.findUnique({
         where: { uid: options.actor.uid },
-        data: {
-          email: options.actor.email ?? null,
-          displayName: options.actor.displayName ?? null,
-        },
       });
-      return { allowed: true };
-    }
 
-    if (mode === 'hybrid' && isAllowlisted(options.actor, allowlist)) {
+      if (existing) {
+        await tx.appUser.update({
+          where: { uid: options.actor.uid },
+          data: {
+            email: options.actor.email ?? null,
+            displayName: options.actor.displayName ?? null,
+          },
+        });
+        return { allowed: true };
+      }
+
+      if (mode === 'hybrid' && isAllowlisted(options.actor, allowlist)) {
+        await tx.appUser.create({
+          data: {
+            uid: options.actor.uid,
+            email: options.actor.email ?? null,
+            displayName: options.actor.displayName ?? null,
+          },
+        });
+        return { allowed: true };
+      }
+
+      if (signupCap) {
+        const existingCount = await tx.appUser.count();
+        if (existingCount >= signupCap) {
+          return { allowed: false };
+        }
+      }
+
       await tx.appUser.create({
         data: {
           uid: options.actor.uid,
@@ -399,24 +549,14 @@ export async function enforceSignupPolicy(options: {
         },
       });
       return { allowed: true };
-    }
-
-    if (signupCap) {
-      const existingCount = await tx.appUser.count();
-      if (existingCount >= signupCap) {
-        return { allowed: false };
-      }
-    }
-
-    await tx.appUser.create({
-      data: {
-        uid: options.actor.uid,
-        email: options.actor.email ?? null,
-        displayName: options.actor.displayName ?? null,
-      },
     });
-    return { allowed: true };
-  });
+  } catch (error) {
+    if (isMissingUsageSchemaError(error)) {
+      warnMissingUsageSchema('enforceSignupPolicy:transaction', error);
+      return true;
+    }
+    throw error;
+  }
 
   if (!result.allowed) {
     sendBlocked(
@@ -431,28 +571,295 @@ export async function enforceSignupPolicy(options: {
   return true;
 }
 
-export async function getUserUsageForToday(userUid: string) {
-  const dateKey = getTodayDateKey();
-  const usage = await db.dailyUserUsage.findUnique({
+function usageFromApiEndpoint(endpoint: string): UserUsageSummary {
+  const usage: UserUsageSummary = {
+    llmCalls: 0,
+    wikiCalls: 0,
+    museumCreates: 0,
+    artifactCreates: 0,
+  };
+  const normalized = endpoint.trim();
+
+  // Creation paths
+  if (normalized === 'POST /museums') {
+    usage.museumCreates += 1;
+  }
+  if (normalized.startsWith('POST /api/museums/select/')) {
+    usage.museumCreates += 1;
+    usage.wikiCalls += 1;
+  }
+  if (
+    normalized.startsWith('POST /museums/') &&
+    normalized.endsWith('/scan/create')
+  ) {
+    usage.artifactCreates += 1;
+  }
+  if (
+    normalized.startsWith('POST /api/museums/') &&
+    normalized.endsWith('/hydrate-artifacts')
+  ) {
+    usage.wikiCalls += 1;
+  }
+
+  // LLM paths
+  if (
+    normalized.startsWith('GET /generate-content/artefact/') ||
+    normalized.startsWith('POST /generate-content/artefact/') ||
+    normalized.includes('/generate-introduction') ||
+    normalized.includes('/questions/ask')
+  ) {
+    usage.llmCalls += 1;
+  }
+
+  // Wikipedia/Wikidata paths
+  if (
+    normalized.startsWith('GET /wikipedia/summary') ||
+    normalized.startsWith('GET /api/museums/search/wikidata') ||
+    normalized.startsWith('GET /api/museums/search/location') ||
+    normalized.startsWith('GET /api/museums/search/nearby') ||
+    normalized.startsWith('GET /api/museums/search')
+  ) {
+    usage.wikiCalls += 1;
+  }
+
+  return usage;
+}
+
+function addUsage(a: UserUsageSummary, b: UserUsageSummary): UserUsageSummary {
+  return {
+    llmCalls: a.llmCalls + b.llmCalls,
+    wikiCalls: a.wikiCalls + b.wikiCalls,
+    museumCreates: a.museumCreates + b.museumCreates,
+    artifactCreates: a.artifactCreates + b.artifactCreates,
+  };
+}
+
+function maxUsage(a: UserUsageSummary, b: UserUsageSummary): UserUsageSummary {
+  return {
+    llmCalls: Math.max(a.llmCalls, b.llmCalls),
+    wikiCalls: Math.max(a.wikiCalls, b.wikiCalls),
+    museumCreates: Math.max(a.museumCreates, b.museumCreates),
+    artifactCreates: Math.max(a.artifactCreates, b.artifactCreates),
+  };
+}
+
+function extractUserUidFromMetadata(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== 'object') {
+    return null;
+  }
+  const value = (metadata as Record<string, unknown>).userUid;
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function extractUsageDeltaFromMetadata(metadata: unknown): UserUsageSummary | null {
+  if (!metadata || typeof metadata !== 'object') {
+    return null;
+  }
+
+  const usageDelta = (metadata as Record<string, unknown>).usageDelta;
+  if (!usageDelta || typeof usageDelta !== 'object') {
+    return null;
+  }
+
+  const delta = usageDelta as Record<string, unknown>;
+  const toNumber = (value: unknown) =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0
+      ? Math.floor(value)
+      : 0;
+
+  return {
+    llmCalls: toNumber(delta.llmCalls),
+    wikiCalls: toNumber(delta.wikiCalls),
+    museumCreates: toNumber(delta.museumCreates),
+    artifactCreates: toNumber(delta.artifactCreates),
+  };
+}
+
+function allowArtifactDeltaForEndpoint(endpoint: string): boolean {
+  const normalized = endpoint.trim();
+  return (
+    normalized.startsWith('POST /museums/') &&
+    normalized.endsWith('/scan/create')
+  );
+}
+
+async function deriveUsageFromApiLogs(
+  userUid: string,
+  dateKey: string
+): Promise<UserUsageSummary> {
+  const startOfDayUtc = new Date(`${dateKey}T00:00:00.000Z`);
+  const rows = await db.apiCall.findMany({
     where: {
-      dateKey_userUid: {
-        dateKey,
-        userUid,
-      },
+      service: 'API',
+      createdAt: { gte: startOfDayUtc },
+    },
+    select: {
+      endpoint: true,
+      metadata: true,
     },
   });
 
-  const usageSummary: UserUsageSummary = {
-    llmCalls: usage?.llmCalls ?? 0,
-    wikiCalls: usage?.wikiCalls ?? 0,
-    museumCreates: usage?.museumCreates ?? 0,
-    artifactCreates: usage?.artifactCreates ?? 0,
+  let usage: UserUsageSummary = {
+    llmCalls: 0,
+    wikiCalls: 0,
+    museumCreates: 0,
+    artifactCreates: 0,
   };
 
-  return {
-    dateKey,
-    resetAt: getNextResetAtIso(),
-    usage: usageSummary,
-    limits: buildUserLimitSummary(getUserCaps()),
-  };
+  for (const row of rows) {
+    if (extractUserUidFromMetadata(row.metadata) !== userUid) {
+      continue;
+    }
+
+    const endpointUsage = usageFromApiEndpoint(row.endpoint);
+    const deltaUsage = extractUsageDeltaFromMetadata(row.metadata);
+    const effectiveUsage: UserUsageSummary = deltaUsage
+      ? {
+          llmCalls: deltaUsage.llmCalls ?? endpointUsage.llmCalls,
+          wikiCalls: deltaUsage.wikiCalls ?? endpointUsage.wikiCalls,
+          museumCreates:
+            deltaUsage.museumCreates ?? endpointUsage.museumCreates,
+          artifactCreates: allowArtifactDeltaForEndpoint(row.endpoint)
+            ? (deltaUsage.artifactCreates ?? endpointUsage.artifactCreates)
+            : endpointUsage.artifactCreates,
+        }
+      : endpointUsage;
+
+    usage = addUsage(usage, effectiveUsage);
+  }
+
+  return usage;
+}
+
+async function countUserPlaqueScansFromApiLogs(
+  userUid: string,
+  dateKey: string
+): Promise<number> {
+  const startOfDayUtc = new Date(`${dateKey}T00:00:00.000Z`);
+  const rows = await db.apiCall.findMany({
+    where: {
+      service: 'API',
+      createdAt: { gte: startOfDayUtc },
+    },
+    select: {
+      endpoint: true,
+      metadata: true,
+    },
+  });
+
+  let count = 0;
+  for (const row of rows) {
+    if (extractUserUidFromMetadata(row.metadata) !== userUid) {
+      continue;
+    }
+
+    const endpoint = row.endpoint.trim();
+    if (
+      endpoint.startsWith('POST /museums/') &&
+      endpoint.endsWith('/scan/ocr')
+    ) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+export async function enforcePlaqueScanLimit(options: {
+  res: Response;
+  actor?: Actor;
+}): Promise<boolean> {
+  const userUid = options.actor?.uid;
+  const limit = USER_DAILY_LIMITS.plaqueScans;
+  if (!userUid || limit === null) {
+    return true;
+  }
+
+  const dateKey = getTodayDateKey();
+  const used = await countUserPlaqueScansFromApiLogs(userUid, dateKey);
+  debugUsageLog('Plaque scan limit check.', { userUid, dateKey, used, limit });
+
+  if (used >= limit) {
+    const usage = await getUserUsageForToday(userUid);
+    sendBlocked(
+      options.res,
+      429,
+      'LIMIT_USER_DAILY',
+      `You have reached your daily plaque scan limit (${limit}).`,
+      { usage: { user: usage.usage, limits: usage.limits } }
+    );
+    return false;
+  }
+
+  return true;
+}
+
+export async function getUserUsageForToday(userUid: string) {
+  const dateKey = getTodayDateKey();
+  debugUsageLog('Reading user usage for today.', { userUid, dateKey });
+  const limits = buildUserLimitSummary(getUserCaps());
+
+  if (!usageSchemaAvailable()) {
+    warnMissingUsageSchema('getUserUsageForToday:client-check');
+    debugUsageLog('Schema unavailable during usage read.', { userUid, dateKey });
+    const usageFromLogs = await deriveUsageFromApiLogs(userUid, dateKey);
+    debugUsageLog('Derived usage from API logs (schema unavailable).', usageFromLogs);
+    return {
+      dateKey,
+      resetAt: getNextResetAtIso(),
+      usage: usageFromLogs,
+      limits,
+    };
+  }
+
+  try {
+    const usage = await db.dailyUserUsage.findUnique({
+      where: {
+        dateKey_userUid: {
+          dateKey,
+          userUid,
+        },
+      },
+    });
+
+    const usageSummary: UserUsageSummary = {
+      llmCalls: usage?.llmCalls ?? 0,
+      wikiCalls: usage?.wikiCalls ?? 0,
+      museumCreates: usage?.museumCreates ?? 0,
+      artifactCreates: usage?.artifactCreates ?? 0,
+    };
+    const usageFromLogs = await deriveUsageFromApiLogs(userUid, dateKey);
+    const mergedUsage = maxUsage(usageSummary, usageFromLogs);
+    // Artifact create quota applies to scanned artefacts only.
+    mergedUsage.artifactCreates = usageFromLogs.artifactCreates;
+    debugUsageLog('Merged usage from counters + API logs.', {
+      counters: usageSummary,
+      apiLogs: usageFromLogs,
+      merged: mergedUsage,
+    });
+
+    return {
+      dateKey,
+      resetAt: getNextResetAtIso(),
+      usage: mergedUsage,
+      limits,
+    };
+  } catch (error) {
+    if (isMissingUsageSchemaError(error)) {
+      warnMissingUsageSchema('getUserUsageForToday:query', error);
+      debugUsageLog('Schema unavailable during usage query.', {
+        userUid,
+        dateKey,
+        error,
+      });
+      const usageFromLogs = await deriveUsageFromApiLogs(userUid, dateKey);
+      return {
+        dateKey,
+        resetAt: getNextResetAtIso(),
+        usage: usageFromLogs,
+        limits,
+      };
+    }
+    throw error;
+  }
 }

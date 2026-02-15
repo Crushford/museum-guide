@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { adminAuth } from '../lib/firebase-admin';
 import { sendBlocked } from '../lib/usage-limits';
+import { recordApiCall } from '../lib/telemetry/api-call-tracker';
 
 export type Actor = {
   uid: string;
@@ -20,6 +21,11 @@ export async function requireAuth(
   res: Response,
   next: NextFunction
 ) {
+  if (req.actor) {
+    next();
+    return;
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     sendBlocked(
@@ -32,8 +38,16 @@ export async function requireAuth(
   }
 
   const token = authHeader.slice(7);
+  const startedAt = Date.now();
   try {
     const decoded = await adminAuth.verifyIdToken(token);
+    recordApiCall({
+      service: 'FirebaseAuth',
+      endpoint: 'verifyIdToken',
+      durationMs: Date.now() - startedAt,
+      status: 'success',
+      metadata: { userUid: decoded.uid },
+    });
     req.actor = {
       uid: decoded.uid,
       email: decoded.email,
@@ -41,7 +55,15 @@ export async function requireAuth(
       isAdmin: decoded.admin === true,
     };
     next();
-  } catch {
+  } catch (error) {
+    recordApiCall({
+      service: 'FirebaseAuth',
+      endpoint: 'verifyIdToken',
+      durationMs: Date.now() - startedAt,
+      status: 'error',
+      metadata: { authHeaderPresent: true },
+      error: error instanceof Error ? error.message : String(error),
+    });
     sendBlocked(res, 401, 'AUTH_REQUIRED', 'Invalid or expired token.');
   }
 }
@@ -57,15 +79,31 @@ export async function attachActorIfPresent(
     return;
   }
 
+  const startedAt = Date.now();
   try {
     const decoded = await adminAuth.verifyIdToken(authHeader.slice(7));
+    recordApiCall({
+      service: 'FirebaseAuth',
+      endpoint: 'verifyIdToken',
+      durationMs: Date.now() - startedAt,
+      status: 'success',
+      metadata: { userUid: decoded.uid },
+    });
     req.actor = {
       uid: decoded.uid,
       email: decoded.email,
       displayName: decoded.name,
       isAdmin: decoded.admin === true,
     };
-  } catch {
+  } catch (error) {
+    recordApiCall({
+      service: 'FirebaseAuth',
+      endpoint: 'verifyIdToken',
+      durationMs: Date.now() - startedAt,
+      status: 'error',
+      metadata: { authHeaderPresent: true },
+      error: error instanceof Error ? error.message : String(error),
+    });
     req.actor = undefined;
   }
 

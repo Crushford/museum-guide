@@ -12,6 +12,14 @@ type ServiceSummary = {
   avgDurationMs: number;
 };
 
+type GlobalLimitSummary = {
+  llmCalls: number | null;
+  wikiCalls: number | null;
+  dbOps: number | null;
+  museumCreates: number | null;
+  artifactCreates: number | null;
+};
+
 type ApiCallRow = {
   id: number;
   service: string;
@@ -31,6 +39,7 @@ export default function ApiCallsPage() {
   const [daily, setDaily] = useState<{
     totalCalls: number;
     services: ServiceSummary[];
+    globalLimits: GlobalLimitSummary;
   } | null>(null);
   const [rows, setRows] = useState<ApiCallRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -47,6 +56,7 @@ export default function ApiCallsPage() {
         const data = await authedApi.get<{
           totalCalls: number;
           services: ServiceSummary[];
+          globalLimits: GlobalLimitSummary;
         }>('/admin/api-calls/daily');
         if (!cancelled) setDaily(data);
       } catch {
@@ -92,6 +102,7 @@ export default function ApiCallsPage() {
   const totalPages = Math.ceil(total / 50);
 
   const allServices = daily?.services.map((s) => s.service) ?? [];
+  const fmtLimit = (value: number | null) => (value === null ? 'Disabled' : value);
 
   return (
     <PageLayout
@@ -117,6 +128,16 @@ export default function ApiCallsPage() {
                   </p>
                 </div>
               ))}
+            </div>
+            <div className="mt-4 rounded-lg border p-4">
+              <p className="text-sm text-muted-foreground mb-2">Global Daily Limits</p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 text-sm">
+                <div>LLM: <span className="font-semibold">{fmtLimit(daily.globalLimits.llmCalls)}</span></div>
+                <div>Wikipedia: <span className="font-semibold">{fmtLimit(daily.globalLimits.wikiCalls)}</span></div>
+                <div>Museums: <span className="font-semibold">{fmtLimit(daily.globalLimits.museumCreates)}</span></div>
+                <div>Artifacts: <span className="font-semibold">{fmtLimit(daily.globalLimits.artifactCreates)}</span></div>
+                <div>DB ops: <span className="font-semibold">{fmtLimit(daily.globalLimits.dbOps)}</span></div>
+              </div>
             </div>
           </SectionCard>
         )}

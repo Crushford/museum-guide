@@ -110,7 +110,7 @@ export function ApiErrorDialogs() {
               <p>Today you have:</p>
               <ul className="space-y-1 text-muted-foreground">
                 <li>
-                  Created {userLimitUsage.user.artifactCreates} artifacts
+                  Created {userLimitUsage.user.artifactCreates} artifacts from scans
                 </li>
                 <li>Created {userLimitUsage.user.museumCreates} museums</li>
                 <li>Made {userLimitUsage.user.llmCalls} LLM requests</li>
