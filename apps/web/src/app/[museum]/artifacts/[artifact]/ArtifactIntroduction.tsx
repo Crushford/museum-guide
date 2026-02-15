@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { Volume2 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { ErrorText } from '@/components/ui/error-text';
 import { SectionCard } from '@/components/shared';
 import { API_URL } from '@/lib/api';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import { ContentItem } from '@/lib/types';
 
 type GenerationStep =
@@ -27,85 +28,35 @@ export function ArtifactIntroduction({
   artifactId,
   initialContent,
 }: ArtifactIntroductionProps) {
+  const authedApi = useAuthedApi();
   const [content, setContent] = useState<ContentItem | null>(initialContent);
   const [generationStep, setGenerationStep] = useState<GenerationStep>('idle');
-  const [streamingText, setStreamingText] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
   const preferredProvider = usePreferredLLMProvider();
 
   const isGenerating = generationStep !== 'idle' && generationStep !== 'done';
 
   const handleGenerateIntroduction = useCallback(async () => {
-    // Clean up any existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
     setGenerationStep('loading');
-    setStreamingText('');
-    setStatusMessage('Loading artifact data...');
+    setStatusMessage('Generating introduction...');
     setError(null);
 
     try {
-      const eventSource = new EventSource(
-        `${API_URL}/generate-content/artefact/${artifactId}/stream?provider=${preferredProvider}`
+      const generated = await authedApi.post<ContentItem>(
+        `/generate-content/artefact/${artifactId}?provider=${preferredProvider}`,
+        { requireAdmin: true }
       );
-      eventSourceRef.current = eventSource;
-
-      eventSource.addEventListener('status', (event) => {
-        const data = JSON.parse(event.data);
-        setGenerationStep(data.step as GenerationStep);
-        setStatusMessage(data.message);
-      });
-
-      eventSource.addEventListener('chunk', (event) => {
-        const data = JSON.parse(event.data);
-        setStreamingText((prev) => prev + data.text);
-      });
-
-      eventSource.addEventListener('complete', (event) => {
-        const data = JSON.parse(event.data);
-        setContent(data.content);
-        setGenerationStep('done');
-        setStreamingText('');
-        eventSource.close();
-        eventSourceRef.current = null;
-      });
-
-      eventSource.addEventListener('error', (event) => {
-        // Check if it's a custom error event or connection error
-        if (event instanceof MessageEvent) {
-          const data = JSON.parse(event.data);
-          setError(data.error);
-        } else {
-          setError('Connection error. Please try again.');
-        }
-        setGenerationStep('idle');
-        eventSource.close();
-        eventSourceRef.current = null;
-      });
-
-      // Handle connection errors
-      eventSource.onerror = () => {
-        if (eventSource.readyState === EventSource.CLOSED) {
-          // Normal close, ignore
-          return;
-        }
-        setError('Connection error. Please try again.');
-        setGenerationStep('idle');
-        eventSource.close();
-        eventSourceRef.current = null;
-      };
+      setContent(generated);
+      setGenerationStep('done');
     } catch (err) {
-      console.error('Error setting up stream:', err);
+      console.error('Error generating introduction:', err);
       setError(
         err instanceof Error ? err.message : 'Failed to generate introduction'
       );
       setGenerationStep('idle');
     }
-  }, [artifactId, preferredProvider]);
+  }, [artifactId, preferredProvider, authedApi]);
 
   // Show streaming UI when generating (before we have final content)
   if (isGenerating && !content) {
@@ -122,15 +73,6 @@ export function ArtifactIntroduction({
             </div>
           </div>
 
-          {/* Streaming text display */}
-          {streamingText && (
-            <div className="relative">
-              <p className="text-primary leading-relaxed whitespace-pre-wrap">
-                {streamingText}
-                <span className="inline-block w-2 h-5 bg-primary animate-pulse ml-1" />
-              </p>
-            </div>
-          )}
         </div>
       </SectionCard>
     );

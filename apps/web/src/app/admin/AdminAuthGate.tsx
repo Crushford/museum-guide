@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { AdminNav } from '@/components/shared/AdminNav';
 import { PageLayout } from '@/components/shared';
@@ -9,7 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 
 export function AdminAuthGate({ children }: { children: ReactNode }) {
-  const { user, loading, isAdmin, signIn, signOut } = useAuth();
+  const { user, loading, isAdmin, signIn, signOut, refreshAdminClaims } =
+    useAuth();
+
+  useEffect(() => {
+    if (loading || !user || isAdmin) {
+      return;
+    }
+
+    void refreshAdminClaims().catch(() => {});
+  }, [loading, user, isAdmin, refreshAdminClaims]);
 
   if (loading) {
     return (
@@ -57,6 +66,12 @@ export function AdminAuthGate({ children }: { children: ReactNode }) {
               <p className="text-sm text-muted-foreground">
                 Signed in as {user.email}
               </p>
+              <Button
+                variant="default"
+                onClick={() => void refreshAdminClaims().catch(() => {})}
+              >
+                Refresh permissions
+              </Button>
               <Button variant="secondary" onClick={signOut}>
                 Sign out
               </Button>

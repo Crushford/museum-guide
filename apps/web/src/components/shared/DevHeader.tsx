@@ -9,6 +9,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { API_URL } from '@/lib/api';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type SpendRow = {
   provider: string;
@@ -109,6 +110,7 @@ function UsageBar({
 }
 
 export function DevHeader() {
+  const { user, isAdmin, getIdToken } = useAuth();
   const [spend, setSpend] = useState<SpendRow[]>([]);
   const [dailyUsage, setDailyUsage] = useState<DailyUsage>({
     premium: { used: 0, limit: 250_000 },
@@ -124,27 +126,45 @@ export function DevHeader() {
   useEffect(() => {
     let cancelled = false;
 
-    const refresh = () => {
-      fetch(`${API_URL}/admin/llm-usage/monthly`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (!cancelled && data?.spend) setSpend(data.spend);
-        })
-        .catch(() => {});
+    const refresh = async () => {
+      if (!user || !isAdmin) {
+        if (!cancelled) {
+          setSpend([]);
+          setDailyUsage({
+            premium: { used: 0, limit: 250_000 },
+            mini: { used: 0, limit: 2_500_000 },
+          });
+          setApiCalls(null);
+        }
+        return;
+      }
 
-      fetch(`${API_URL}/admin/openai-usage/daily`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (!cancelled && data?.premium && data?.mini) setDailyUsage(data);
-        })
-        .catch(() => {});
+      try {
+        const token = await getIdToken();
+        const headers = { Authorization: `Bearer ${token}` };
 
-      fetch(`${API_URL}/admin/api-calls/daily`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (!cancelled && data?.totalCalls !== undefined) setApiCalls(data);
-        })
-        .catch(() => {});
+        const [spendRes, usageRes, callsRes] = await Promise.all([
+          fetch(`${API_URL}/admin/llm-usage/monthly`, { headers }),
+          fetch(`${API_URL}/admin/openai-usage/daily`, { headers }),
+          fetch(`${API_URL}/admin/api-calls/daily`, { headers }),
+        ]);
+
+        const [spendData, usageData, callsData] = await Promise.all([
+          spendRes.ok ? spendRes.json() : null,
+          usageRes.ok ? usageRes.json() : null,
+          callsRes.ok ? callsRes.json() : null,
+        ]);
+
+        if (!cancelled && spendData?.spend) setSpend(spendData.spend);
+        if (!cancelled && usageData?.premium && usageData?.mini) {
+          setDailyUsage(usageData);
+        }
+        if (!cancelled && callsData?.totalCalls !== undefined) {
+          setApiCalls(callsData);
+        }
+      } catch {
+        // Ignore DevHeader polling errors
+      }
     };
 
     refresh();
@@ -154,7 +174,7 @@ export function DevHeader() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [user, isAdmin, getIdToken]);
 
   const totalEur = spend.reduce((sum, r) => sum + r.totalEur, 0);
 
