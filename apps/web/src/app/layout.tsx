@@ -3,8 +3,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { DevHeader } from '../components/shared/DevHeader';
+import { AuthStatus } from '../components/shared/AuthStatus';
 import { NavLink } from '../components/ui/nav-link';
 import { AuthProvider } from '../components/providers/AuthProvider';
+import { ApiErrorDialogs } from '../components/providers/ApiErrorDialogs';
 import './globals.css';
 
 const geistSans = Geist({
@@ -39,6 +41,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} flex min-h-screen flex-col bg-background text-foreground antialiased`}
       >
         <AuthProvider>
+          <ApiErrorDialogs />
           {process.env.NODE_ENV === 'development' && <DevHeader />}
           <header className="mx-auto flex w-full max-w-6xl items-center gap-2.5 px-6 py-3">
             <Link
@@ -48,6 +51,9 @@ export default function RootLayout({
               <Image src="/favicon.png" alt="" width={24} height={24} />
               <span className="font-semibold">Museum Guide</span>
             </Link>
+            <div className="ml-auto">
+              <AuthStatus />
+            </div>
           </header>
           <div className="flex-1">{children}</div>
           <footer className="border-t border-border/70 bg-background">

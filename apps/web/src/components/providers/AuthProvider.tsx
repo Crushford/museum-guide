@@ -16,6 +16,8 @@ import {
   type User,
 } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
+import { API_URL } from '@/lib/api';
+import { emitApiError, extractErrorBody } from '@/lib/api-errors';
 
 type AuthContextType = {
   user: User | null;
@@ -41,6 +43,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (firebaseUser) {
           const tokenResult = await firebaseUser.getIdTokenResult();
           setIsAdmin(tokenResult.claims.admin === true);
+
+          const token = await firebaseUser.getIdToken();
+          const authStatusResponse = await fetch(`${API_URL}/auth/status`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          });
+
+          if (!authStatusResponse.ok) {
+            const payload = await authStatusResponse.json().catch(() => ({}));
+            const errorBody = extractErrorBody(payload);
+            if (errorBody?.code === 'SIGNUP_WAITLIST') {
+              emitApiError(errorBody);
+              await firebaseSignOut(auth);
+              setUser(null);
+              setIsAdmin(false);
+            }
+          }
         } else {
           setIsAdmin(false);
         }

@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { authedApi, authedApiMutate, authedApiPost } from '@/lib/api';
+import { ApiRequestError, emitApiError } from '@/lib/api-errors';
 
 type AuthedRequestOptions = {
   requireAdmin?: boolean;
@@ -20,7 +21,16 @@ export function useAuthedApi() {
       const requireAdmin = options?.requireAdmin === true;
 
       if (!user) {
-        throw new Error('Please sign in first.');
+        const body = {
+          code: 'AUTH_REQUIRED',
+          message: 'Sign in required for this action.',
+        } as const;
+        emitApiError(body);
+        throw new ApiRequestError({
+          status: 401,
+          body,
+          message: body.message,
+        });
       }
 
       if (requireAdmin && !isAdmin) {

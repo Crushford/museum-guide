@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ErrorText } from '@/components/ui/error-text';
 import { SectionCard } from '@/components/shared';
 import { API_URL } from '@/lib/api';
+import { emitApiError, extractErrorBody } from '@/lib/api-errors';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 import { ContentItem } from '@/lib/types';
@@ -62,9 +63,13 @@ export function ArtifactIntroduction({
           if (!response.ok) {
             let message = `Failed to generate introduction (${response.status})`;
             try {
-              const errorBody = await response.json();
-              if (errorBody?.error) {
-                message = errorBody.error;
+              const payload = await response.json();
+              const parsedError = extractErrorBody(payload);
+              if (parsedError?.code) {
+                emitApiError(parsedError);
+              }
+              if (parsedError?.message) {
+                message = parsedError.message;
               }
             } catch {
               // Ignore parse errors
@@ -143,10 +148,21 @@ export function ArtifactIntroduction({
             }
 
             if (eventName === 'error') {
+              if (data?.code && typeof data.code === 'string') {
+                emitApiError({
+                  code: data.code,
+                  message:
+                    typeof data.message === 'string'
+                      ? data.message
+                      : undefined,
+                });
+              }
               throw new Error(
                 typeof data.error === 'string'
                   ? data.error
-                  : 'Failed to generate introduction'
+                  : typeof data.message === 'string'
+                    ? data.message
+                    : 'Failed to generate introduction'
               );
             }
           };

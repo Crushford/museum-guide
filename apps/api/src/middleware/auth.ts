@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { adminAuth } from '../lib/firebase-admin';
+import { sendBlocked } from '../lib/usage-limits';
 
 export type Actor = {
   uid: string;
@@ -8,7 +9,7 @@ export type Actor = {
   isAdmin: boolean;
 };
 
-declare module 'express' {
+declare module 'express-serve-static-core' {
   interface Request {
     actor?: Actor;
   }
@@ -21,7 +22,12 @@ export async function requireAuth(
 ) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Missing or invalid authorization header' });
+    sendBlocked(
+      res,
+      401,
+      'AUTH_REQUIRED',
+      'Sign in required for this action.'
+    );
     return;
   }
 
@@ -36,8 +42,34 @@ export async function requireAuth(
     };
     next();
   } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
+    sendBlocked(res, 401, 'AUTH_REQUIRED', 'Invalid or expired token.');
   }
+}
+
+export async function attachActorIfPresent(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    next();
+    return;
+  }
+
+  try {
+    const decoded = await adminAuth.verifyIdToken(authHeader.slice(7));
+    req.actor = {
+      uid: decoded.uid,
+      email: decoded.email,
+      displayName: decoded.name,
+      isAdmin: decoded.admin === true,
+    };
+  } catch {
+    req.actor = undefined;
+  }
+
+  next();
 }
 
 export async function requireAdmin(

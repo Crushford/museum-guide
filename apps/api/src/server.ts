@@ -66,7 +66,12 @@ import {
 } from './lib/artifact-scan';
 import { generateSlug } from './lib/slug';
 import { buildUniqueArtifactSlug } from './lib/artifact-slug';
-import { requireAuth, requireAdmin } from './middleware/auth';
+import { attachActorIfPresent, requireAuth, requireAdmin } from './middleware/auth';
+import {
+  enforceUsageLimits,
+  enforceSignupPolicy,
+  getUserUsageForToday,
+} from './lib/usage-limits';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -85,6 +90,7 @@ app.use(
 );
 
 app.use(express.json({ limit: '20mb' }));
+app.use(attachActorIfPresent);
 
 // Serve static audio files
 const audioDir = resolve(__dirname, '../public/audio');
@@ -98,6 +104,48 @@ if (!existsSync(uploadsDir)) {
   mkdir(uploadsDir, { recursive: true }).catch(() => {});
 }
 app.use('/uploads', express.static(uploadsDir));
+
+app.get('/auth/status', requireAuth, async (req, res) => {
+  if (!req.actor) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const allowed = await enforceSignupPolicy({ actor: req.actor, res });
+  if (!allowed) {
+    return;
+  }
+
+  const usage = await getUserUsageForToday(req.actor.uid);
+  res.json({
+    uid: req.actor.uid,
+    email: req.actor.email ?? null,
+    displayName: req.actor.displayName ?? null,
+    isAdmin: req.actor.isAdmin,
+    usage,
+  });
+});
+
+app.get('/account/usage', requireAuth, async (req, res) => {
+  if (!req.actor) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const allowed = await enforceSignupPolicy({ actor: req.actor, res });
+  if (!allowed) {
+    return;
+  }
+
+  const usage = await getUserUsageForToday(req.actor.uid);
+  res.json({
+    user: {
+      uid: req.actor.uid,
+      email: req.actor.email ?? null,
+      displayName: req.actor.displayName ?? null,
+      isAdmin: req.actor.isAdmin,
+    },
+    usage,
+  });
+});
 
 // ============================================================================
 // MUSEUM, ROOM, AND ARTIFACT ENDPOINTS
@@ -633,6 +681,25 @@ app.get('/api/museums/search/nearby', async (req, res) => {
 
 // POST /api/museums/select/:qid - Select and enrich a museum by QID
 app.post('/api/museums/select/:qid', requireAuth, requireAdmin, async (req, res) => {
+  if (!req.actor) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+  if (!signupAllowed) {
+    return;
+  }
+
+  const allowed = await enforceUsageLimits({
+    res,
+    actor: req.actor,
+    globalIncrements: { dbOps: 1, wikiCalls: 1 },
+    userIncrements: { wikiCalls: 1 },
+  });
+  if (!allowed) {
+    return;
+  }
+
   const { qid } = req.params;
 
   // Validate QID format
@@ -736,6 +803,16 @@ app.post('/api/museums/select/:qid', requireAuth, requireAdmin, async (req, res)
       rawSlug.length > 0 ? rawSlug : `museum-${qid.toLowerCase()}`;
 
     // Create the museum
+    const createAllowed = await enforceUsageLimits({
+      res,
+      actor: req.actor,
+      globalIncrements: { museumCreates: 1 },
+      userIncrements: { museumCreates: 1 },
+    });
+    if (!createAllowed) {
+      return;
+    }
+
     const museum = await prisma.museum.create({
       data: {
         name: museumName,
@@ -1333,6 +1410,25 @@ app.get('/admin/artifacts', requireAuth, requireAdmin, async (req, res) => {
 // ============================================================================
 
 app.post('/museums', requireAuth, requireAdmin, async (req, res) => {
+  if (!req.actor) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+  if (!signupAllowed) {
+    return;
+  }
+
+  const limitsAllowed = await enforceUsageLimits({
+    res,
+    actor: req.actor,
+    globalIncrements: { dbOps: 1, museumCreates: 1 },
+    userIncrements: { museumCreates: 1 },
+  });
+  if (!limitsAllowed) {
+    return;
+  }
+
   const { name, knowledgeText, furtherReading } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'Name is required' });
@@ -2110,6 +2206,25 @@ app.post('/museums/:museumId/scan/create', requireAuth, requireAdmin, async (req
 });
 
 app.post('/artifacts', requireAuth, requireAdmin, async (req, res) => {
+  if (!req.actor) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+  if (!signupAllowed) {
+    return;
+  }
+
+  const limitsAllowed = await enforceUsageLimits({
+    res,
+    actor: req.actor,
+    globalIncrements: { dbOps: 1, artifactCreates: 1 },
+    userIncrements: { artifactCreates: 1 },
+  });
+  if (!limitsAllowed) {
+    return;
+  }
+
   const {
     name,
     displayTitle,
@@ -2432,6 +2547,16 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
     const artifactId = Number(req.params.artifactId);
     if (Number.isNaN(artifactId)) {
       return res.status(400).json({ error: 'Invalid artifactId' });
+    }
+
+    const limitsAllowed = await enforceUsageLimits({
+      res,
+      actor: req.actor,
+      globalIncrements: { llmCalls: 1 },
+      userIncrements: req.actor ? { llmCalls: 1 } : undefined,
+    });
+    if (!limitsAllowed) {
+      return;
     }
 
     const questionRaw = req.body?.question;
@@ -3139,6 +3264,25 @@ async function suggestQuestionCorrection(
 // POST /generate-content/artefact/:artefactId - Generate content
 app.post('/generate-content/artefact/:artefactId', requireAuth, requireAdmin, async (req, res) => {
   try {
+    if (!req.actor) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+    if (!signupAllowed) {
+      return;
+    }
+
+    const limitsAllowed = await enforceUsageLimits({
+      res,
+      actor: req.actor,
+      globalIncrements: { llmCalls: 1, dbOps: 1 },
+      userIncrements: { llmCalls: 1 },
+    });
+    if (!limitsAllowed) {
+      return;
+    }
+
     const artefactId = Number(req.params.artefactId);
     if (Number.isNaN(artefactId)) {
       return res.status(400).json({ error: 'Invalid artefactId' });
@@ -3206,6 +3350,37 @@ This usually means the Prisma client needs to be regenerated. Run: yarn prisma g
 
 // GET /generate-content/artefact/:artefactId/stream - Stream content generation using SSE
 app.get('/generate-content/artefact/:artefactId/stream', requireAuth, requireAdmin, async (req, res) => {
+  if (!req.actor) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+  if (!signupAllowed) {
+    return;
+  }
+
+  const limitsAllowed = await enforceUsageLimits({
+    res,
+    actor: req.actor,
+    globalIncrements: { llmCalls: 1, dbOps: 1 },
+    userIncrements: { llmCalls: 1 },
+  });
+  if (!limitsAllowed) {
+    return;
+  }
+
+  const artefactId = Number(req.params.artefactId);
+  if (Number.isNaN(artefactId)) {
+    return res.status(400).json({ error: 'Invalid artefactId' });
+  }
+
+  const context = await fetchArtifactContext(artefactId);
+  if (!context) {
+    return res.status(404).json({ error: 'Artifact not found' });
+  }
+
+  const providerName = parseProvider(req.query.provider, 'google');
+
   // Set up SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -3222,26 +3397,10 @@ app.get('/generate-content/artefact/:artefactId/stream', requireAuth, requireAdm
   };
 
   try {
-    const artefactId = Number(req.params.artefactId);
-    if (Number.isNaN(artefactId)) {
-      sendEvent('error', { error: 'Invalid artefactId' });
-      res.end();
-      return;
-    }
-
     sendEvent('status', {
       step: 'loading',
       message: 'Loading artifact data...',
     });
-
-    const context = await fetchArtifactContext(artefactId);
-    if (!context) {
-      sendEvent('error', { error: 'Artifact not found' });
-      res.end();
-      return;
-    }
-
-    const providerName = parseProvider(req.query.provider, 'google');
 
     sendEvent('status', {
       step: 'generating',
@@ -3374,6 +3533,16 @@ app.get('/generate-content/artefact/:artefactId/stream', requireAuth, requireAdm
 // GET /wikipedia/summary - Fetch Wikipedia summary for a given URL (with English preference and translation)
 app.get('/wikipedia/summary', async (req, res) => {
   try {
+    const limitsAllowed = await enforceUsageLimits({
+      res,
+      actor: req.actor,
+      globalIncrements: { wikiCalls: 1 },
+      userIncrements: req.actor ? { wikiCalls: 1 } : undefined,
+    });
+    if (!limitsAllowed) {
+      return;
+    }
+
     const url = req.query.url as string;
 
     if (!url) {
@@ -3505,6 +3674,25 @@ app.post(
   requireAdmin,
   async (req, res) => {
     try {
+      if (!req.actor) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+      if (!signupAllowed) {
+        return;
+      }
+
+      const limitsAllowed = await enforceUsageLimits({
+        res,
+        actor: req.actor,
+        globalIncrements: { llmCalls: 1, dbOps: 1 },
+        userIncrements: { llmCalls: 1 },
+      });
+      if (!limitsAllowed) {
+        return;
+      }
+
       const artifactId = Number(req.params.artifactId);
       if (Number.isNaN(artifactId)) {
         return res.status(400).json({ error: 'Invalid artifactId' });
