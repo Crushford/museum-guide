@@ -31,6 +31,7 @@ export function ArtifactIntroduction({
   const authedApi = useAuthedApi();
   const [content, setContent] = useState<ContentItem | null>(initialContent);
   const [generationStep, setGenerationStep] = useState<GenerationStep>('idle');
+  const [streamingText, setStreamingText] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const preferredProvider = usePreferredLLMProvider();
@@ -39,16 +40,144 @@ export function ArtifactIntroduction({
 
   const handleGenerateIntroduction = useCallback(async () => {
     setGenerationStep('loading');
+    setStreamingText('');
     setStatusMessage('Generating introduction...');
     setError(null);
 
     try {
-      const generated = await authedApi.post<ContentItem>(
-        `/generate-content/artefact/${artifactId}?provider=${preferredProvider}`,
+      await authedApi.run(
+        async (token) => {
+          const response = await fetch(
+            `${API_URL}/generate-content/artefact/${artifactId}/stream?provider=${preferredProvider}`,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'text/event-stream',
+              },
+              cache: 'no-store',
+            }
+          );
+
+          if (!response.ok) {
+            let message = `Failed to generate introduction (${response.status})`;
+            try {
+              const errorBody = await response.json();
+              if (errorBody?.error) {
+                message = errorBody.error;
+              }
+            } catch {
+              // Ignore parse errors
+            }
+            throw new Error(message);
+          }
+
+          if (!response.body) {
+            throw new Error('No stream body returned by server.');
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let completed = false;
+
+          const processEvent = (rawEvent: string) => {
+            const lines = rawEvent.split('\n');
+            let eventName = 'message';
+            const dataLines: string[] = [];
+
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventName = line.slice('event:'.length).trim();
+                continue;
+              }
+              if (line.startsWith('data:')) {
+                dataLines.push(line.slice('data:'.length).trim());
+              }
+            }
+
+            const dataRaw = dataLines.join('\n');
+            if (!dataRaw) return;
+
+            const data = JSON.parse(dataRaw);
+
+            if (eventName === 'status') {
+              if (typeof data.step === 'string') {
+                setGenerationStep(data.step as GenerationStep);
+              }
+              if (typeof data.message === 'string') {
+                setStatusMessage(data.message);
+              }
+              return;
+            }
+
+            if (eventName === 'chunk') {
+              if (typeof data.text === 'string') {
+                setStreamingText((prev) => prev + data.text);
+              }
+              return;
+            }
+
+            if (eventName === 'complete') {
+              if (data.content) {
+                const generated = data.content as ContentItem;
+                setContent(generated);
+                if (!generated.audioUrl) {
+                  const audioErrorMessage =
+                    'Introduction generated, but text-to-speech audio failed. Please try again in a moment.';
+                  console.error(
+                    '[ArtifactIntroduction] Auto audio generation failed:',
+                    {
+                      artifactId,
+                      contentId: generated.id,
+                      provider: preferredProvider,
+                    }
+                  );
+                  setError(audioErrorMessage);
+                }
+              }
+              setStreamingText('');
+              setGenerationStep('done');
+              completed = true;
+              return;
+            }
+
+            if (eventName === 'error') {
+              throw new Error(
+                typeof data.error === 'string'
+                  ? data.error
+                  : 'Failed to generate introduction'
+              );
+            }
+          };
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            let separatorIndex = buffer.indexOf('\n\n');
+
+            while (separatorIndex !== -1) {
+              const rawEvent = buffer.slice(0, separatorIndex).replace(/\r/g, '');
+              buffer = buffer.slice(separatorIndex + 2);
+              if (rawEvent.trim()) {
+                processEvent(rawEvent);
+              }
+              separatorIndex = buffer.indexOf('\n\n');
+            }
+          }
+
+          if (buffer.trim()) {
+            processEvent(buffer.replace(/\r/g, ''));
+          }
+
+          if (!completed) {
+            throw new Error('Generation stream ended before completion.');
+          }
+        },
         { requireAdmin: true }
       );
-      setContent(generated);
-      setGenerationStep('done');
     } catch (err) {
       console.error('Error generating introduction:', err);
       setError(
@@ -72,6 +201,14 @@ export function ArtifactIntroduction({
               <p className="text-primary font-medium">{statusMessage}</p>
             </div>
           </div>
+          {streamingText && (
+            <div className="relative">
+              <p className="text-primary leading-relaxed whitespace-pre-wrap">
+                {streamingText}
+                <span className="inline-block w-2 h-5 bg-primary animate-pulse ml-1" />
+              </p>
+            </div>
+          )}
 
         </div>
       </SectionCard>
