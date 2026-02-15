@@ -9,6 +9,7 @@ import { SectionCard } from '@/components/shared/SectionCard';
 import { SaveBar } from '@/components/shared/SaveBar';
 import { createRoom } from './actions';
 import { Room, RoomDraft } from '@/lib/types';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type RoomFormClientProps = {
   museumId: number;
@@ -21,6 +22,7 @@ export function RoomFormClient({
   rooms,
   importedData,
 }: RoomFormClientProps) {
+  const authedApi = useAuthedApi();
   const [name, setName] = useState('');
   const [knowledgeText, setKnowledgeText] = useState('');
   const [furtherReading, setFurtherReading] = useState('');
@@ -83,15 +85,17 @@ export function RoomFormClient({
           .map((line) => line.trim())
           .filter((line) => line.length > 0);
 
-        await createRoom({
-          ...(parentType === 'museum'
-            ? { museumId }
-            : { parentRoomId: parentRoomId! }),
-          name: name.trim(),
-          knowledgeText: knowledgeText.trim() || undefined,
-          furtherReading:
-            furtherReadingArray.length > 0 ? furtherReadingArray : undefined,
-        });
+        await authedApi.run((token) =>
+          createRoom(token, {
+            ...(parentType === 'museum'
+              ? { museumId }
+              : { parentRoomId: parentRoomId! }),
+            name: name.trim(),
+            knowledgeText: knowledgeText.trim() || undefined,
+            furtherReading:
+              furtherReadingArray.length > 0 ? furtherReadingArray : undefined,
+          })
+        );
       } catch (error) {
         console.error('Failed to create room:', error);
         const errorMsg =

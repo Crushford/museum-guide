@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import { updateNodeField } from './actions';
 import { Room } from '@/lib/types';
 
@@ -27,6 +28,7 @@ export function RoomDisplay({
   onRoomChange,
 }: RoomDisplayProps) {
   const router = useRouter();
+  const authedApi = useAuthedApi();
   const [isEditing, setIsEditing] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(
     currentRoomId
@@ -48,7 +50,9 @@ export function RoomDisplay({
     }
 
     try {
-      await updateNodeField(artifactId, 'parentId', selectedRoomId);
+      await authedApi.run((token) =>
+        updateNodeField(token, artifactId, 'parentId', selectedRoomId)
+      );
       onRoomChange?.(selectedRoomId);
       setIsEditing(false);
       router.refresh();
@@ -56,7 +60,7 @@ export function RoomDisplay({
       console.error('Failed to update room:', error);
       alert('Failed to update room. Please try again.');
     }
-  }, [selectedRoomId, artifactId, router, onRoomChange]);
+  }, [selectedRoomId, artifactId, router, onRoomChange, authedApi]);
 
   const handleCancel = useCallback(() => {
     setSelectedRoomId(currentRoomId);

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { ErrorText } from '@/components/ui/error-text';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type EntityType = 'museum' | 'room' | 'artifact';
 
@@ -10,7 +11,7 @@ type DeleteEntityButtonProps = {
   entityType: EntityType;
   entityId: number;
   entityName: string;
-  onDelete: (id: number) => Promise<void>;
+  onDelete: (token: string, id: number) => Promise<void>;
   warningMessage?: string;
 };
 
@@ -29,6 +30,7 @@ export function DeleteEntityButton({
 }: DeleteEntityButtonProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const authedApi = useAuthedApi();
 
   const entityLabel = entityLabels[entityType];
   const defaultWarning =
@@ -51,7 +53,7 @@ export function DeleteEntityButton({
     setError(null);
     startTransition(async () => {
       try {
-        await onDelete(entityId);
+        await authedApi.run((token) => onDelete(token, entityId));
       } catch (err) {
         console.error(`Failed to delete ${entityType}:`, err);
         setError(

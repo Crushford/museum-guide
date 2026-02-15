@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { API_URL, apiMutate } from '@/lib/api';
+import { API_URL, authedApiMutate } from '@/lib/api';
 
 type Node = {
   id: number;
@@ -9,20 +9,26 @@ type Node = {
 };
 
 export async function updateContentItemBody(
+  token: string,
   id: number,
   body: string,
   returnTo?: string
 ) {
-  await apiMutate(`/content-items/${id}`, {
-    method: 'PATCH',
-    body: { body },
-  });
+  await authedApiMutate(
+    `/content-items/${id}`,
+    {
+      method: 'PATCH',
+      body: { body },
+    },
+    token
+  );
 
   if (returnTo) {
     // Fetch the node to determine its type and redirect to the appropriate route
     try {
       const nodeResponse = await fetch(`${API_URL}/nodes/${returnTo}`, {
         cache: 'no-store',
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (nodeResponse.ok) {
         const node: Node = await nodeResponse.json();

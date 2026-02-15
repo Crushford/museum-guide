@@ -2,6 +2,6 @@
 
 import { deleteEntity } from '../../shared/actions';
 
-export async function deleteMuseum(id: number) {
-  return deleteEntity('museums', id);
+export async function deleteMuseum(token: string, id: number) {
+  return deleteEntity(token, 'museums', id);
 }

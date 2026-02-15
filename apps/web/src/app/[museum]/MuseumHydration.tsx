@@ -7,6 +7,7 @@ import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { ErrorText } from '@/components/ui/error-text';
 import { apiPost, API_URL } from '@/lib/api';
+import { useAuth } from '@/components/providers/AuthProvider';
 import Link from 'next/link';
 
 interface HydratedMuseum {
@@ -46,6 +47,11 @@ interface ArtifactHydrationResponse {
 
 interface MuseumDetailsProps {
   museumSlug: string;
+  initialName?: string;
+  initialDescription?: string;
+  initialWikipediaSummary?: string;
+  initialOfficialWebsite?: string;
+  initialCoordinates?: { lat: number; lng: number };
   initialImage?: string;
   initialWikipediaUrl?: string;
 }
@@ -59,9 +65,15 @@ function resolveImageUrl(imageUrl?: string | null): string | undefined {
 
 export function MuseumDetailsHydration({
   museumSlug,
+  initialName,
+  initialDescription,
+  initialWikipediaSummary,
+  initialOfficialWebsite,
+  initialCoordinates,
   initialImage,
   initialWikipediaUrl,
 }: MuseumDetailsProps) {
+  const { loading: authLoading, isAdmin } = useAuth();
   const [museum, setMuseum] = useState<HydratedMuseum | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,8 +98,39 @@ export function MuseumDetailsHydration({
   }, [museumSlug]);
 
   useEffect(() => {
+    if (authLoading) return;
+
+    // Public pages should not call admin-protected hydration endpoints.
+    if (!isAdmin) {
+      setMuseum({
+        id: 0,
+        name: initialName || museumSlug,
+        slug: museumSlug,
+        description: initialDescription,
+        wikipediaSummary: initialWikipediaSummary,
+        wikipediaUrl: initialWikipediaUrl,
+        wikimediaImageUrl: initialImage,
+        officialWebsite: initialOfficialWebsite,
+        coordinates: initialCoordinates,
+      });
+      setIsLoading(false);
+      return;
+    }
+
     hydrate();
-  }, [hydrate]);
+  }, [
+    authLoading,
+    isAdmin,
+    hydrate,
+    museumSlug,
+    initialName,
+    initialDescription,
+    initialWikipediaSummary,
+    initialWikipediaUrl,
+    initialImage,
+    initialOfficialWebsite,
+    initialCoordinates,
+  ]);
 
   if (isLoading) {
     return (
@@ -196,13 +239,20 @@ export function MuseumDetailsHydration({
 
 interface ArtifactHydrationProps {
   museumSlug: string;
-  existingArtifacts: { id: number; name: string; slug: string }[];
+  existingArtifacts: {
+    id: number;
+    name: string;
+    slug: string;
+    wikipediaUrl?: string;
+    wikimediaImageUrl?: string;
+  }[];
 }
 
 export function ArtifactsHydration({
   museumSlug,
   existingArtifacts,
 }: ArtifactHydrationProps) {
+  const { loading: authLoading, isAdmin } = useAuth();
   const [artifacts, setArtifacts] = useState<HydratedArtifact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -229,8 +279,16 @@ export function ArtifactsHydration({
   }, [museumSlug, existingArtifacts]);
 
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAdmin) {
+      setArtifacts(existingArtifacts);
+      setIsLoading(false);
+      return;
+    }
+
     hydrate();
-  }, [hydrate]);
+  }, [authLoading, isAdmin, hydrate, existingArtifacts]);
 
   if (isLoading) {
     return (

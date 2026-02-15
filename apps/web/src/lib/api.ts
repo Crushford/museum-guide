@@ -62,3 +62,74 @@ export async function apiMutate<T = unknown>(
   }
   return response.json();
 }
+
+function authHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
+}
+
+export async function authedApi<T>(path: string, token: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    cache: 'no-store',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    let errorMessage = `API error: ${res.status}`;
+    try {
+      const errorBody = await res.json();
+      if (errorBody.error) {
+        errorMessage = `${errorMessage} - ${errorBody.error}`;
+      }
+    } catch {
+      // Ignore JSON parse errors
+    }
+    throw new Error(errorMessage);
+  }
+  return res.json();
+}
+
+export async function authedApiPost<T>(
+  path: string,
+  token: string
+): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      ...JSON_HEADERS,
+      ...authHeaders(token),
+    },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    let errorMessage = `API error: ${res.status}`;
+    try {
+      const errorBody = await res.json();
+      if (errorBody.error) {
+        errorMessage = `${errorMessage} - ${errorBody.error}`;
+      }
+    } catch {
+      // Ignore JSON parse errors
+    }
+    throw new Error(errorMessage);
+  }
+  return res.json();
+}
+
+export async function authedApiMutate<T = unknown>(
+  path: string,
+  options: { method: string; body?: unknown },
+  token: string
+): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: options.method,
+    headers: {
+      ...(options.body ? JSON_HEADERS : {}),
+      ...authHeaders(token),
+    },
+    ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `API error: ${response.status}`);
+  }
+  return response.json();
+}

@@ -1,10 +1,10 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { apiMutate } from '@/lib/api';
+import { authedApiMutate } from '@/lib/api';
 import { RoomCreateInput } from '@/lib/types';
 
-export async function createRoom(data: RoomCreateInput) {
+export async function createRoom(token: string, data: RoomCreateInput) {
   const body: Record<string, unknown> = {
     name: data.name,
     knowledgeText: data.knowledgeText || null,
@@ -17,10 +17,14 @@ export async function createRoom(data: RoomCreateInput) {
     body.parentRoomId = data.parentRoomId;
   }
 
-  const room = await apiMutate<{ id: number }>('/rooms', {
-    method: 'POST',
-    body,
-  });
+  const room = await authedApiMutate<{ id: number }>(
+    '/rooms',
+    {
+      method: 'POST',
+      body,
+    },
+    token
+  );
 
   redirect(`/admin/rooms/${room.id}`);
 }

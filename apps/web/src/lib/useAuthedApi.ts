@@ -1,0 +1,70 @@
+'use client';
+
+import { useCallback, useMemo } from 'react';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { authedApi, authedApiMutate, authedApiPost } from '@/lib/api';
+
+type AuthedRequestOptions = {
+  requireAdmin?: boolean;
+  adminErrorMessage?: string;
+};
+
+export function useAuthedApi() {
+  const { user, isAdmin, getIdToken, refreshAdminClaims } = useAuth();
+
+  const run = useCallback(
+    async <T>(
+      handler: (token: string) => Promise<T>,
+      options?: AuthedRequestOptions
+    ): Promise<T> => {
+      const requireAdmin = options?.requireAdmin === true;
+
+      if (!user) {
+        throw new Error('Please sign in first.');
+      }
+
+      if (requireAdmin && !isAdmin) {
+        const refreshedIsAdmin = await refreshAdminClaims();
+        if (!refreshedIsAdmin) {
+          throw new Error(
+            options?.adminErrorMessage ?? 'Admin access is required for this action.'
+          );
+        }
+      }
+
+      const token = await getIdToken(requireAdmin);
+      return handler(token);
+    },
+    [getIdToken, isAdmin, refreshAdminClaims, user]
+  );
+
+  const get = useCallback(
+    async <T>(path: string, options?: AuthedRequestOptions): Promise<T> =>
+      run((token) => authedApi<T>(path, token), options),
+    [run]
+  );
+
+  const post = useCallback(
+    async <T>(path: string, options?: AuthedRequestOptions): Promise<T> =>
+      run((token) => authedApiPost<T>(path, token), options),
+    [run]
+  );
+
+  const mutate = useCallback(
+    async <T>(
+      path: string,
+      request: { method: string; body?: unknown },
+      options?: AuthedRequestOptions
+    ): Promise<T> =>
+      run(
+        (token) => authedApiMutate<T>(path, request, token),
+        options
+      ),
+    [run]
+  );
+
+  return useMemo(
+    () => ({ run, get, post, mutate }),
+    [run, get, post, mutate]
+  );
+}

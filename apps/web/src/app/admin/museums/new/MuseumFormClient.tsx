@@ -8,12 +8,14 @@ import { SectionCard } from '@/components/shared/SectionCard';
 import { SaveBar } from '@/components/shared/SaveBar';
 import { MuseumInput } from '@/lib/types';
 import { createMuseum } from './actions';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type MuseumFormClientProps = {
   importedData?: MuseumInput | null;
 };
 
 export function MuseumFormClient({ importedData }: MuseumFormClientProps = {}) {
+  const authedApi = useAuthedApi();
   const [name, setName] = useState('');
   const [knowledgeText, setKnowledgeText] = useState('');
   const [furtherReading, setFurtherReading] = useState('');
@@ -64,12 +66,14 @@ export function MuseumFormClient({ importedData }: MuseumFormClientProps = {}) {
           .map((line) => line.trim())
           .filter((line) => line.length > 0);
 
-        await createMuseum({
-          name: name.trim(),
-          knowledgeText: knowledgeText.trim() || undefined,
-          furtherReading:
-            furtherReadingArray.length > 0 ? furtherReadingArray : undefined,
-        });
+        await authedApi.run((token) =>
+          createMuseum(token, {
+            name: name.trim(),
+            knowledgeText: knowledgeText.trim() || undefined,
+            furtherReading:
+              furtherReadingArray.length > 0 ? furtherReadingArray : undefined,
+          })
+        );
       } catch (error) {
         console.error('Failed to create museum:', error);
         const errorMsg =

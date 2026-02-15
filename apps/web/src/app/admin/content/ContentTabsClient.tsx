@@ -23,7 +23,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { PromptTemplateBox } from '@/components/shared';
 import { generateIntroductionTemplate } from '../_lib/templates';
-import { apiPost, API_URL } from '@/lib/api';
+import { API_URL } from '@/lib/api';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import {
   Dialog,
   DialogContent,
@@ -631,6 +632,7 @@ export function ContentTabsClient({
   content,
   onRefresh,
 }: ContentTabsClientProps) {
+  const authedApi = useAuthedApi();
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab') || 'museums';
@@ -838,7 +840,7 @@ export function ContentTabsClient({
     async (artifactId: number) => {
       try {
         setGeneratingArtifactIds((prev) => new Set(prev).add(artifactId));
-        await apiPost(`/generate-content/artefact/${artifactId}`);
+        await authedApi.post(`/generate-content/artefact/${artifactId}`);
         // Refresh content after successful generation
         onRefresh?.();
       } catch (error) {
@@ -856,14 +858,14 @@ export function ContentTabsClient({
         });
       }
     },
-    [onRefresh]
+    [onRefresh, authedApi]
   );
 
   const handleGenerateAudio = useCallback(
     async (artifactId: number) => {
       try {
         setGeneratingAudioArtifactIds((prev) => new Set(prev).add(artifactId));
-        await apiPost(`/generate-audio/artefact/${artifactId}`);
+        await authedApi.post(`/generate-audio/artefact/${artifactId}`);
         // Refresh content after successful generation
         onRefresh?.();
       } catch (error) {
@@ -881,14 +883,14 @@ export function ContentTabsClient({
         });
       }
     },
-    [onRefresh]
+    [onRefresh, authedApi]
   );
 
   const handleGenerateAudioForContent = useCallback(
     async (contentId: number) => {
       try {
         setGeneratingAudioContentIds((prev) => new Set(prev).add(contentId));
-        await apiPost(`/generate-audio/content/${contentId}`);
+        await authedApi.post(`/generate-audio/content/${contentId}`);
         // Refresh content after successful generation
         onRefresh?.();
       } catch (error) {
@@ -906,7 +908,7 @@ export function ContentTabsClient({
         });
       }
     },
-    [onRefresh]
+    [onRefresh, authedApi]
   );
 
   const currentData = getCurrentData();

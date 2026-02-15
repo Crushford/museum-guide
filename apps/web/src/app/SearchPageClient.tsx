@@ -17,8 +17,9 @@ import {
   Globe,
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
-import { api, apiPost } from '@/lib/api';
+import { api } from '@/lib/api';
 import { APP_NAME } from '@/lib/constants';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import type {
   WikidataSearchResult,
   WikidataSearchResponse,
@@ -125,6 +126,7 @@ function SearchLoadingCard({
 
 export default function SearchPage() {
   const router = useRouter();
+  const authedApi = useAuthedApi();
   const [searchQuery, setSearchQuery] = useState('');
   const [allLocalMuseums, setAllLocalMuseums] = useState<LocalMuseum[]>([]);
   const [isLoadingLocal, setIsLoadingLocal] = useState(true);
@@ -250,8 +252,13 @@ export default function SearchPage() {
       setSelectError(null);
 
       try {
-        const response = await apiPost<MuseumSelectResponse>(
-          `/api/museums/select/${result.qid}`
+        const response = await authedApi.post<MuseumSelectResponse>(
+          `/api/museums/select/${result.qid}`,
+          {
+            requireAdmin: true,
+            adminErrorMessage:
+              'Sign in with an admin account to add museums from Wikidata.',
+          }
         );
 
         console.log('Museum selected:', response);
@@ -264,7 +271,7 @@ export default function SearchPage() {
         setIsSelecting(null);
       }
     },
-    [router]
+    [router, authedApi]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

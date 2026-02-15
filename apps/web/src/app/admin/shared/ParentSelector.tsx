@@ -7,6 +7,7 @@ import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { InlineEditableMuseumRoom } from '@/components/shared/InlineEditableMuseumRoom';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import { updateNodeField, updateRoomParent } from './actions';
 import { Museum, Room } from '@/lib/types';
 
@@ -40,6 +41,7 @@ type ParentSelectorProps =
 
 export function ParentSelector(props: ParentSelectorProps) {
   const router = useRouter();
+  const authedApi = useAuthedApi();
 
   // Room-specific state (only used when type === 'room')
   const [internalIsEditingRoom, setInternalIsEditingRoom] = useState(false);
@@ -145,7 +147,9 @@ export function ParentSelector(props: ParentSelectorProps) {
     async (museumId: number | null, parentRoomId: number | null) => {
       if (!roomEntityId) return;
       try {
-        await updateRoomParent(roomEntityId, museumId, parentRoomId);
+        await authedApi.run((token) =>
+          updateRoomParent(token, roomEntityId, museumId, parentRoomId)
+        );
         setSelectedMuseumId(museumId);
         setSelectedParentRoomId(parentRoomId);
         roomOnMuseumChange?.(museumId);
@@ -160,7 +164,14 @@ export function ParentSelector(props: ParentSelectorProps) {
         alert('Failed to update room parent. Please try again.');
       }
     },
-    [roomEntityId, roomOnMuseumChange, roomIsEditing, roomOnEditChange, router]
+    [
+      roomEntityId,
+      roomOnMuseumChange,
+      roomIsEditing,
+      roomOnEditChange,
+      router,
+      authedApi,
+    ]
   );
 
   // Extract values for useCallback dependencies
@@ -190,7 +201,9 @@ export function ParentSelector(props: ParentSelectorProps) {
       }
 
       // Save the room change (parentId)
-      await updateNodeField(artifactEntityId, 'parentId', selectedRoomId);
+      await authedApi.run((token) =>
+        updateNodeField(token, artifactEntityId, 'parentId', selectedRoomId)
+      );
       setRoomId(selectedRoomId);
       setMuseumId(selectedMuseumId);
       artifactOnRoomChange?.(selectedRoomId);
@@ -203,6 +216,7 @@ export function ParentSelector(props: ParentSelectorProps) {
       artifactOnRoomChange,
       artifactOnMuseumChange,
       router,
+      authedApi,
     ]
   );
 

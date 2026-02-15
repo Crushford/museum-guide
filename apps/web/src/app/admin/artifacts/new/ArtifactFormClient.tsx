@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { UrlListEditor } from '../../../../components/shared';
 import { ArtifactCreateInput, ArtifactImportData, Room } from '@/lib/types';
 import { createArtifactWithRoom } from './actions';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type FormData = {
   name: string;
@@ -37,6 +38,7 @@ export function ArtifactFormClient({
   initialParentName,
   importedData,
 }: ArtifactFormClientProps) {
+  const authedApi = useAuthedApi();
   const STORAGE_KEY = `artifact-form-${museumId}`;
 
   const [showAddNewRoom, setShowAddNewRoom] = useState(false);
@@ -180,7 +182,7 @@ export function ArtifactFormClient({
 
     startTransition(async () => {
       try {
-        await createArtifactWithRoom(artifactData);
+        await authedApi.run((token) => createArtifactWithRoom(token, artifactData));
         // Clear localStorage on successful save
         if (typeof window !== 'undefined') {
           localStorage.removeItem(STORAGE_KEY);

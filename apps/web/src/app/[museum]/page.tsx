@@ -56,7 +56,9 @@ export default async function MuseumPage({
 
   const [rooms, artifacts, content] = await Promise.all([
     api<Room[]>(`/museums/${museum.id}/rooms`).catch(() => []),
-    api<Artifact[]>(`/museums/${museum.id}/artifacts`).catch(() => []),
+    api<Artifact[]>(`/museums/${museum.id}/artifacts-recursive`).catch(
+      () => []
+    ),
     api<ContentItem[]>(`/museums/${museum.id}/content`).catch(() => []),
   ]);
 
@@ -77,6 +79,13 @@ export default async function MuseumPage({
         {/* Museum Details - Hydrated from Wikipedia */}
         <MuseumDetailsHydration
           museumSlug={museumSlug}
+          initialName={museum.name}
+          initialDescription={museumData.description ?? undefined}
+          initialWikipediaSummary={museumData.wikipediaSummary ?? undefined}
+          initialOfficialWebsite={museumData.officialWebsite ?? undefined}
+          initialCoordinates={
+            (museumData.coordinates as { lat: number; lng: number } | undefined)
+          }
           initialImage={museumData.image}
           initialWikipediaUrl={museumData.wikipediaUrl}
         />
@@ -114,6 +123,8 @@ export default async function MuseumPage({
             id: a.id,
             name: a.name,
             slug: a.slug || '',
+            wikipediaUrl: a.wikipediaUrl || undefined,
+            wikimediaImageUrl: a.wikimediaImageUrl || undefined,
           }))}
         />
 

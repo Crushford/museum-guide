@@ -4,26 +4,35 @@ import { useState, useEffect } from 'react';
 import { PageLayout, SectionCard } from '../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { ErrorText } from '@/components/ui/error-text';
-import { API_URL } from '@/lib/api';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import type { SpendRow } from '@repo/types';
 
 export default function CostsPage() {
+  const authedApi = useAuthedApi();
   const [spend, setSpend] = useState<SpendRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/admin/llm-usage/monthly`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
-        return res.json();
-      })
-      .then((data) => setSpend(data.spend ?? []))
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : 'Failed to load')
-      )
-      .finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await authedApi.get<{ spend: SpendRow[] }>(
+          '/admin/llm-usage/monthly'
+        );
+        if (!cancelled) setSpend(data.spend ?? []);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authedApi]);
 
   const totalEur = spend.reduce((sum, r) => sum + r.totalEur, 0);
 

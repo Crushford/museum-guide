@@ -66,6 +66,7 @@ import {
 } from './lib/artifact-scan';
 import { generateSlug } from './lib/slug';
 import { buildUniqueArtifactSlug } from './lib/artifact-slug';
+import { requireAuth, requireAdmin } from './middleware/auth';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -159,7 +160,7 @@ function normalizeUrl(url: string): string {
 }
 
 // POST /artifacts/check-duplicates - Check for potential duplicate artifacts
-app.post('/artifacts/check-duplicates', async (req, res) => {
+app.post('/artifacts/check-duplicates', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { name, knowledgeText, furtherReading } = req.body;
 
@@ -631,7 +632,7 @@ app.get('/api/museums/search/nearby', async (req, res) => {
 });
 
 // POST /api/museums/select/:qid - Select and enrich a museum by QID
-app.post('/api/museums/select/:qid', async (req, res) => {
+app.post('/api/museums/select/:qid', requireAuth, requireAdmin, async (req, res) => {
   const { qid } = req.params;
 
   // Validate QID format
@@ -793,7 +794,7 @@ function isRecentlyHydrated(timestamp: Date | null): boolean {
 }
 
 // POST /api/museums/:slug/hydrate - Hydrate museum details from Wikidata/Wikipedia
-app.post('/api/museums/:slug/hydrate', async (req, res) => {
+app.post('/api/museums/:slug/hydrate', requireAuth, requireAdmin, async (req, res) => {
   const { slug } = req.params;
   const force = req.query.force === '1';
 
@@ -903,7 +904,7 @@ app.post('/api/museums/:slug/hydrate', async (req, res) => {
 });
 
 // POST /api/museums/:slug/hydrate-artifacts - Hydrate artifacts from Wikidata
-app.post('/api/museums/:slug/hydrate-artifacts', async (req, res) => {
+app.post('/api/museums/:slug/hydrate-artifacts', requireAuth, requireAdmin, async (req, res) => {
   const { slug } = req.params;
   const force = req.query.force === '1';
 
@@ -1144,7 +1145,7 @@ app.get('/museums/by-slug/:slug', async (req, res) => {
 });
 
 // GET /admin/rooms - List all rooms with museum info
-app.get('/admin/rooms', async (req, res) => {
+app.get('/admin/rooms', requireAuth, requireAdmin, async (req, res) => {
   try {
     const museumId = req.query.museumId
       ? Number(req.query.museumId)
@@ -1180,7 +1181,7 @@ app.get('/admin/rooms', async (req, res) => {
 });
 
 // GET /admin/artifacts - List all artifacts with room and museum info
-app.get('/admin/artifacts', async (req, res) => {
+app.get('/admin/artifacts', requireAuth, requireAdmin, async (req, res) => {
   try {
     const museumId = req.query.museumId
       ? Number(req.query.museumId)
@@ -1331,7 +1332,7 @@ app.get('/admin/artifacts', async (req, res) => {
 // CREATE AND UPDATE ENDPOINTS
 // ============================================================================
 
-app.post('/museums', async (req, res) => {
+app.post('/museums', requireAuth, requireAdmin, async (req, res) => {
   const { name, knowledgeText, furtherReading } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'Name is required' });
@@ -1348,7 +1349,7 @@ app.post('/museums', async (req, res) => {
 });
 
 // DELETE /museums/:id - Delete a museum
-app.delete('/museums/:id', async (req, res) => {
+app.delete('/museums/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
@@ -1378,7 +1379,7 @@ app.delete('/museums/:id', async (req, res) => {
 });
 
 // DELETE /rooms/:id - Delete a room
-app.delete('/rooms/:id', async (req, res) => {
+app.delete('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
@@ -1408,7 +1409,7 @@ app.delete('/rooms/:id', async (req, res) => {
 });
 
 // DELETE /artifacts/:id - Delete an artifact
-app.delete('/artifacts/:id', async (req, res) => {
+app.delete('/artifacts/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
@@ -1437,7 +1438,7 @@ app.delete('/artifacts/:id', async (req, res) => {
   }
 });
 
-app.post('/rooms', async (req, res) => {
+app.post('/rooms', requireAuth, requireAdmin, async (req, res) => {
   const { name, museumId, parentRoomId, knowledgeText, furtherReading } =
     req.body;
 
@@ -1566,6 +1567,8 @@ app.get('/museums/:museumId/artifacts', async (req, res) => {
         displayTitle: true,
         slug: true,
         roomId: true,
+        wikipediaUrl: true,
+        wikimediaImageUrl: true,
         createdAt: true,
       } as Prisma.ArtifactSelect,
       orderBy: {
@@ -1602,6 +1605,8 @@ app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
         displayTitle: true,
         slug: true,
         roomId: true,
+        wikipediaUrl: true,
+        wikimediaImageUrl: true,
         createdAt: true,
       } as Prisma.ArtifactSelect,
       orderBy: {
@@ -1744,7 +1749,7 @@ app.get('/rooms/:id/children', async (req, res) => {
 });
 
 // PATCH /rooms/:id - Update a room
-app.patch('/rooms/:id', async (req, res) => {
+app.patch('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
@@ -1889,7 +1894,7 @@ function parseMuseumId(value: string): number | null {
   return museumId;
 }
 
-app.post('/museums/:museumId/scan/ocr', async (req, res) => {
+app.post('/museums/:museumId/scan/ocr', requireAuth, requireAdmin, async (req, res) => {
   try {
     const museumId = parseMuseumId(req.params.museumId);
     const imageBase64 =
@@ -1927,7 +1932,7 @@ app.post('/museums/:museumId/scan/ocr', async (req, res) => {
   }
 });
 
-app.post('/museums/:museumId/scan/duplicates-raw', async (req, res) => {
+app.post('/museums/:museumId/scan/duplicates-raw', requireAuth, requireAdmin, async (req, res) => {
   try {
     const museumId = parseMuseumId(req.params.museumId);
     const rawText =
@@ -1949,7 +1954,7 @@ app.post('/museums/:museumId/scan/duplicates-raw', async (req, res) => {
   }
 });
 
-app.post('/museums/:museumId/scan/draft', async (req, res) => {
+app.post('/museums/:museumId/scan/draft', requireAuth, requireAdmin, async (req, res) => {
   try {
     const museumId = parseMuseumId(req.params.museumId);
     const rawText =
@@ -1981,7 +1986,7 @@ app.post('/museums/:museumId/scan/draft', async (req, res) => {
   }
 });
 
-app.post('/museums/:museumId/scan/duplicates-draft', async (req, res) => {
+app.post('/museums/:museumId/scan/duplicates-draft', requireAuth, requireAdmin, async (req, res) => {
   try {
     const museumId = parseMuseumId(req.params.museumId);
     const draft = req.body?.draft;
@@ -2016,7 +2021,7 @@ app.post('/museums/:museumId/scan/duplicates-draft', async (req, res) => {
   }
 });
 
-app.post('/museums/:museumId/scan/create', async (req, res) => {
+app.post('/museums/:museumId/scan/create', requireAuth, requireAdmin, async (req, res) => {
   try {
     const museumId = parseMuseumId(req.params.museumId);
     const imageBase64 =
@@ -2104,7 +2109,7 @@ app.post('/museums/:museumId/scan/create', async (req, res) => {
   }
 });
 
-app.post('/artifacts', async (req, res) => {
+app.post('/artifacts', requireAuth, requireAdmin, async (req, res) => {
   const {
     name,
     displayTitle,
@@ -2278,7 +2283,7 @@ app.get('/artifacts/by-slug/:slug', async (req, res) => {
   }
 });
 
-app.post('/content', async (req, res) => {
+app.post('/content', requireAuth, requireAdmin, async (req, res) => {
   const {
     text,
     type,
@@ -2816,7 +2821,7 @@ app.post('/artifact-questions/:questionId/listen', async (req, res) => {
 // ============================================================================
 
 // GET /admin/content/museums - Get all museums
-app.get('/admin/content/museums', async (_req, res) => {
+app.get('/admin/content/museums', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const museums = await prisma.museum.findMany({
       orderBy: { id: 'asc' },
@@ -2831,7 +2836,7 @@ app.get('/admin/content/museums', async (_req, res) => {
 });
 
 // GET /admin/content/rooms - Get all rooms
-app.get('/admin/content/rooms', async (_req, res) => {
+app.get('/admin/content/rooms', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const rooms = await prisma.room.findMany({
       orderBy: { id: 'asc' },
@@ -2846,7 +2851,7 @@ app.get('/admin/content/rooms', async (_req, res) => {
 });
 
 // GET /admin/content/artifacts - Get all artifacts (read-only) with enriched data
-app.get('/admin/content/artifacts', async (_req, res) => {
+app.get('/admin/content/artifacts', requireAuth, requireAdmin, async (_req, res) => {
   try {
     // Fetch all rooms with their museum and parentRoom info to build a lookup map
     const allRooms = await prisma.room.findMany({
@@ -2968,7 +2973,7 @@ app.get('/admin/content/artifacts', async (_req, res) => {
 });
 
 // GET /admin/content/content - Get all content rows
-app.get('/admin/content/content', async (_req, res) => {
+app.get('/admin/content/content', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const content = await prisma.content.findMany({
       select: {
@@ -3132,7 +3137,7 @@ async function suggestQuestionCorrection(
 }
 
 // POST /generate-content/artefact/:artefactId - Generate content
-app.post('/generate-content/artefact/:artefactId', async (req, res) => {
+app.post('/generate-content/artefact/:artefactId', requireAuth, requireAdmin, async (req, res) => {
   try {
     const artefactId = Number(req.params.artefactId);
     if (Number.isNaN(artefactId)) {
@@ -3200,7 +3205,7 @@ This usually means the Prisma client needs to be regenerated. Run: yarn prisma g
 });
 
 // GET /generate-content/artefact/:artefactId/stream - Stream content generation using SSE
-app.get('/generate-content/artefact/:artefactId/stream', async (req, res) => {
+app.get('/generate-content/artefact/:artefactId/stream', requireAuth, requireAdmin, async (req, res) => {
   // Set up SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -3391,7 +3396,7 @@ app.get('/wikipedia/summary', async (req, res) => {
 });
 
 // POST /generate-audio/artefact/:artefactId - Generate audio for artifact's content
-app.post('/generate-audio/artefact/:artefactId', async (req, res) => {
+app.post('/generate-audio/artefact/:artefactId', requireAuth, requireAdmin, async (req, res) => {
   try {
     const artefactId = Number(req.params.artefactId);
     if (Number.isNaN(artefactId)) {
@@ -3444,7 +3449,7 @@ Make sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentia
 });
 
 // POST /generate-audio/content/:contentId - Generate audio for a specific content item
-app.post('/generate-audio/content/:contentId', async (req, res) => {
+app.post('/generate-audio/content/:contentId', requireAuth, requireAdmin, async (req, res) => {
   try {
     const contentId = Number(req.params.contentId);
     if (Number.isNaN(contentId)) {
@@ -3496,6 +3501,8 @@ Make sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentia
 // POST /admin/artifacts/:artifactId/generate-introduction
 app.post(
   '/admin/artifacts/:artifactId/generate-introduction',
+  requireAuth,
+  requireAdmin,
   async (req, res) => {
     try {
       const artifactId = Number(req.params.artifactId);
@@ -3535,7 +3542,7 @@ app.post(
 );
 
 // GET /admin/llm-usage/monthly
-app.get('/admin/llm-usage/monthly', async (_req, res) => {
+app.get('/admin/llm-usage/monthly', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const spend = await getMonthlySpendEur();
     res.json({ spend });
@@ -3545,7 +3552,7 @@ app.get('/admin/llm-usage/monthly', async (_req, res) => {
 });
 
 // GET /admin/openai-usage/daily - Get today's OpenAI token usage by model tier
-app.get('/admin/openai-usage/daily', async (_req, res) => {
+app.get('/admin/openai-usage/daily', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -3619,7 +3626,7 @@ app.get('/admin/openai-usage/daily', async (_req, res) => {
 });
 
 // GET /admin/api-calls/daily - Summary of today's API calls by service
-app.get('/admin/api-calls/daily', async (_req, res) => {
+app.get('/admin/api-calls/daily', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -3658,7 +3665,7 @@ app.get('/admin/api-calls/daily', async (_req, res) => {
 });
 
 // GET /admin/api-calls - Paginated recent API calls
-app.get('/admin/api-calls', async (req, res) => {
+app.get('/admin/api-calls', requireAuth, requireAdmin, async (req, res) => {
   try {
     const service = req.query.service as string | undefined;
     const page = Math.max(1, Number(req.query.page) || 1);

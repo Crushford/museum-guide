@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { PageLayout, SectionCard } from '../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { ErrorText } from '@/components/ui/error-text';
-import { API_URL } from '@/lib/api';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type ServiceSummary = {
   service: string;
@@ -27,6 +27,7 @@ type ApiCallRow = {
 };
 
 export default function ApiCallsPage() {
+  const authedApi = useAuthedApi();
   const [daily, setDaily] = useState<{
     totalCalls: number;
     services: ServiceSummary[];
@@ -40,39 +41,53 @@ export default function ApiCallsPage() {
   const fetchIdRef = useRef(0);
 
   useEffect(() => {
-    fetch(`${API_URL}/admin/api-calls/daily`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
-        return res.json();
-      })
-      .then((data) => setDaily(data))
-      .catch(() => {});
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await authedApi.get<{
+          totalCalls: number;
+          services: ServiceSummary[];
+        }>('/admin/api-calls/daily');
+        if (!cancelled) setDaily(data);
+      } catch {
+        // Non-blocking summary panel
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authedApi]);
 
   useEffect(() => {
+    let cancelled = false;
     const id = ++fetchIdRef.current;
-    const params = new URLSearchParams({ page: String(page), pageSize: '50' });
-    if (serviceFilter) params.set('service', serviceFilter);
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          page: String(page),
+          pageSize: '50',
+        });
+        if (serviceFilter) params.set('service', serviceFilter);
 
-    fetch(`${API_URL}/admin/api-calls?${params}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
-        return res.json();
-      })
-      .then((data) => {
-        if (id === fetchIdRef.current) {
+        const data = await authedApi.get<{ rows: ApiCallRow[]; total: number }>(
+          `/admin/api-calls?${params}`
+        );
+        if (!cancelled && id === fetchIdRef.current) {
           setRows(data.rows);
           setTotal(data.total);
           setLoading(false);
         }
-      })
-      .catch((err) => {
-        if (id === fetchIdRef.current) {
+      } catch (err) {
+        if (!cancelled && id === fetchIdRef.current) {
           setError(err instanceof Error ? err.message : 'Failed to load');
           setLoading(false);
         }
-      });
-  }, [page, serviceFilter]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, serviceFilter, authedApi]);
 
   const totalPages = Math.ceil(total / 50);
 

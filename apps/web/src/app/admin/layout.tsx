@@ -1,14 +1,9 @@
-import { AdminNav } from '@/components/shared/AdminNav';
+import { AdminAuthGate } from './AdminAuthGate';
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <>
-      <AdminNav />
-      {children}
-    </>
-  );
+  return <AdminAuthGate>{children}</AdminAuthGate>;
 }

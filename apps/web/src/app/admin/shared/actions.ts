@@ -1,9 +1,10 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { apiMutate } from '@/lib/api';
+import { authedApiMutate } from '@/lib/api';
 
 export async function updateMuseum(
+  token: string,
   id: number,
   data: {
     name: string;
@@ -12,20 +13,25 @@ export async function updateMuseum(
     furtherReading: string[];
   }
 ) {
-  await apiMutate(`/nodes/${id}`, {
-    method: 'PATCH',
-    body: {
-      name: data.name,
-      parentId: data.parentId,
-      knowledgeText: data.knowledgeText,
-      furtherReading: data.furtherReading,
+  await authedApiMutate(
+    `/nodes/${id}`,
+    {
+      method: 'PATCH',
+      body: {
+        name: data.name,
+        parentId: data.parentId,
+        knowledgeText: data.knowledgeText,
+        furtherReading: data.furtherReading,
+      },
     },
-  });
+    token
+  );
 
   redirect(`/admin/museums/${id}`);
 }
 
 export async function updateRoom(
+  token: string,
   id: number,
   data: {
     name: string;
@@ -34,20 +40,25 @@ export async function updateRoom(
     furtherReading: string[];
   }
 ) {
-  await apiMutate(`/nodes/${id}`, {
-    method: 'PATCH',
-    body: {
-      name: data.name,
-      parentId: data.parentId,
-      knowledgeText: data.knowledgeText,
-      furtherReading: data.furtherReading,
+  await authedApiMutate(
+    `/nodes/${id}`,
+    {
+      method: 'PATCH',
+      body: {
+        name: data.name,
+        parentId: data.parentId,
+        knowledgeText: data.knowledgeText,
+        furtherReading: data.furtherReading,
+      },
     },
-  });
+    token
+  );
 
   redirect(`/admin/rooms/${id}`);
 }
 
 export async function updateArtifact(
+  token: string,
   id: number,
   data: {
     name: string;
@@ -56,21 +67,26 @@ export async function updateArtifact(
     furtherReading: string[];
   }
 ) {
-  await apiMutate(`/nodes/${id}`, {
-    method: 'PATCH',
-    body: {
-      name: data.name,
-      parentId: data.parentId,
-      knowledgeText: data.knowledgeText,
-      furtherReading: data.furtherReading,
+  await authedApiMutate(
+    `/nodes/${id}`,
+    {
+      method: 'PATCH',
+      body: {
+        name: data.name,
+        parentId: data.parentId,
+        knowledgeText: data.knowledgeText,
+        furtherReading: data.furtherReading,
+      },
     },
-  });
+    token
+  );
 
   redirect(`/admin/artifacts/${id}`);
 }
 
 // Individual field update functions (no redirect, for inline editing)
 export async function updateNodeField(
+  token: string,
   id: number,
   field: 'name' | 'knowledgeText' | 'furtherReading' | 'parentId',
   value: string | string[] | number | null
@@ -92,11 +108,12 @@ export async function updateNodeField(
     updateData.parentId = value as number | null;
   }
 
-  return apiMutate(`/nodes/${id}`, { method: 'PATCH', body: updateData });
+  return authedApiMutate(`/nodes/${id}`, { method: 'PATCH', body: updateData }, token);
 }
 
 // Update room parent relationship (museumId or parentRoomId)
 export async function updateRoomParent(
+  token: string,
   id: number,
   museumId: number | null,
   parentRoomId: number | null
@@ -118,13 +135,14 @@ export async function updateRoomParent(
     updateData.parentRoomId = null;
   }
 
-  return apiMutate(`/rooms/${id}`, { method: 'PATCH', body: updateData });
+  return authedApiMutate(`/rooms/${id}`, { method: 'PATCH', body: updateData }, token);
 }
 
 export async function deleteEntity(
+  token: string,
   type: 'museums' | 'rooms' | 'artifacts',
   id: number
 ) {
-  await apiMutate(`/${type}/${id}`, { method: 'DELETE' });
+  await authedApiMutate(`/${type}/${id}`, { method: 'DELETE' }, token);
   redirect(`/admin?tab=${type}`);
 }

@@ -1,10 +1,13 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { API_URL, apiMutate } from '@/lib/api';
+import { API_URL, authedApiMutate } from '@/lib/api';
 import { ArtifactCreateInput } from '@/lib/types';
 
-export async function createArtifactWithRoom(data: ArtifactCreateInput) {
+export async function createArtifactWithRoom(
+  token: string,
+  data: ArtifactCreateInput
+) {
   // museumId is now required for artifacts
   if (!data.museumId || typeof data.museumId !== 'number') {
     throw new Error('museumId is required for artifacts');
@@ -56,12 +59,13 @@ export async function createArtifactWithRoom(data: ArtifactCreateInput) {
         roomPayload.museumId = museumId;
       }
 
-      const newRoom = await apiMutate<{ id: number; parentId: number }>(
+      const newRoom = await authedApiMutate<{ id: number; parentId: number }>(
         '/rooms',
         {
           method: 'POST',
           body: roomPayload,
-        }
+        },
+        token
       );
       roomId = newRoom.id;
 
@@ -74,16 +78,20 @@ export async function createArtifactWithRoom(data: ArtifactCreateInput) {
     }
   }
   // Now create the artifact
-  const artifact = await apiMutate<{ id: number }>('/artifacts', {
-    method: 'POST',
-    body: {
-      name: data.name,
-      museumId: data.museumId,
-      roomId: roomId || null,
-      knowledgeText: data.knowledgeText || null,
-      furtherReading: data.furtherReading || [],
+  const artifact = await authedApiMutate<{ id: number }>(
+    '/artifacts',
+    {
+      method: 'POST',
+      body: {
+        name: data.name,
+        museumId: data.museumId,
+        roomId: roomId || null,
+        knowledgeText: data.knowledgeText || null,
+        furtherReading: data.furtherReading || [],
+      },
     },
-  });
+    token
+  );
 
   redirect(`/admin/artifacts/${artifact.id}`);
 }

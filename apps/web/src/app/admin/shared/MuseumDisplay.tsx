@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import { updateNodeField } from './actions';
 import { Museum, Room } from '@/lib/types';
 
@@ -29,6 +30,7 @@ export function MuseumDisplay({
   onMuseumChange,
 }: MuseumDisplayProps) {
   const router = useRouter();
+  const authedApi = useAuthedApi();
   const [isEditing, setIsEditing] = useState(false);
   const [selectedMuseumId, setSelectedMuseumId] = useState<number | null>(
     currentMuseum?.id ?? null
@@ -60,7 +62,9 @@ export function MuseumDisplay({
           : roomsInMuseum[0].id;
 
       // Update the artifact's roomId (which is stored as parentId)
-      await updateNodeField(artifactId, 'parentId', newRoomId);
+      await authedApi.run((token) =>
+        updateNodeField(token, artifactId, 'parentId', newRoomId)
+      );
       onMuseumChange?.(selectedMuseumId);
       setIsEditing(false);
       router.refresh();
@@ -75,6 +79,7 @@ export function MuseumDisplay({
     rooms,
     router,
     onMuseumChange,
+    authedApi,
   ]);
 
   const handleCancel = useCallback(() => {
