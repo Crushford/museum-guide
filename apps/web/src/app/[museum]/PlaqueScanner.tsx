@@ -159,19 +159,22 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
     setStageRunning('persist');
     const created = await authedApi.run(
       async (token) => {
-        const response = await fetch(`${API_URL}/museums/${museumId}/scan/create`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            imageBase64: imagePayload,
-            rawText: text,
-            ocr: ocrPayload,
-            draft: draftData,
-          }),
-        });
+        const response = await fetch(
+          `${API_URL}/museums/${museumId}/scan/create`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              imageBase64: imagePayload,
+              rawText: text,
+              ocr: ocrPayload,
+              draft: draftData,
+            }),
+          }
+        );
 
         if (!response.ok) {
           let message = `Request failed (${response.status})`;
@@ -283,7 +286,10 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
       imageBase64Ref.current = encodedImage;
 
       setStageRunning('ocr');
-      const ocrResponse = await authedApi.mutate<{ rawText: string; ocr: OcrPayload }>(
+      const ocrResponse = await authedApi.mutate<{
+        rawText: string;
+        ocr: OcrPayload;
+      }>(
         `/museums/${museumId}/scan/ocr`,
         { method: 'POST', body: { imageBase64: encodedImage } },
         {

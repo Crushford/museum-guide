@@ -30,7 +30,11 @@ export class ApiRequestError extends Error {
   readonly status: number;
   readonly body?: StructuredApiErrorBody;
 
-  constructor(params: { status: number; message: string; body?: StructuredApiErrorBody }) {
+  constructor(params: {
+    status: number;
+    message: string;
+    body?: StructuredApiErrorBody;
+  }) {
     super(params.message);
     this.name = 'ApiRequestError';
     this.status = params.status;
@@ -54,7 +58,9 @@ export function apiErrorEventName() {
   return API_ERROR_EVENT;
 }
 
-export function extractErrorBody(payload: unknown): StructuredApiErrorBody | undefined {
+export function extractErrorBody(
+  payload: unknown
+): StructuredApiErrorBody | undefined {
   if (!payload || typeof payload !== 'object') {
     return undefined;
   }

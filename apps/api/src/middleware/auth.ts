@@ -28,12 +28,7 @@ export async function requireAuth(
 
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
-    sendBlocked(
-      res,
-      401,
-      'AUTH_REQUIRED',
-      'Sign in required for this action.'
-    );
+    sendBlocked(res, 401, 'AUTH_REQUIRED', 'Sign in required for this action.');
     return;
   }
 

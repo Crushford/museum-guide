@@ -285,9 +285,7 @@ export function ArtifactQuestionsPanel({
             onClick={() => void previewQuestionForPublish()}
             disabled={isAsking || isPreviewing}
           >
-            {(isAsking || isPreviewing) && (
-              <Spinner className="mr-2" />
-            )}
+            {(isAsking || isPreviewing) && <Spinner className="mr-2" />}
             Ask Question
           </Button>
           {suggestedQuestions.slice(0, 5).map((suggestion) => (

@@ -66,7 +66,11 @@ import {
 } from './lib/artifact-scan';
 import { generateSlug } from './lib/slug';
 import { buildUniqueArtifactSlug } from './lib/artifact-slug';
-import { attachActorIfPresent, requireAuth, requireAdmin } from './middleware/auth';
+import {
+  attachActorIfPresent,
+  requireAuth,
+  requireAdmin,
+} from './middleware/auth';
 import {
   enforceUsageLimits,
   enforceSignupPolicy,
@@ -151,8 +155,7 @@ if (ENABLE_DB_QUERY_BILLING_LOGS) {
 
     const firstWord = query.trim().split(/\s+/)[0]?.toUpperCase() || 'QUERY';
     const target = typeof event?.target === 'string' ? event.target : 'prisma';
-    const durationMs =
-      typeof event?.duration === 'number' ? event.duration : 0;
+    const durationMs = typeof event?.duration === 'number' ? event.duration : 0;
 
     recordApiCall({
       service: 'Database',
@@ -269,171 +272,177 @@ function normalizeUrl(url: string): string {
 }
 
 // POST /artifacts/check-duplicates - Check for potential duplicate artifacts
-app.post('/artifacts/check-duplicates', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { name, knowledgeText, furtherReading } = req.body;
+app.post(
+  '/artifacts/check-duplicates',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { name, knowledgeText, furtherReading } = req.body;
 
-    if (!name || typeof name !== 'string') {
-      return res.status(400).json({ error: 'name is required' });
-    }
+      if (!name || typeof name !== 'string') {
+        return res.status(400).json({ error: 'name is required' });
+      }
 
-    // Fetch all existing artifacts
-    const existingArtifacts = await prisma.artifact.findMany({
-      select: {
-        id: true,
-        displayTitle: true,
-        rawPlaqueText: true,
-        knowledgeTextEn: true,
-        furtherReading: true,
-        room: {
-          select: {
-            name: true,
-            museum: {
-              select: {
-                id: true,
-                name: true,
+      // Fetch all existing artifacts
+      const existingArtifacts = await prisma.artifact.findMany({
+        select: {
+          id: true,
+          displayTitle: true,
+          rawPlaqueText: true,
+          knowledgeTextEn: true,
+          furtherReading: true,
+          room: {
+            select: {
+              name: true,
+              museum: {
+                select: {
+                  id: true,
+                  name: true,
+                },
               },
             },
           },
-        },
-      } as Prisma.ArtifactSelect,
-    });
+        } as Prisma.ArtifactSelect,
+      });
 
-    const duplicates: Array<{
-      id: number;
-      name: string;
-      similarity: number;
-      matchReasons: string[];
-      rawPlaqueText?: string | null;
-      knowledgeTextEn?: string | null;
-      furtherReading: string[];
-      roomName?: string | null;
-      museumName?: string | null;
-    }> = [];
-
-    const normalizedNewUrls = (furtherReading || []).map(normalizeUrl);
-    const newKnowledgeText = (knowledgeText || '').trim().toLowerCase();
-
-    for (const artifact of existingArtifacts) {
-      const artifactWithFields = artifact as typeof artifact & {
-        rawPlaqueText: string | null;
-        knowledgeTextEn: string | null;
+      const duplicates: Array<{
+        id: number;
+        name: string;
+        similarity: number;
+        matchReasons: string[];
+        rawPlaqueText?: string | null;
+        knowledgeTextEn?: string | null;
         furtherReading: string[];
-        room: {
-          name: string;
-          museum: { id: number; name: string } | null;
-        } | null;
-      };
-      const matchReasons: string[] = [];
-      let maxSimilarity = 0;
+        roomName?: string | null;
+        museumName?: string | null;
+      }> = [];
 
-      // Check name similarity
-      const nameSimilarity = stringSimilarity(name, artifact.displayTitle);
-      if (nameSimilarity >= 0.7) {
-        matchReasons.push(
-          `Name similarity: ${Math.round(nameSimilarity * 100)}%`
-        );
-        maxSimilarity = Math.max(maxSimilarity, nameSimilarity);
-      }
+      const normalizedNewUrls = (furtherReading || []).map(normalizeUrl);
+      const newKnowledgeText = (knowledgeText || '').trim().toLowerCase();
 
-      // Check plaque/knowledge text similarity
-      const existingText =
-        artifactWithFields.rawPlaqueText || artifactWithFields.knowledgeTextEn;
-      if (newKnowledgeText && existingText) {
-        const knowledgeSimilarity = stringSimilarity(
-          newKnowledgeText,
-          existingText.trim().toLowerCase()
-        );
-        if (knowledgeSimilarity >= 0.6) {
+      for (const artifact of existingArtifacts) {
+        const artifactWithFields = artifact as typeof artifact & {
+          rawPlaqueText: string | null;
+          knowledgeTextEn: string | null;
+          furtherReading: string[];
+          room: {
+            name: string;
+            museum: { id: number; name: string } | null;
+          } | null;
+        };
+        const matchReasons: string[] = [];
+        let maxSimilarity = 0;
+
+        // Check name similarity
+        const nameSimilarity = stringSimilarity(name, artifact.displayTitle);
+        if (nameSimilarity >= 0.7) {
           matchReasons.push(
-            `Knowledge text similarity: ${Math.round(knowledgeSimilarity * 100)}%`
+            `Name similarity: ${Math.round(nameSimilarity * 100)}%`
           );
-          maxSimilarity = Math.max(maxSimilarity, knowledgeSimilarity);
+          maxSimilarity = Math.max(maxSimilarity, nameSimilarity);
         }
 
-        // Also check for substring matches (one contains significant portion of the other)
-        const shorter =
-          newKnowledgeText.length < existingText.length
-            ? newKnowledgeText
-            : existingText.trim().toLowerCase();
-        const longer =
-          newKnowledgeText.length >= existingText.length
-            ? newKnowledgeText
-            : existingText.trim().toLowerCase();
-
-        if (shorter.length > 50 && longer.includes(shorter)) {
-          const substringRatio = shorter.length / longer.length;
-          if (substringRatio >= 0.5) {
+        // Check plaque/knowledge text similarity
+        const existingText =
+          artifactWithFields.rawPlaqueText ||
+          artifactWithFields.knowledgeTextEn;
+        if (newKnowledgeText && existingText) {
+          const knowledgeSimilarity = stringSimilarity(
+            newKnowledgeText,
+            existingText.trim().toLowerCase()
+          );
+          if (knowledgeSimilarity >= 0.6) {
             matchReasons.push(
-              `Knowledge text contains significant overlap: ${Math.round(substringRatio * 100)}%`
+              `Knowledge text similarity: ${Math.round(knowledgeSimilarity * 100)}%`
             );
-            maxSimilarity = Math.max(maxSimilarity, substringRatio);
+            maxSimilarity = Math.max(maxSimilarity, knowledgeSimilarity);
           }
+
+          // Also check for substring matches (one contains significant portion of the other)
+          const shorter =
+            newKnowledgeText.length < existingText.length
+              ? newKnowledgeText
+              : existingText.trim().toLowerCase();
+          const longer =
+            newKnowledgeText.length >= existingText.length
+              ? newKnowledgeText
+              : existingText.trim().toLowerCase();
+
+          if (shorter.length > 50 && longer.includes(shorter)) {
+            const substringRatio = shorter.length / longer.length;
+            if (substringRatio >= 0.5) {
+              matchReasons.push(
+                `Knowledge text contains significant overlap: ${Math.round(substringRatio * 100)}%`
+              );
+              maxSimilarity = Math.max(maxSimilarity, substringRatio);
+            }
+          }
+        }
+
+        // Check furtherReading URL matches
+        const artifactUrls = (artifactWithFields.furtherReading || []).map(
+          normalizeUrl
+        );
+        const matchingUrls = normalizedNewUrls.filter((url: string) =>
+          artifactUrls.some((artifactUrl: string) => {
+            // Exact match
+            if (url === artifactUrl) return true;
+            // Similar URLs (same domain and similar path)
+            try {
+              const url1 = new URL(url);
+              const url2 = new URL(artifactUrl);
+              if (url1.host === url2.host) {
+                const path1 = url1.pathname.toLowerCase();
+                const path2 = url2.pathname.toLowerCase();
+                return stringSimilarity(path1, path2) >= 0.8;
+              }
+            } catch {
+              // If URL parsing fails, use string similarity
+              return stringSimilarity(url, artifactUrl) >= 0.9;
+            }
+            return false;
+          })
+        );
+
+        if (matchingUrls.length > 0) {
+          matchReasons.push(
+            `Shared ${matchingUrls.length} further reading URL${matchingUrls.length > 1 ? 's' : ''}`
+          );
+          // Boost similarity score for URL matches
+          maxSimilarity = Math.max(maxSimilarity, 0.6);
+        }
+
+        // If we found any matches, add to duplicates list
+        if (matchReasons.length > 0 && maxSimilarity >= 0.5) {
+          duplicates.push({
+            id: artifact.id,
+            name: artifact.displayTitle,
+            similarity: maxSimilarity,
+            matchReasons,
+            rawPlaqueText: artifactWithFields.rawPlaqueText,
+            knowledgeTextEn: artifactWithFields.knowledgeTextEn,
+            furtherReading: artifactWithFields.furtherReading || [],
+            roomName: artifactWithFields.room?.name || null,
+            museumName: artifactWithFields.room?.museum?.name || null,
+          });
         }
       }
 
-      // Check furtherReading URL matches
-      const artifactUrls = (artifactWithFields.furtherReading || []).map(
-        normalizeUrl
-      );
-      const matchingUrls = normalizedNewUrls.filter((url: string) =>
-        artifactUrls.some((artifactUrl: string) => {
-          // Exact match
-          if (url === artifactUrl) return true;
-          // Similar URLs (same domain and similar path)
-          try {
-            const url1 = new URL(url);
-            const url2 = new URL(artifactUrl);
-            if (url1.host === url2.host) {
-              const path1 = url1.pathname.toLowerCase();
-              const path2 = url2.pathname.toLowerCase();
-              return stringSimilarity(path1, path2) >= 0.8;
-            }
-          } catch {
-            // If URL parsing fails, use string similarity
-            return stringSimilarity(url, artifactUrl) >= 0.9;
-          }
-          return false;
-        })
-      );
+      // Sort by similarity (highest first)
+      duplicates.sort((a, b) => b.similarity - a.similarity);
 
-      if (matchingUrls.length > 0) {
-        matchReasons.push(
-          `Shared ${matchingUrls.length} further reading URL${matchingUrls.length > 1 ? 's' : ''}`
-        );
-        // Boost similarity score for URL matches
-        maxSimilarity = Math.max(maxSimilarity, 0.6);
-      }
-
-      // If we found any matches, add to duplicates list
-      if (matchReasons.length > 0 && maxSimilarity >= 0.5) {
-        duplicates.push({
-          id: artifact.id,
-          name: artifact.displayTitle,
-          similarity: maxSimilarity,
-          matchReasons,
-          rawPlaqueText: artifactWithFields.rawPlaqueText,
-          knowledgeTextEn: artifactWithFields.knowledgeTextEn,
-          furtherReading: artifactWithFields.furtherReading || [],
-          roomName: artifactWithFields.room?.name || null,
-          museumName: artifactWithFields.room?.museum?.name || null,
-        });
-      }
+      res.json({
+        duplicates,
+        totalChecked: existingArtifacts.length,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to check duplicates';
+      res.status(500).json({ error: errorMessage });
     }
-
-    // Sort by similarity (highest first)
-    duplicates.sort((a, b) => b.similarity - a.similarity);
-
-    res.json({
-      duplicates,
-      totalChecked: existingArtifacts.length,
-    });
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to check duplicates';
-    res.status(500).json({ error: errorMessage });
   }
-});
+);
 
 // ============================================================================
 // MUSEUM SEARCH API - Search-first flow
@@ -741,216 +750,221 @@ app.get('/api/museums/search/nearby', async (req, res) => {
 });
 
 // POST /api/museums/select/:qid - Select and enrich a museum by QID
-app.post('/api/museums/select/:qid', requireAuth, requireAdmin, async (req, res) => {
-  if (!req.actor) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
+app.post(
+  '/api/museums/select/:qid',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    if (!req.actor) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
 
-  const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
-  if (!signupAllowed) {
-    return;
-  }
+    const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+    if (!signupAllowed) {
+      return;
+    }
 
-  const allowed = await enforceUsageLimits({
-    res,
-    actor: req.actor,
-    globalIncrements: { dbOps: 1, wikiCalls: 1 },
-    userIncrements: { wikiCalls: 1 },
-  });
-  if (!allowed) {
-    return;
-  }
-
-  const { qid } = req.params;
-
-  // Validate QID format
-  if (!/^Q\d+$/.test(qid)) {
-    return res.status(400).json({
-      error: `Invalid QID format: ${qid}. Expected format: Q followed by numbers (e.g., Q33506)`,
+    const allowed = await enforceUsageLimits({
+      res,
+      actor: req.actor,
+      globalIncrements: { dbOps: 1, wikiCalls: 1 },
+      userIncrements: { wikiCalls: 1 },
     });
-  }
+    if (!allowed) {
+      return;
+    }
 
-  try {
-    const missingWikipediaError =
-      'This Wikidata result has no linked Wikipedia article, so it is likely not a real museum record. Please select a different result.';
-    const getMuseumUpdateData = (
-      existingMuseum: {
-        wikipediaUrl: string | null;
-        image: string | null;
-        coordinates: unknown;
-        locationTags: string[];
-      },
-      details: {
-        wikipediaUrl?: string;
-        image?: string;
-        coordinates?: { lat: number; lng: number };
-        locationLabels: string[];
+    const { qid } = req.params;
+
+    // Validate QID format
+    if (!/^Q\d+$/.test(qid)) {
+      return res.status(400).json({
+        error: `Invalid QID format: ${qid}. Expected format: Q followed by numbers (e.g., Q33506)`,
+      });
+    }
+
+    try {
+      const missingWikipediaError =
+        'This Wikidata result has no linked Wikipedia article, so it is likely not a real museum record. Please select a different result.';
+      const getMuseumUpdateData = (
+        existingMuseum: {
+          wikipediaUrl: string | null;
+          image: string | null;
+          coordinates: unknown;
+          locationTags: string[];
+        },
+        details: {
+          wikipediaUrl?: string;
+          image?: string;
+          coordinates?: { lat: number; lng: number };
+          locationLabels: string[];
+        }
+      ) => ({
+        wikipediaUrl: details.wikipediaUrl || existingMuseum.wikipediaUrl,
+        image: details.image || existingMuseum.image,
+        coordinates: details.coordinates
+          ? details.coordinates
+          : ((existingMuseum.coordinates as {
+              lat: number;
+              lng: number;
+            } | null) ?? undefined),
+        locationTags:
+          existingMuseum.locationTags.length > 0
+            ? existingMuseum.locationTags
+            : details.locationLabels,
+      });
+
+      // Check if museum already exists in DB
+      const existingMuseum = await prisma.museum.findUnique({
+        where: { wikidataId: qid },
+      });
+
+      if (existingMuseum) {
+        const needsEnrichment =
+          !existingMuseum.wikipediaUrl ||
+          !existingMuseum.image ||
+          !existingMuseum.coordinates ||
+          existingMuseum.locationTags.length === 0;
+
+        const details = needsEnrichment ? await fetchWikidataEntity(qid) : null;
+
+        // Existing records must have a Wikipedia URL to be considered valid museum selections
+        if (!existingMuseum.wikipediaUrl && !details?.wikipediaUrl) {
+          return res.status(422).json({
+            error: missingWikipediaError,
+          });
+        }
+
+        if (details) {
+          await prisma.museum.update({
+            where: { wikidataId: qid },
+            data: getMuseumUpdateData(existingMuseum, details),
+          });
+        }
+
+        return res.json({
+          created: false,
+          museum: {
+            id: existingMuseum.id,
+            qid,
+            slug: existingMuseum.slug,
+            name: existingMuseum.name,
+          },
+        });
       }
-    ) => ({
-      wikipediaUrl: details.wikipediaUrl || existingMuseum.wikipediaUrl,
-      image: details.image || existingMuseum.image,
-      coordinates: details.coordinates
-        ? details.coordinates
-        : ((existingMuseum.coordinates as {
-            lat: number;
-            lng: number;
-          } | null) ?? undefined),
-      locationTags:
-        existingMuseum.locationTags.length > 0
-          ? existingMuseum.locationTags
-          : details.locationLabels,
-    });
 
-    // Check if museum already exists in DB
-    const existingMuseum = await prisma.museum.findUnique({
-      where: { wikidataId: qid },
-    });
+      // Museum doesn't exist - fetch details from Wikidata and create
+      const details = await fetchWikidataEntity(qid);
 
-    if (existingMuseum) {
-      const needsEnrichment =
-        !existingMuseum.wikipediaUrl ||
-        !existingMuseum.image ||
-        !existingMuseum.coordinates ||
-        existingMuseum.locationTags.length === 0;
+      if (!details) {
+        return res.status(404).json({
+          error: `Museum not found on Wikidata: ${qid}`,
+        });
+      }
 
-      const details = needsEnrichment ? await fetchWikidataEntity(qid) : null;
-
-      // Existing records must have a Wikipedia URL to be considered valid museum selections
-      if (!existingMuseum.wikipediaUrl && !details?.wikipediaUrl) {
+      if (!details.wikipediaUrl) {
         return res.status(422).json({
           error: missingWikipediaError,
         });
       }
 
-      if (details) {
-        await prisma.museum.update({
-          where: { wikidataId: qid },
-          data: getMuseumUpdateData(existingMuseum, details),
-        });
+      const museumName =
+        typeof details.label === 'string' && details.label.trim().length > 0
+          ? details.label.trim()
+          : qid;
+      const rawSlug = generateSlug(museumName);
+      const museumSlug =
+        rawSlug.length > 0 ? rawSlug : `museum-${qid.toLowerCase()}`;
+
+      // Create the museum
+      const createAllowed = await enforceUsageLimits({
+        res,
+        actor: req.actor,
+        globalIncrements: { museumCreates: 1 },
+        userIncrements: { museumCreates: 1 },
+      });
+      if (!createAllowed) {
+        return;
       }
 
-      return res.json({
-        created: false,
-        museum: {
-          id: existingMuseum.id,
-          qid,
-          slug: existingMuseum.slug,
-          name: existingMuseum.name,
+      const museum = await prisma.museum.create({
+        data: {
+          name: museumName,
+          slug: museumSlug,
+          wikidataId: qid,
+          wikipediaUrl: details.wikipediaUrl,
+          image: details.image || null,
+          coordinates: details.coordinates ?? undefined,
+          locationTags: details.locationLabels || [],
+          knowledgeText: null,
+          furtherReading: [],
+          updatedAt: new Date(),
         },
       });
-    }
 
-    // Museum doesn't exist - fetch details from Wikidata and create
-    const details = await fetchWikidataEntity(qid);
+      (res.locals as { usageDelta?: Record<string, number> }).usageDelta = {
+        museumCreates: 1,
+        wikiCalls: 1,
+      };
 
-    if (!details) {
-      return res.status(404).json({
-        error: `Museum not found on Wikidata: ${qid}`,
+      res.json({
+        created: true,
+        museum: {
+          id: museum.id,
+          qid,
+          slug: museum.slug,
+          name: museum.name,
+        },
       });
-    }
+    } catch (error: unknown) {
+      // Handle slug collision
+      const prismaError = error as {
+        code?: string;
+        meta?: { modelName?: string };
+      };
+      if (
+        prismaError.code === 'P2002' &&
+        prismaError.meta?.modelName === 'Museum'
+      ) {
+        // If creation failed due to uniqueness, try resolving a now-existing row
+        // without making another Wikidata request (which may be rate-limited).
+        const existingByQid = await prisma.museum.findUnique({
+          where: { wikidataId: qid },
+        });
 
-    if (!details.wikipediaUrl) {
-      return res.status(422).json({
-        error: missingWikipediaError,
-      });
-    }
+        if (existingByQid) {
+          return res.json({
+            created: false,
+            museum: {
+              id: existingByQid.id,
+              qid: existingByQid.wikidataId || qid,
+              slug: existingByQid.slug,
+              name: existingByQid.name,
+            },
+          });
+        }
 
-    const museumName =
-      typeof details.label === 'string' && details.label.trim().length > 0
-        ? details.label.trim()
-        : qid;
-    const rawSlug = generateSlug(museumName);
-    const museumSlug =
-      rawSlug.length > 0 ? rawSlug : `museum-${qid.toLowerCase()}`;
-
-    // Create the museum
-    const createAllowed = await enforceUsageLimits({
-      res,
-      actor: req.actor,
-      globalIncrements: { museumCreates: 1 },
-      userIncrements: { museumCreates: 1 },
-    });
-    if (!createAllowed) {
-      return;
-    }
-
-    const museum = await prisma.museum.create({
-      data: {
-        name: museumName,
-        slug: museumSlug,
-        wikidataId: qid,
-        wikipediaUrl: details.wikipediaUrl,
-        image: details.image || null,
-        coordinates: details.coordinates ?? undefined,
-        locationTags: details.locationLabels || [],
-        knowledgeText: null,
-        furtherReading: [],
-        updatedAt: new Date(),
-      },
-    });
-
-    (res.locals as { usageDelta?: Record<string, number> }).usageDelta = {
-      museumCreates: 1,
-      wikiCalls: 1,
-    };
-
-    res.json({
-      created: true,
-      museum: {
-        id: museum.id,
-        qid,
-        slug: museum.slug,
-        name: museum.name,
-      },
-    });
-  } catch (error: unknown) {
-    // Handle slug collision
-    const prismaError = error as {
-      code?: string;
-      meta?: { modelName?: string };
-    };
-    if (
-      prismaError.code === 'P2002' &&
-      prismaError.meta?.modelName === 'Museum'
-    ) {
-      // If creation failed due to uniqueness, try resolving a now-existing row
-      // without making another Wikidata request (which may be rate-limited).
-      const existingByQid = await prisma.museum.findUnique({
-        where: { wikidataId: qid },
-      });
-
-      if (existingByQid) {
-        return res.json({
-          created: false,
-          museum: {
-            id: existingByQid.id,
-            qid: existingByQid.wikidataId || qid,
-            slug: existingByQid.slug,
-            name: existingByQid.name,
-          },
+        return res.status(409).json({
+          error: 'A museum with a similar name already exists',
         });
       }
 
-      return res.status(409).json({
-        error: 'A museum with a similar name already exists',
-      });
-    }
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to select museum';
+      if (
+        errorMessage.includes('Wikidata entity fetch failed: 429') ||
+        errorMessage.includes('Wikidata search failed: 429')
+      ) {
+        return res.status(503).json({
+          error:
+            'Wikidata is rate-limiting requests right now. Please wait a moment and try again.',
+        });
+      }
 
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to select museum';
-    if (
-      errorMessage.includes('Wikidata entity fetch failed: 429') ||
-      errorMessage.includes('Wikidata search failed: 429')
-    ) {
-      return res.status(503).json({
-        error:
-          'Wikidata is rate-limiting requests right now. Please wait a moment and try again.',
-      });
+      res.status(500).json({ error: errorMessage });
     }
-
-    res.status(500).json({ error: errorMessage });
   }
-});
+);
 
 // ============================================================================
 // MUSEUM HYDRATION ENDPOINTS
@@ -965,293 +979,307 @@ function isRecentlyHydrated(timestamp: Date | null): boolean {
 }
 
 // POST /api/museums/:slug/hydrate - Hydrate museum details from Wikidata/Wikipedia
-app.post('/api/museums/:slug/hydrate', requireAuth, requireAdmin, async (req, res) => {
-  const { slug } = req.params;
-  const force = req.query.force === '1';
+app.post(
+  '/api/museums/:slug/hydrate',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { slug } = req.params;
+    const force = req.query.force === '1';
 
-  try {
-    // Find museum by slug
-    const museum = await prisma.museum.findFirst({
-      where: { slug },
-    });
-
-    if (!museum) {
-      return res.status(404).json({
-        error: 'Museum not found. Use /search to find and add museums.',
+    try {
+      // Find museum by slug
+      const museum = await prisma.museum.findFirst({
+        where: { slug },
       });
-    }
 
-    // Check cache unless force refresh
-    if (!force && isRecentlyHydrated(museum.museumHydratedAt)) {
-      return res.json({
-        cached: true,
+      if (!museum) {
+        return res.status(404).json({
+          error: 'Museum not found. Use /search to find and add museums.',
+        });
+      }
+
+      // Check cache unless force refresh
+      if (!force && isRecentlyHydrated(museum.museumHydratedAt)) {
+        return res.json({
+          cached: true,
+          museum: {
+            id: museum.id,
+            name: museum.name,
+            slug: museum.slug,
+            description: museum.description,
+            wikipediaSummary: museum.wikipediaSummary,
+            wikipediaUrl: museum.wikipediaUrl,
+            image: museum.image,
+            coordinates: museum.coordinates,
+            officialWebsite: museum.officialWebsite,
+            museumHydratedAt: museum.museumHydratedAt,
+          },
+        });
+      }
+
+      // Require wikidataId to hydrate
+      if (!museum.wikidataId) {
+        return res.status(400).json({
+          error: 'Museum missing wikidataId. Cannot hydrate from Wikidata.',
+        });
+      }
+
+      // Fetch details from Wikidata
+      const details = await fetchWikidataEntity(museum.wikidataId);
+      if (!details) {
+        return res.status(502).json({
+          error: 'Failed to fetch museum details from Wikidata',
+        });
+      }
+
+      // Fetch Wikipedia summary if we have a URL
+      let wikipediaSummary: string | null = null;
+      const wikipediaUrl = details.wikipediaUrl || museum.wikipediaUrl;
+      if (wikipediaUrl) {
+        const summary = await fetchWikipediaSummary(wikipediaUrl);
+        if (summary) {
+          wikipediaSummary = summary.extract;
+        }
+      }
+
+      // Update museum with hydrated data
+      const updatedMuseum = await prisma.museum.update({
+        where: { id: museum.id },
+        data: {
+          description: details.description || museum.description,
+          wikipediaSummary: wikipediaSummary || museum.wikipediaSummary,
+          wikipediaUrl: wikipediaUrl || museum.wikipediaUrl,
+          image: details.image || museum.image,
+          coordinates: details.coordinates ?? museum.coordinates ?? undefined,
+          officialWebsite: details.officialWebsite || museum.officialWebsite,
+          locationTags:
+            details.locationLabels.length > 0
+              ? details.locationLabels
+              : museum.locationTags,
+          museumHydratedAt: new Date(),
+        } as any,
+      });
+
+      res.json({
+        cached: false,
         museum: {
-          id: museum.id,
-          name: museum.name,
-          slug: museum.slug,
-          description: museum.description,
-          wikipediaSummary: museum.wikipediaSummary,
-          wikipediaUrl: museum.wikipediaUrl,
-          image: museum.image,
-          coordinates: museum.coordinates,
-          officialWebsite: museum.officialWebsite,
-          museumHydratedAt: museum.museumHydratedAt,
+          id: updatedMuseum.id,
+          name: updatedMuseum.name,
+          slug: updatedMuseum.slug,
+          description: updatedMuseum.description,
+          wikipediaSummary: updatedMuseum.wikipediaSummary,
+          wikipediaUrl: updatedMuseum.wikipediaUrl,
+          image: updatedMuseum.image,
+          coordinates: updatedMuseum.coordinates,
+          officialWebsite: updatedMuseum.officialWebsite,
+          museumHydratedAt: updatedMuseum.museumHydratedAt,
         },
       });
-    }
-
-    // Require wikidataId to hydrate
-    if (!museum.wikidataId) {
-      return res.status(400).json({
-        error: 'Museum missing wikidataId. Cannot hydrate from Wikidata.',
-      });
-    }
-
-    // Fetch details from Wikidata
-    const details = await fetchWikidataEntity(museum.wikidataId);
-    if (!details) {
-      return res.status(502).json({
-        error: 'Failed to fetch museum details from Wikidata',
-      });
-    }
-
-    // Fetch Wikipedia summary if we have a URL
-    let wikipediaSummary: string | null = null;
-    const wikipediaUrl = details.wikipediaUrl || museum.wikipediaUrl;
-    if (wikipediaUrl) {
-      const summary = await fetchWikipediaSummary(wikipediaUrl);
-      if (summary) {
-        wikipediaSummary = summary.extract;
+    } catch (error) {
+      // Return 502 for Wikidata/Wikipedia service errors
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to hydrate museum';
+      if (
+        errorMessage.includes('Wikidata') ||
+        errorMessage.includes('Wikipedia') ||
+        errorMessage.includes('timeout')
+      ) {
+        return res.status(502).json({ error: errorMessage });
       }
+
+      res.status(500).json({ error: errorMessage });
     }
-
-    // Update museum with hydrated data
-    const updatedMuseum = await prisma.museum.update({
-      where: { id: museum.id },
-      data: {
-        description: details.description || museum.description,
-        wikipediaSummary: wikipediaSummary || museum.wikipediaSummary,
-        wikipediaUrl: wikipediaUrl || museum.wikipediaUrl,
-        image: details.image || museum.image,
-        coordinates: details.coordinates ?? museum.coordinates ?? undefined,
-        officialWebsite: details.officialWebsite || museum.officialWebsite,
-        locationTags:
-          details.locationLabels.length > 0
-            ? details.locationLabels
-            : museum.locationTags,
-        museumHydratedAt: new Date(),
-      } as any,
-    });
-
-    res.json({
-      cached: false,
-      museum: {
-        id: updatedMuseum.id,
-        name: updatedMuseum.name,
-        slug: updatedMuseum.slug,
-        description: updatedMuseum.description,
-        wikipediaSummary: updatedMuseum.wikipediaSummary,
-        wikipediaUrl: updatedMuseum.wikipediaUrl,
-        image: updatedMuseum.image,
-        coordinates: updatedMuseum.coordinates,
-        officialWebsite: updatedMuseum.officialWebsite,
-        museumHydratedAt: updatedMuseum.museumHydratedAt,
-      },
-    });
-  } catch (error) {
-    // Return 502 for Wikidata/Wikipedia service errors
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to hydrate museum';
-    if (
-      errorMessage.includes('Wikidata') ||
-      errorMessage.includes('Wikipedia') ||
-      errorMessage.includes('timeout')
-    ) {
-      return res.status(502).json({ error: errorMessage });
-    }
-
-    res.status(500).json({ error: errorMessage });
   }
-});
+);
 
 // POST /api/museums/:slug/hydrate-artifacts - Hydrate artifacts from Wikidata
-app.post('/api/museums/:slug/hydrate-artifacts', requireAuth, requireAdmin, async (req, res) => {
-  const { slug } = req.params;
-  const force = req.query.force === '1';
+app.post(
+  '/api/museums/:slug/hydrate-artifacts',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { slug } = req.params;
+    const force = req.query.force === '1';
 
-  try {
-    if (!req.actor) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+    try {
+      if (!req.actor) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
 
-    const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
-    if (!signupAllowed) {
-      return;
-    }
-
-    // Find museum by slug
-    const museum = await prisma.museum.findFirst({
-      where: { slug },
-    });
-
-    if (!museum) {
-      return res.status(404).json({
-        error: 'Museum not found. Use /search to find and add museums.',
+      const signupAllowed = await enforceSignupPolicy({
+        actor: req.actor,
+        res,
       });
-    }
+      if (!signupAllowed) {
+        return;
+      }
 
-    // Check cache unless force refresh
-    if (!force && isRecentlyHydrated(museum.artifactsHydratedAt)) {
-      const artifacts = await prisma.artifact.findMany({
-        where: { museumId: museum.id },
-        select: {
-          id: true,
-          displayTitle: true,
-          slug: true,
-          wikidataId: true,
-          wikipediaUrl: true,
-          wikimediaImageUrl: true,
-        },
-        orderBy: { displayTitle: 'asc' },
+      // Find museum by slug
+      const museum = await prisma.museum.findFirst({
+        where: { slug },
       });
 
-      return res.json({
-        cached: true,
-        museumId: museum.id,
-        artifacts: artifacts.map((artifact) => ({
-          id: artifact.id,
-          name: artifact.displayTitle,
-          slug: artifact.slug,
-          wikidataId: artifact.wikidataId,
-          wikipediaUrl: artifact.wikipediaUrl,
-          wikimediaImageUrl: artifact.wikimediaImageUrl,
-        })),
-        artifactsHydratedAt: museum.artifactsHydratedAt,
-      });
-    }
+      if (!museum) {
+        return res.status(404).json({
+          error: 'Museum not found. Use /search to find and add museums.',
+        });
+      }
 
-    // Require wikidataId to hydrate
-    if (!museum.wikidataId) {
-      return res.status(400).json({
-        error:
-          'Museum missing wikidataId. Cannot hydrate artifacts from Wikidata.',
-      });
-    }
-
-    // Query Wikidata for artifacts
-    const sparqlQuery = buildArtifactsQuery(museum.wikidataId);
-    const bindings = await queryWikidata<WikidataArtifactBinding>(sparqlQuery);
-    const artifactsFromWikidata = parseArtifactResults(bindings);
-
-    // Upsert artifacts
-    let upserted = 0;
-    const artifactResults: any[] = [];
-
-    for (const artifact of artifactsFromWikidata) {
-      try {
-        // Check if artifact exists by wikidataId
-        const existing = await prisma.artifact.findUnique({
-          where: { wikidataId: artifact.qid },
+      // Check cache unless force refresh
+      if (!force && isRecentlyHydrated(museum.artifactsHydratedAt)) {
+        const artifacts = await prisma.artifact.findMany({
+          where: { museumId: museum.id },
+          select: {
+            id: true,
+            displayTitle: true,
+            slug: true,
+            wikidataId: true,
+            wikipediaUrl: true,
+            wikimediaImageUrl: true,
+          },
+          orderBy: { displayTitle: 'asc' },
         });
 
-        if (existing) {
-          // Update existing artifact
-          const artifactSlug = await buildUniqueArtifactSlug({
-            museumId: museum.id,
-            museumSlugOrName: museum.slug || museum.name,
-            artifactName: artifact.label,
-            currentArtifactId: existing.id,
-          });
-          const updated = await prisma.artifact.update({
+        return res.json({
+          cached: true,
+          museumId: museum.id,
+          artifacts: artifacts.map((artifact) => ({
+            id: artifact.id,
+            name: artifact.displayTitle,
+            slug: artifact.slug,
+            wikidataId: artifact.wikidataId,
+            wikipediaUrl: artifact.wikipediaUrl,
+            wikimediaImageUrl: artifact.wikimediaImageUrl,
+          })),
+          artifactsHydratedAt: museum.artifactsHydratedAt,
+        });
+      }
+
+      // Require wikidataId to hydrate
+      if (!museum.wikidataId) {
+        return res.status(400).json({
+          error:
+            'Museum missing wikidataId. Cannot hydrate artifacts from Wikidata.',
+        });
+      }
+
+      // Query Wikidata for artifacts
+      const sparqlQuery = buildArtifactsQuery(museum.wikidataId);
+      const bindings =
+        await queryWikidata<WikidataArtifactBinding>(sparqlQuery);
+      const artifactsFromWikidata = parseArtifactResults(bindings);
+
+      // Upsert artifacts
+      let upserted = 0;
+      const artifactResults: any[] = [];
+
+      for (const artifact of artifactsFromWikidata) {
+        try {
+          // Check if artifact exists by wikidataId
+          const existing = await prisma.artifact.findUnique({
             where: { wikidataId: artifact.qid },
-            data: {
-              displayTitle: artifact.label,
-              slug: artifactSlug,
-              wikipediaUrl: artifact.wikipediaUrl || existing.wikipediaUrl,
-              wikimediaImageUrl: artifact.image || existing.wikimediaImageUrl,
-            } as any,
           });
-          artifactResults.push({
-            id: updated.id,
-            name: updated.displayTitle,
-            slug: updated.slug,
-            wikidataId: artifact.qid,
-            wikipediaUrl: updated.wikipediaUrl,
-            wikimediaImageUrl: updated.wikimediaImageUrl,
-          });
-        } else {
-          // Create new artifact
-          const artifactSlug = await buildUniqueArtifactSlug({
-            museumId: museum.id,
-            museumSlugOrName: museum.slug || museum.name,
-            artifactName: artifact.label,
-          });
-          const created = await prisma.artifact.create({
-            data: {
-              displayTitle: artifact.label,
-              slug: artifactSlug,
+
+          if (existing) {
+            // Update existing artifact
+            const artifactSlug = await buildUniqueArtifactSlug({
               museumId: museum.id,
+              museumSlugOrName: museum.slug || museum.name,
+              artifactName: artifact.label,
+              currentArtifactId: existing.id,
+            });
+            const updated = await prisma.artifact.update({
+              where: { wikidataId: artifact.qid },
+              data: {
+                displayTitle: artifact.label,
+                slug: artifactSlug,
+                wikipediaUrl: artifact.wikipediaUrl || existing.wikipediaUrl,
+                wikimediaImageUrl: artifact.image || existing.wikimediaImageUrl,
+              } as any,
+            });
+            artifactResults.push({
+              id: updated.id,
+              name: updated.displayTitle,
+              slug: updated.slug,
               wikidataId: artifact.qid,
-              wikipediaUrl: artifact.wikipediaUrl || null,
-              wikimediaImageUrl: artifact.image || null,
-              knowledgeTextEn: artifact.description || null,
-              furtherReading: artifact.wikipediaUrl
-                ? [artifact.wikipediaUrl]
-                : [],
-            } as any,
-          });
-          artifactResults.push({
-            id: created.id,
-            name: created.displayTitle,
-            slug: created.slug,
-            wikidataId: artifact.qid,
-            wikipediaUrl: created.wikipediaUrl,
-            wikimediaImageUrl: created.wikimediaImageUrl,
-          });
-          upserted++;
-        }
-      } catch (artifactError: any) {
-        // Handle slug collision - skip this artifact
-        if (artifactError?.code === 'P2002') {
-          // Skip duplicates
-        } else {
-          throw artifactError;
+              wikipediaUrl: updated.wikipediaUrl,
+              wikimediaImageUrl: updated.wikimediaImageUrl,
+            });
+          } else {
+            // Create new artifact
+            const artifactSlug = await buildUniqueArtifactSlug({
+              museumId: museum.id,
+              museumSlugOrName: museum.slug || museum.name,
+              artifactName: artifact.label,
+            });
+            const created = await prisma.artifact.create({
+              data: {
+                displayTitle: artifact.label,
+                slug: artifactSlug,
+                museumId: museum.id,
+                wikidataId: artifact.qid,
+                wikipediaUrl: artifact.wikipediaUrl || null,
+                wikimediaImageUrl: artifact.image || null,
+                knowledgeTextEn: artifact.description || null,
+                furtherReading: artifact.wikipediaUrl
+                  ? [artifact.wikipediaUrl]
+                  : [],
+              } as any,
+            });
+            artifactResults.push({
+              id: created.id,
+              name: created.displayTitle,
+              slug: created.slug,
+              wikidataId: artifact.qid,
+              wikipediaUrl: created.wikipediaUrl,
+              wikimediaImageUrl: created.wikimediaImageUrl,
+            });
+            upserted++;
+          }
+        } catch (artifactError: any) {
+          // Handle slug collision - skip this artifact
+          if (artifactError?.code === 'P2002') {
+            // Skip duplicates
+          } else {
+            throw artifactError;
+          }
         }
       }
+
+      // Update museum's artifactsHydratedAt timestamp
+      await prisma.museum.update({
+        where: { id: museum.id },
+        data: { artifactsHydratedAt: new Date() } as any,
+      });
+
+      (res.locals as { usageDelta?: Record<string, number> }).usageDelta = {
+        wikiCalls: 1,
+      };
+
+      res.json({
+        cached: false,
+        museumId: museum.id,
+        artifacts: artifactResults,
+        newArtifacts: upserted,
+        artifactsHydratedAt: new Date(),
+      });
+    } catch (error) {
+      // Return 502 for Wikidata service errors
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to hydrate artifacts';
+      if (
+        errorMessage.includes('Wikidata') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('query')
+      ) {
+        return res.status(502).json({ error: errorMessage });
+      }
+
+      res.status(500).json({ error: errorMessage });
     }
-
-    // Update museum's artifactsHydratedAt timestamp
-    await prisma.museum.update({
-      where: { id: museum.id },
-      data: { artifactsHydratedAt: new Date() } as any,
-    });
-
-    (res.locals as { usageDelta?: Record<string, number> }).usageDelta = {
-      wikiCalls: 1,
-    };
-
-    res.json({
-      cached: false,
-      museumId: museum.id,
-      artifacts: artifactResults,
-      newArtifacts: upserted,
-      artifactsHydratedAt: new Date(),
-    });
-  } catch (error) {
-    // Return 502 for Wikidata service errors
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to hydrate artifacts';
-    if (
-      errorMessage.includes('Wikidata') ||
-      errorMessage.includes('timeout') ||
-      errorMessage.includes('query')
-    ) {
-      return res.status(502).json({ error: errorMessage });
-    }
-
-    res.status(500).json({ error: errorMessage });
   }
-});
+);
 
 // GET /museums - List all museums
 app.get('/museums', async (req, res) => {
@@ -2102,256 +2130,291 @@ function parseMuseumId(value: string): number | null {
   return museumId;
 }
 
-app.post('/museums/:museumId/scan/ocr', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    if (!req.actor) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+app.post(
+  '/museums/:museumId/scan/ocr',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      if (!req.actor) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
 
-    const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
-    if (!signupAllowed) {
-      return;
-    }
-
-    const scanAllowed = await enforcePlaqueScanLimit({
-      res,
-      actor: req.actor,
-    });
-    if (!scanAllowed) {
-      return;
-    }
-
-    const museumId = parseMuseumId(req.params.museumId);
-    const imageBase64 =
-      typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
-
-    if (!museumId) {
-      return res.status(400).json({ error: 'Invalid museumId' });
-    }
-    if (!imageBase64) {
-      return res.status(400).json({ error: 'imageBase64 is required' });
-    }
-
-    const museum = await prisma.museum.findUnique({ where: { id: museumId } });
-    if (!museum) {
-      return res.status(404).json({ error: 'Museum not found' });
-    }
-
-    const ocr = await extractTextFromImage(imageBase64);
-    if (!ocr.rawText.trim()) {
-      return res.status(422).json({
-        error:
-          'Could not read text from plaque image. Try taking another photo.',
+      const signupAllowed = await enforceSignupPolicy({
+        actor: req.actor,
+        res,
       });
-    }
+      if (!signupAllowed) {
+        return;
+      }
 
-    res.json({
-      museumId,
-      rawText: ocr.rawText,
-      ocr,
-    });
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to read plaque text';
-    res.status(500).json({ error: errorMessage });
-  }
-});
-
-app.post('/museums/:museumId/scan/duplicates-raw', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const museumId = parseMuseumId(req.params.museumId);
-    const rawText =
-      typeof req.body?.rawText === 'string' ? req.body.rawText : '';
-
-    if (!museumId) {
-      return res.status(400).json({ error: 'Invalid museumId' });
-    }
-    if (!rawText.trim()) {
-      return res.status(400).json({ error: 'rawText is required' });
-    }
-
-    const duplicates = await searchDuplicatesFromRawText(museumId, rawText);
-    res.json(duplicates);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to search duplicates';
-    res.status(500).json({ error: errorMessage });
-  }
-});
-
-app.post('/museums/:museumId/scan/draft', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const museumId = parseMuseumId(req.params.museumId);
-    const rawText =
-      typeof req.body?.rawText === 'string' ? req.body.rawText : '';
-
-    if (!museumId) {
-      return res.status(400).json({ error: 'Invalid museumId' });
-    }
-    if (!rawText.trim()) {
-      return res.status(400).json({ error: 'rawText is required' });
-    }
-
-    const museum = await prisma.museum.findUnique({
-      where: { id: museumId },
-      select: { id: true, name: true },
-    });
-    if (!museum) {
-      return res.status(404).json({ error: 'Museum not found' });
-    }
-
-    const draft = await extractArtifactDraft(rawText, museum.name);
-    res.json({ draft });
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'Failed to extract artifact draft';
-    res.status(500).json({ error: errorMessage });
-  }
-});
-
-app.post('/museums/:museumId/scan/duplicates-draft', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const museumId = parseMuseumId(req.params.museumId);
-    const draft = req.body?.draft;
-
-    if (!museumId) {
-      return res.status(400).json({ error: 'Invalid museumId' });
-    }
-    if (!draft || typeof draft !== 'object') {
-      return res.status(400).json({ error: 'draft is required' });
-    }
-
-    const duplicates = await searchDuplicatesFromDraft(museumId, {
-      localTitle: typeof draft.localTitle === 'string' ? draft.localTitle : '',
-      localTitleLanguage:
-        typeof draft.localTitleLanguage === 'string'
-          ? draft.localTitleLanguage
-          : 'und',
-      englishTitle:
-        typeof draft.englishTitle === 'string' ? draft.englishTitle : '',
-      knowledgeText:
-        typeof draft.knowledgeText === 'string' ? draft.knowledgeText : '',
-      museumConfidence:
-        typeof draft.museumConfidence === 'number'
-          ? draft.museumConfidence
-          : 90,
-    });
-    res.json(duplicates);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to search duplicates';
-    res.status(500).json({ error: errorMessage });
-  }
-});
-
-app.post('/museums/:museumId/scan/create', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    if (!req.actor) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
-    const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
-    if (!signupAllowed) {
-      return;
-    }
-
-    const createAllowed = await enforceUsageLimits({
-      res,
-      actor: req.actor,
-      globalIncrements: { artifactCreates: 1, dbOps: 1 },
-      userIncrements: { artifactCreates: 1 },
-    });
-    if (!createAllowed) {
-      return;
-    }
-
-    const museumId = parseMuseumId(req.params.museumId);
-    const imageBase64 =
-      typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
-    const rawText =
-      typeof req.body?.rawText === 'string' ? req.body.rawText : '';
-    const draft = req.body?.draft;
-    const ocr = req.body?.ocr;
-    const enrichment = req.body?.enrichment ?? null;
-
-    if (!museumId) {
-      return res.status(400).json({ error: 'Invalid museumId' });
-    }
-    if (!imageBase64 || !rawText.trim() || !draft || !ocr) {
-      const missing: string[] = [];
-      if (!imageBase64) missing.push('imageBase64');
-      if (!rawText.trim()) missing.push('rawText');
-      if (!draft) missing.push('draft');
-      if (!ocr) missing.push('ocr');
-      return res.status(400).json({
-        error: `Invalid scan create payload. Missing: ${missing.join(', ')}.`,
+      const scanAllowed = await enforcePlaqueScanLimit({
+        res,
+        actor: req.actor,
       });
-    }
+      if (!scanAllowed) {
+        return;
+      }
 
-    const created = await createArtifactAndAssets({
-      museumId,
-      imageBase64,
-      plaqueText: rawText,
-      ocr: {
-        rawText,
-        languageHints: Array.isArray(ocr.languageHints)
-          ? ocr.languageHints
-          : [],
-        confidence: typeof ocr.confidence === 'number' ? ocr.confidence : null,
-        blocks: Array.isArray(ocr.blocks) ? ocr.blocks : [],
-        provider: 'google-vision',
-      },
-      draft: {
+      const museumId = parseMuseumId(req.params.museumId);
+      const imageBase64 =
+        typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
+
+      if (!museumId) {
+        return res.status(400).json({ error: 'Invalid museumId' });
+      }
+      if (!imageBase64) {
+        return res.status(400).json({ error: 'imageBase64 is required' });
+      }
+
+      const museum = await prisma.museum.findUnique({
+        where: { id: museumId },
+      });
+      if (!museum) {
+        return res.status(404).json({ error: 'Museum not found' });
+      }
+
+      const ocr = await extractTextFromImage(imageBase64);
+      if (!ocr.rawText.trim()) {
+        return res.status(422).json({
+          error:
+            'Could not read text from plaque image. Try taking another photo.',
+        });
+      }
+
+      res.json({
+        museumId,
+        rawText: ocr.rawText,
+        ocr,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to read plaque text';
+      res.status(500).json({ error: errorMessage });
+    }
+  }
+);
+
+app.post(
+  '/museums/:museumId/scan/duplicates-raw',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const museumId = parseMuseumId(req.params.museumId);
+      const rawText =
+        typeof req.body?.rawText === 'string' ? req.body.rawText : '';
+
+      if (!museumId) {
+        return res.status(400).json({ error: 'Invalid museumId' });
+      }
+      if (!rawText.trim()) {
+        return res.status(400).json({ error: 'rawText is required' });
+      }
+
+      const duplicates = await searchDuplicatesFromRawText(museumId, rawText);
+      res.json(duplicates);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to search duplicates';
+      res.status(500).json({ error: errorMessage });
+    }
+  }
+);
+
+app.post(
+  '/museums/:museumId/scan/draft',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const museumId = parseMuseumId(req.params.museumId);
+      const rawText =
+        typeof req.body?.rawText === 'string' ? req.body.rawText : '';
+
+      if (!museumId) {
+        return res.status(400).json({ error: 'Invalid museumId' });
+      }
+      if (!rawText.trim()) {
+        return res.status(400).json({ error: 'rawText is required' });
+      }
+
+      const museum = await prisma.museum.findUnique({
+        where: { id: museumId },
+        select: { id: true, name: true },
+      });
+      if (!museum) {
+        return res.status(404).json({ error: 'Museum not found' });
+      }
+
+      const draft = await extractArtifactDraft(rawText, museum.name);
+      res.json({ draft });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to extract artifact draft';
+      res.status(500).json({ error: errorMessage });
+    }
+  }
+);
+
+app.post(
+  '/museums/:museumId/scan/duplicates-draft',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const museumId = parseMuseumId(req.params.museumId);
+      const draft = req.body?.draft;
+
+      if (!museumId) {
+        return res.status(400).json({ error: 'Invalid museumId' });
+      }
+      if (!draft || typeof draft !== 'object') {
+        return res.status(400).json({ error: 'draft is required' });
+      }
+
+      const duplicates = await searchDuplicatesFromDraft(museumId, {
         localTitle:
-          typeof draft.localTitle === 'string'
-            ? draft.localTitle
-            : 'Untitled artefact',
+          typeof draft.localTitle === 'string' ? draft.localTitle : '',
         localTitleLanguage:
           typeof draft.localTitleLanguage === 'string'
             ? draft.localTitleLanguage
             : 'und',
         englishTitle:
-          typeof draft.englishTitle === 'string'
-            ? draft.englishTitle
-            : draft.localTitle || 'Untitled artefact',
+          typeof draft.englishTitle === 'string' ? draft.englishTitle : '',
         knowledgeText:
-          typeof draft.knowledgeText === 'string'
-            ? draft.knowledgeText
-            : 'An English description is not available yet for this artefact.',
+          typeof draft.knowledgeText === 'string' ? draft.knowledgeText : '',
         museumConfidence:
           typeof draft.museumConfidence === 'number'
             ? draft.museumConfidence
             : 90,
-      },
-      enrichment: {
-        wikipediaUrl:
-          typeof enrichment?.wikipediaUrl === 'string'
-            ? enrichment.wikipediaUrl
-            : null,
-        wikipediaSummary:
-          typeof enrichment?.wikipediaSummary === 'string'
-            ? enrichment.wikipediaSummary
-            : null,
-        wikipediaSummaryLang:
-          typeof enrichment?.wikipediaSummaryLang === 'string'
-            ? enrichment.wikipediaSummaryLang
-            : null,
-        wikimediaImageUrl:
-          typeof enrichment?.wikimediaImageUrl === 'string'
-            ? enrichment.wikimediaImageUrl
-            : null,
-      },
-    });
-
-    res.json(created);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to create artifact';
-    res.status(500).json({ error: errorMessage });
+      });
+      res.json(duplicates);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to search duplicates';
+      res.status(500).json({ error: errorMessage });
+    }
   }
-});
+);
+
+app.post(
+  '/museums/:museumId/scan/create',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      if (!req.actor) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const signupAllowed = await enforceSignupPolicy({
+        actor: req.actor,
+        res,
+      });
+      if (!signupAllowed) {
+        return;
+      }
+
+      const createAllowed = await enforceUsageLimits({
+        res,
+        actor: req.actor,
+        globalIncrements: { artifactCreates: 1, dbOps: 1 },
+        userIncrements: { artifactCreates: 1 },
+      });
+      if (!createAllowed) {
+        return;
+      }
+
+      const museumId = parseMuseumId(req.params.museumId);
+      const imageBase64 =
+        typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
+      const rawText =
+        typeof req.body?.rawText === 'string' ? req.body.rawText : '';
+      const draft = req.body?.draft;
+      const ocr = req.body?.ocr;
+      const enrichment = req.body?.enrichment ?? null;
+
+      if (!museumId) {
+        return res.status(400).json({ error: 'Invalid museumId' });
+      }
+      if (!imageBase64 || !rawText.trim() || !draft || !ocr) {
+        const missing: string[] = [];
+        if (!imageBase64) missing.push('imageBase64');
+        if (!rawText.trim()) missing.push('rawText');
+        if (!draft) missing.push('draft');
+        if (!ocr) missing.push('ocr');
+        return res.status(400).json({
+          error: `Invalid scan create payload. Missing: ${missing.join(', ')}.`,
+        });
+      }
+
+      const created = await createArtifactAndAssets({
+        museumId,
+        imageBase64,
+        plaqueText: rawText,
+        ocr: {
+          rawText,
+          languageHints: Array.isArray(ocr.languageHints)
+            ? ocr.languageHints
+            : [],
+          confidence:
+            typeof ocr.confidence === 'number' ? ocr.confidence : null,
+          blocks: Array.isArray(ocr.blocks) ? ocr.blocks : [],
+          provider: 'google-vision',
+        },
+        draft: {
+          localTitle:
+            typeof draft.localTitle === 'string'
+              ? draft.localTitle
+              : 'Untitled artefact',
+          localTitleLanguage:
+            typeof draft.localTitleLanguage === 'string'
+              ? draft.localTitleLanguage
+              : 'und',
+          englishTitle:
+            typeof draft.englishTitle === 'string'
+              ? draft.englishTitle
+              : draft.localTitle || 'Untitled artefact',
+          knowledgeText:
+            typeof draft.knowledgeText === 'string'
+              ? draft.knowledgeText
+              : 'An English description is not available yet for this artefact.',
+          museumConfidence:
+            typeof draft.museumConfidence === 'number'
+              ? draft.museumConfidence
+              : 90,
+        },
+        enrichment: {
+          wikipediaUrl:
+            typeof enrichment?.wikipediaUrl === 'string'
+              ? enrichment.wikipediaUrl
+              : null,
+          wikipediaSummary:
+            typeof enrichment?.wikipediaSummary === 'string'
+              ? enrichment.wikipediaSummary
+              : null,
+          wikipediaSummaryLang:
+            typeof enrichment?.wikipediaSummaryLang === 'string'
+              ? enrichment.wikipediaSummaryLang
+              : null,
+          wikimediaImageUrl:
+            typeof enrichment?.wikimediaImageUrl === 'string'
+              ? enrichment.wikimediaImageUrl
+              : null,
+        },
+      });
+
+      res.json(created);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to create artifact';
+      res.status(500).json({ error: errorMessage });
+    }
+  }
+);
 
 app.post('/artifacts', requireAuth, requireAdmin, async (req, res) => {
   if (!req.actor) {
@@ -3093,183 +3156,203 @@ app.post('/artifact-questions/:questionId/listen', async (req, res) => {
 // ============================================================================
 
 // GET /admin/content/museums - Get all museums
-app.get('/admin/content/museums', requireAuth, requireAdmin, async (_req, res) => {
-  try {
-    const museums = await prisma.museum.findMany({
-      orderBy: { id: 'asc' },
-    });
-    res.set('Cache-Control', 'no-store');
-    res.json(museums);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to fetch museums';
-    res.status(500).json({ error: errorMessage });
+app.get(
+  '/admin/content/museums',
+  requireAuth,
+  requireAdmin,
+  async (_req, res) => {
+    try {
+      const museums = await prisma.museum.findMany({
+        orderBy: { id: 'asc' },
+      });
+      res.set('Cache-Control', 'no-store');
+      res.json(museums);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to fetch museums';
+      res.status(500).json({ error: errorMessage });
+    }
   }
-});
+);
 
 // GET /admin/content/rooms - Get all rooms
-app.get('/admin/content/rooms', requireAuth, requireAdmin, async (_req, res) => {
-  try {
-    const rooms = await prisma.room.findMany({
-      orderBy: { id: 'asc' },
-    });
-    res.set('Cache-Control', 'no-store');
-    res.json(rooms);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to fetch rooms';
-    res.status(500).json({ error: errorMessage });
+app.get(
+  '/admin/content/rooms',
+  requireAuth,
+  requireAdmin,
+  async (_req, res) => {
+    try {
+      const rooms = await prisma.room.findMany({
+        orderBy: { id: 'asc' },
+      });
+      res.set('Cache-Control', 'no-store');
+      res.json(rooms);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to fetch rooms';
+      res.status(500).json({ error: errorMessage });
+    }
   }
-});
+);
 
 // GET /admin/content/artifacts - Get all artifacts (read-only) with enriched data
-app.get('/admin/content/artifacts', requireAuth, requireAdmin, async (_req, res) => {
-  try {
-    // Fetch all rooms with their museum and parentRoom info to build a lookup map
-    const allRooms = await prisma.room.findMany({
-      select: {
-        id: true,
-        name: true,
-        museumId: true,
-        parentRoomId: true,
-        museum: {
-          select: {
-            id: true,
-            name: true,
+app.get(
+  '/admin/content/artifacts',
+  requireAuth,
+  requireAdmin,
+  async (_req, res) => {
+    try {
+      // Fetch all rooms with their museum and parentRoom info to build a lookup map
+      const allRooms = await prisma.room.findMany({
+        select: {
+          id: true,
+          name: true,
+          museumId: true,
+          parentRoomId: true,
+          museum: {
+            select: {
+              id: true,
+              name: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    // Fetch all museums for direct lookup
-    const allMuseums = await prisma.museum.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-    });
-    const museumMap = new Map(allMuseums.map((m) => [m.id, m]));
-
-    // Build a map for quick lookup
-    const roomMap = new Map(allRooms.map((room) => [room.id, room]));
-
-    // Helper function to find museum by traversing up parent room chain
-    const findMuseumForRoom = (
-      roomId: number | null
-    ): { id: number; name: string } | null => {
-      if (!roomId) return null;
-      const room = roomMap.get(roomId);
-      if (!room) return null;
-
-      // If room has museum directly, return it
-      if (room.museum) {
-        return room.museum;
-      }
-
-      // Otherwise, traverse up parent room chain
-      if (room.parentRoomId) {
-        return findMuseumForRoom(room.parentRoomId);
-      }
-
-      return null;
-    };
-
-    const artifacts = await prisma.artifact.findMany({
-      include: {
-        room: {
-          select: {
-            id: true,
-            name: true,
-            parentRoomId: true,
-          },
+      // Fetch all museums for direct lookup
+      const allMuseums = await prisma.museum.findMany({
+        select: {
+          id: true,
+          name: true,
         },
-      } as Prisma.ArtifactInclude,
-      orderBy: {
-        id: 'asc',
-      },
-    });
+      });
+      const museumMap = new Map(allMuseums.map((m) => [m.id, m]));
 
-    const response: ArtifactResponse[] = artifacts.map((artifact) => {
-      // Type assertion to work around Prisma type inference issue
-      const artifactWithRoom = artifact as typeof artifact & {
-        roomId: number | null;
-        museumId: number;
-        displayTitle: string;
-        slug: string;
-        rawPlaqueText: string | null;
-        furtherReading: string[];
-        room: {
-          id: number;
-          name: string;
-          parentRoomId: number | null;
-        } | null;
+      // Build a map for quick lookup
+      const roomMap = new Map(allRooms.map((room) => [room.id, room]));
+
+      // Helper function to find museum by traversing up parent room chain
+      const findMuseumForRoom = (
+        roomId: number | null
+      ): { id: number; name: string } | null => {
+        if (!roomId) return null;
+        const room = roomMap.get(roomId);
+        if (!room) return null;
+
+        // If room has museum directly, return it
+        if (room.museum) {
+          return room.museum;
+        }
+
+        // Otherwise, traverse up parent room chain
+        if (room.parentRoomId) {
+          return findMuseumForRoom(room.parentRoomId);
+        }
+
+        return null;
       };
 
-      // Find museum - use direct museumId if available, otherwise traverse room chain
-      let museum: { id: number; name: string } | null = null;
-      if (artifactWithRoom.museumId) {
-        // Use direct museumId from artifact
-        museum = museumMap.get(artifactWithRoom.museumId) || null;
-      } else if (artifactWithRoom.room) {
-        // Fallback to room chain traversal if no direct museumId
-        museum = findMuseumForRoom(artifactWithRoom.room.id);
-      }
+      const artifacts = await prisma.artifact.findMany({
+        include: {
+          room: {
+            select: {
+              id: true,
+              name: true,
+              parentRoomId: true,
+            },
+          },
+        } as Prisma.ArtifactInclude,
+        orderBy: {
+          id: 'asc',
+        },
+      });
 
-      // Get parent room name
-      const parentRoom = artifactWithRoom.room?.parentRoomId
-        ? roomMap.get(artifactWithRoom.room.parentRoomId)
-        : null;
+      const response: ArtifactResponse[] = artifacts.map((artifact) => {
+        // Type assertion to work around Prisma type inference issue
+        const artifactWithRoom = artifact as typeof artifact & {
+          roomId: number | null;
+          museumId: number;
+          displayTitle: string;
+          slug: string;
+          rawPlaqueText: string | null;
+          furtherReading: string[];
+          room: {
+            id: number;
+            name: string;
+            parentRoomId: number | null;
+          } | null;
+        };
 
-      return {
-        id: artifactWithRoom.id,
-        name: artifactWithRoom.displayTitle,
-        slug: artifactWithRoom.slug,
-        roomId: artifactWithRoom.roomId,
-        roomName: artifactWithRoom.room?.name || null,
-        museumId: museum?.id || artifactWithRoom.museumId,
-        museumName: museum?.name || null,
-        rawPlaqueText: artifactWithRoom.rawPlaqueText,
-        furtherReading: artifactWithRoom.furtherReading,
-        parentRoomId: artifactWithRoom.room?.parentRoomId || null,
-        parentRoomName: parentRoom?.name || null,
-      };
-    });
+        // Find museum - use direct museumId if available, otherwise traverse room chain
+        let museum: { id: number; name: string } | null = null;
+        if (artifactWithRoom.museumId) {
+          // Use direct museumId from artifact
+          museum = museumMap.get(artifactWithRoom.museumId) || null;
+        } else if (artifactWithRoom.room) {
+          // Fallback to room chain traversal if no direct museumId
+          museum = findMuseumForRoom(artifactWithRoom.room.id);
+        }
 
-    res.set('Cache-Control', 'no-store');
-    res.json(response);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to fetch artifacts';
-    res.status(500).json({ error: errorMessage });
+        // Get parent room name
+        const parentRoom = artifactWithRoom.room?.parentRoomId
+          ? roomMap.get(artifactWithRoom.room.parentRoomId)
+          : null;
+
+        return {
+          id: artifactWithRoom.id,
+          name: artifactWithRoom.displayTitle,
+          slug: artifactWithRoom.slug,
+          roomId: artifactWithRoom.roomId,
+          roomName: artifactWithRoom.room?.name || null,
+          museumId: museum?.id || artifactWithRoom.museumId,
+          museumName: museum?.name || null,
+          rawPlaqueText: artifactWithRoom.rawPlaqueText,
+          furtherReading: artifactWithRoom.furtherReading,
+          parentRoomId: artifactWithRoom.room?.parentRoomId || null,
+          parentRoomName: parentRoom?.name || null,
+        };
+      });
+
+      res.set('Cache-Control', 'no-store');
+      res.json(response);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to fetch artifacts';
+      res.status(500).json({ error: errorMessage });
+    }
   }
-});
+);
 
 // GET /admin/content/content - Get all content rows
-app.get('/admin/content/content', requireAuth, requireAdmin, async (_req, res) => {
-  try {
-    const content = await prisma.content.findMany({
-      select: {
-        id: true,
-        type: true,
-        text: true,
-        createdAt: true,
-        museumId: true,
-        roomId: true,
-        artifactId: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+app.get(
+  '/admin/content/content',
+  requireAuth,
+  requireAdmin,
+  async (_req, res) => {
+    try {
+      const content = await prisma.content.findMany({
+        select: {
+          id: true,
+          type: true,
+          text: true,
+          createdAt: true,
+          museumId: true,
+          roomId: true,
+          artifactId: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
 
-    res.setHeader('Cache-Control', 'no-store');
-    res.json(content);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to fetch content';
-    res.status(500).json({ error: errorMessage });
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(content);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to fetch content';
+      res.status(500).json({ error: errorMessage });
+    }
   }
-});
+);
 
 // ============================================================================
 // CONTENT GENERATION ENDPOINT
@@ -3409,8 +3492,106 @@ async function suggestQuestionCorrection(
 }
 
 // POST /generate-content/artefact/:artefactId - Generate content
-app.post('/generate-content/artefact/:artefactId', requireAuth, requireAdmin, async (req, res) => {
-  try {
+app.post(
+  '/generate-content/artefact/:artefactId',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      if (!req.actor) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const signupAllowed = await enforceSignupPolicy({
+        actor: req.actor,
+        res,
+      });
+      if (!signupAllowed) {
+        return;
+      }
+
+      const limitsAllowed = await enforceUsageLimits({
+        res,
+        actor: req.actor,
+        globalIncrements: { llmCalls: 1, dbOps: 1 },
+        userIncrements: { llmCalls: 1 },
+      });
+      if (!limitsAllowed) {
+        return;
+      }
+
+      const artefactId = Number(req.params.artefactId);
+      if (Number.isNaN(artefactId)) {
+        return res.status(400).json({ error: 'Invalid artefactId' });
+      }
+
+      const context = await fetchArtifactContext(artefactId);
+      if (!context) {
+        return res.status(404).json({ error: 'Artifact not found' });
+      }
+
+      const providerName = parseProvider(req.query.provider, 'google');
+      const provider = createProvider(providerName);
+
+      const result = await provider.generate({
+        prompt: context.template,
+        systemInstruction: buildMuseumGuideSystemPrompt(),
+      });
+
+      const content = await prisma.content.create({
+        data: {
+          text: result.text,
+          type: 'introduction',
+          artifactId: artefactId,
+          llmProvider: result.provider,
+          model: result.model,
+          prompt: context.template,
+          suggestedQuestions: result.suggestedQuestions ?? [],
+        },
+      });
+
+      let audioUrl: string | null = null;
+      try {
+        audioUrl = await generateAudioForContent(content.id, result.text, {
+          outputDir: audioDir,
+        });
+        await prisma.content.update({
+          where: { id: content.id },
+          data: { audioUrl },
+        });
+      } catch {
+        // Audio is optional
+      }
+
+      const updatedContent = await prisma.content.findUnique({
+        where: { id: content.id },
+      });
+
+      res.json(updatedContent);
+    } catch (error) {
+      let errorMessage = 'Failed to generate content';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        if (
+          error.message.includes('prisma') ||
+          error.message.includes('Invalid')
+        ) {
+          errorMessage = `Database error: ${error.message}
+
+This usually means the Prisma client needs to be regenerated. Run: yarn prisma generate`;
+        }
+      }
+      res.status(500).json({ error: errorMessage });
+    }
+  }
+);
+
+// GET /generate-content/artefact/:artefactId/stream - Stream content generation using SSE
+app.get(
+  '/generate-content/artefact/:artefactId/stream',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
     if (!req.actor) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
@@ -3441,241 +3622,158 @@ app.post('/generate-content/artefact/:artefactId', requireAuth, requireAdmin, as
     }
 
     const providerName = parseProvider(req.query.provider, 'google');
-    const provider = createProvider(providerName);
 
-    const result = await provider.generate({
-      prompt: context.template,
-      systemInstruction: buildMuseumGuideSystemPrompt(),
-    });
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.flushHeaders();
 
-    const content = await prisma.content.create({
-      data: {
-        text: result.text,
-        type: 'introduction',
-        artifactId: artefactId,
-        llmProvider: result.provider,
-        model: result.model,
-        prompt: context.template,
-        suggestedQuestions: result.suggestedQuestions ?? [],
-      },
-    });
-
-    let audioUrl: string | null = null;
-    try {
-      audioUrl = await generateAudioForContent(content.id, result.text, {
-        outputDir: audioDir,
-      });
-      await prisma.content.update({
-        where: { id: content.id },
-        data: { audioUrl },
-      });
-    } catch {
-      // Audio is optional
-    }
-
-    const updatedContent = await prisma.content.findUnique({
-      where: { id: content.id },
-    });
-
-    res.json(updatedContent);
-  } catch (error) {
-    let errorMessage = 'Failed to generate content';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      if (
-        error.message.includes('prisma') ||
-        error.message.includes('Invalid')
-      ) {
-        errorMessage = `Database error: ${error.message}
-
-This usually means the Prisma client needs to be regenerated. Run: yarn prisma generate`;
-      }
-    }
-    res.status(500).json({ error: errorMessage });
-  }
-});
-
-// GET /generate-content/artefact/:artefactId/stream - Stream content generation using SSE
-app.get('/generate-content/artefact/:artefactId/stream', requireAuth, requireAdmin, async (req, res) => {
-  if (!req.actor) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
-  if (!signupAllowed) {
-    return;
-  }
-
-  const limitsAllowed = await enforceUsageLimits({
-    res,
-    actor: req.actor,
-    globalIncrements: { llmCalls: 1, dbOps: 1 },
-    userIncrements: { llmCalls: 1 },
-  });
-  if (!limitsAllowed) {
-    return;
-  }
-
-  const artefactId = Number(req.params.artefactId);
-  if (Number.isNaN(artefactId)) {
-    return res.status(400).json({ error: 'Invalid artefactId' });
-  }
-
-  const context = await fetchArtifactContext(artefactId);
-  if (!context) {
-    return res.status(404).json({ error: 'Artifact not found' });
-  }
-
-  const providerName = parseProvider(req.query.provider, 'google');
-
-  // Set up SSE headers
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.flushHeaders();
-
-  const sendEvent = (event: string, data: unknown) => {
-    res.write(`event: ${event}
+    const sendEvent = (event: string, data: unknown) => {
+      res.write(`event: ${event}
 `);
-    res.write(`data: ${JSON.stringify(data)}
+      res.write(`data: ${JSON.stringify(data)}
 
 `);
-  };
+    };
 
-  try {
-    sendEvent('status', {
-      step: 'loading',
-      message: 'Loading artifact data...',
-    });
-
-    sendEvent('status', {
-      step: 'generating',
-      message: `Sending prompt to ${providerName === 'google' ? 'Google' : 'OpenAI'}...`,
-    });
-
-    await assertTextAllowedForLlm(context.template, 'introduction-stream');
-
-    let fullText = '';
-    let modelName = '';
-    const streamStart = Date.now();
-
-    if (providerName === 'google') {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        sendEvent('error', { error: 'GEMINI_API_KEY not configured' });
-        res.end();
-        return;
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      modelName = 'gemini-2.5-flash';
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContentStream(context.template);
-
-      for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
-        fullText += chunkText;
-        sendEvent('chunk', { text: chunkText });
-      }
-
-      const finalResponse = await result.response;
-      const usage = finalResponse.usageMetadata;
-
-      recordApiCall({
-        service: 'Gemini',
-        endpoint: 'generateContentStream',
-        durationMs: Date.now() - streamStart,
-        status: 'success',
-        inputTokens: usage?.promptTokenCount ?? 0,
-        outputTokens: usage?.candidatesTokenCount ?? 0,
-        model: modelName,
-      });
-    } else {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        sendEvent('error', { error: 'OPENAI_API_KEY not configured' });
-        res.end();
-        return;
-      }
-
-      const client = new OpenAI({ apiKey });
-      modelName = process.env.OPENAI_MODEL_INTRODUCTION || 'gpt-5-nano';
-
-      const stream = client.responses.stream({
-        model: modelName,
-        input: [{ role: 'user', content: context.template }],
-        max_output_tokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 1000),
-        reasoning: { effort: 'minimal' },
-      });
-
-      stream.on('response.output_text.delta', (event) => {
-        const delta = typeof event?.delta === 'string' ? event.delta : '';
-        if (!delta) return;
-        fullText += delta;
-        sendEvent('chunk', { text: delta });
-      });
-
-      await stream.done();
-      const finalResponse = await stream.finalResponse();
-      const usage = finalResponse.usage;
-
-      recordApiCall({
-        service: 'OpenAI',
-        endpoint: 'responses.stream',
-        durationMs: Date.now() - streamStart,
-        status: 'success',
-        inputTokens: usage?.input_tokens ?? 0,
-        outputTokens: usage?.output_tokens ?? 0,
-        model: modelName,
-      });
-    }
-
-    sendEvent('status', { step: 'saving', message: 'Saving content...' });
-
-    const content = await prisma.content.create({
-      data: {
-        text: fullText,
-        type: 'introduction',
-        artifactId: artefactId,
-        llmProvider: providerName,
-        model: modelName,
-        prompt: context.template,
-      },
-    });
-
-    sendEvent('status', {
-      step: 'audio',
-      message: 'Generating audio with text-to-speech...',
-    });
-
-    let audioUrl: string | null = null;
     try {
-      audioUrl = await generateAudioForContent(content.id, fullText, {
-        outputDir: audioDir,
+      sendEvent('status', {
+        step: 'loading',
+        message: 'Loading artifact data...',
       });
-      await prisma.content.update({
+
+      sendEvent('status', {
+        step: 'generating',
+        message: `Sending prompt to ${providerName === 'google' ? 'Google' : 'OpenAI'}...`,
+      });
+
+      await assertTextAllowedForLlm(context.template, 'introduction-stream');
+
+      let fullText = '';
+      let modelName = '';
+      const streamStart = Date.now();
+
+      if (providerName === 'google') {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          sendEvent('error', { error: 'GEMINI_API_KEY not configured' });
+          res.end();
+          return;
+        }
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        modelName = 'gemini-2.5-flash';
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContentStream(context.template);
+
+        for await (const chunk of result.stream) {
+          const chunkText = chunk.text();
+          fullText += chunkText;
+          sendEvent('chunk', { text: chunkText });
+        }
+
+        const finalResponse = await result.response;
+        const usage = finalResponse.usageMetadata;
+
+        recordApiCall({
+          service: 'Gemini',
+          endpoint: 'generateContentStream',
+          durationMs: Date.now() - streamStart,
+          status: 'success',
+          inputTokens: usage?.promptTokenCount ?? 0,
+          outputTokens: usage?.candidatesTokenCount ?? 0,
+          model: modelName,
+        });
+      } else {
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+          sendEvent('error', { error: 'OPENAI_API_KEY not configured' });
+          res.end();
+          return;
+        }
+
+        const client = new OpenAI({ apiKey });
+        modelName = process.env.OPENAI_MODEL_INTRODUCTION || 'gpt-5-nano';
+
+        const stream = client.responses.stream({
+          model: modelName,
+          input: [{ role: 'user', content: context.template }],
+          max_output_tokens: Number(
+            process.env.OPENAI_MAX_OUTPUT_TOKENS || 1000
+          ),
+          reasoning: { effort: 'minimal' },
+        });
+
+        stream.on('response.output_text.delta', (event) => {
+          const delta = typeof event?.delta === 'string' ? event.delta : '';
+          if (!delta) return;
+          fullText += delta;
+          sendEvent('chunk', { text: delta });
+        });
+
+        await stream.done();
+        const finalResponse = await stream.finalResponse();
+        const usage = finalResponse.usage;
+
+        recordApiCall({
+          service: 'OpenAI',
+          endpoint: 'responses.stream',
+          durationMs: Date.now() - streamStart,
+          status: 'success',
+          inputTokens: usage?.input_tokens ?? 0,
+          outputTokens: usage?.output_tokens ?? 0,
+          model: modelName,
+        });
+      }
+
+      sendEvent('status', { step: 'saving', message: 'Saving content...' });
+
+      const content = await prisma.content.create({
+        data: {
+          text: fullText,
+          type: 'introduction',
+          artifactId: artefactId,
+          llmProvider: providerName,
+          model: modelName,
+          prompt: context.template,
+        },
+      });
+
+      sendEvent('status', {
+        step: 'audio',
+        message: 'Generating audio with text-to-speech...',
+      });
+
+      let audioUrl: string | null = null;
+      try {
+        audioUrl = await generateAudioForContent(content.id, fullText, {
+          outputDir: audioDir,
+        });
+        await prisma.content.update({
+          where: { id: content.id },
+          data: { audioUrl },
+        });
+      } catch {
+        // Continue without audio
+      }
+
+      const finalContent = await prisma.content.findUnique({
         where: { id: content.id },
-        data: { audioUrl },
       });
-    } catch {
-      // Continue without audio
+
+      sendEvent('complete', { content: finalContent });
+      res.end();
+    } catch (error) {
+      sendEvent('error', {
+        error:
+          error instanceof Error ? error.message : 'Failed to generate content',
+      });
+      res.end();
     }
-
-    const finalContent = await prisma.content.findUnique({
-      where: { id: content.id },
-    });
-
-    sendEvent('complete', { content: finalContent });
-    res.end();
-  } catch (error) {
-    sendEvent('error', {
-      error:
-        error instanceof Error ? error.message : 'Failed to generate content',
-    });
-    res.end();
   }
-});
+);
 
 // GET /wikipedia/summary - Fetch Wikipedia summary for a given URL (with English preference and translation)
 app.get('/wikipedia/summary', async (req, res) => {
@@ -3712,107 +3810,117 @@ app.get('/wikipedia/summary', async (req, res) => {
 });
 
 // POST /generate-audio/artefact/:artefactId - Generate audio for artifact's content
-app.post('/generate-audio/artefact/:artefactId', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const artefactId = Number(req.params.artefactId);
-    if (Number.isNaN(artefactId)) {
-      return res.status(400).json({ error: 'Invalid artefactId' });
-    }
+app.post(
+  '/generate-audio/artefact/:artefactId',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const artefactId = Number(req.params.artefactId);
+      if (Number.isNaN(artefactId)) {
+        return res.status(400).json({ error: 'Invalid artefactId' });
+      }
 
-    const content = await prisma.content.findFirst({
-      where: { artifactId: artefactId },
-      orderBy: { createdAt: 'desc' },
-    });
+      const content = await prisma.content.findFirst({
+        where: { artifactId: artefactId },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    if (!content) {
-      return res
-        .status(404)
-        .json({ error: 'No content found for this artifact' });
-    }
+      if (!content) {
+        return res
+          .status(404)
+          .json({ error: 'No content found for this artifact' });
+      }
 
-    if (!content.text) {
-      return res
-        .status(400)
-        .json({ error: 'Content has no text to generate audio from' });
-    }
+      if (!content.text) {
+        return res
+          .status(400)
+          .json({ error: 'Content has no text to generate audio from' });
+      }
 
-    const audioUrl = await generateAudioForContent(content.id, content.text, {
-      outputDir: audioDir,
-    });
+      const audioUrl = await generateAudioForContent(content.id, content.text, {
+        outputDir: audioDir,
+      });
 
-    const updatedContent = await prisma.content.update({
-      where: { id: content.id },
-      data: { audioUrl },
-    });
+      const updatedContent = await prisma.content.update({
+        where: { id: content.id },
+        data: { audioUrl },
+      });
 
-    res.json(updatedContent);
-  } catch (error) {
-    let errorMessage = 'Failed to generate audio';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      if (
-        error.message.includes('GOOGLE_APPLICATION_CREDENTIALS') ||
-        error.message.includes('credentials') ||
-        error.message.includes('authentication')
-      ) {
-        errorMessage = `${error.message}
+      res.json(updatedContent);
+    } catch (error) {
+      let errorMessage = 'Failed to generate audio';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        if (
+          error.message.includes('GOOGLE_APPLICATION_CREDENTIALS') ||
+          error.message.includes('credentials') ||
+          error.message.includes('authentication')
+        ) {
+          errorMessage = `${error.message}
 
 Make sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentials are set up correctly.`;
+        }
       }
+      res.status(500).json({ error: errorMessage });
     }
-    res.status(500).json({ error: errorMessage });
   }
-});
+);
 
 // POST /generate-audio/content/:contentId - Generate audio for a specific content item
-app.post('/generate-audio/content/:contentId', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const contentId = Number(req.params.contentId);
-    if (Number.isNaN(contentId)) {
-      return res.status(400).json({ error: 'Invalid contentId' });
-    }
+app.post(
+  '/generate-audio/content/:contentId',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const contentId = Number(req.params.contentId);
+      if (Number.isNaN(contentId)) {
+        return res.status(400).json({ error: 'Invalid contentId' });
+      }
 
-    const content = await prisma.content.findUnique({
-      where: { id: contentId },
-    });
+      const content = await prisma.content.findUnique({
+        where: { id: contentId },
+      });
 
-    if (!content) {
-      return res.status(404).json({ error: 'Content not found' });
-    }
+      if (!content) {
+        return res.status(404).json({ error: 'Content not found' });
+      }
 
-    if (!content.text) {
-      return res
-        .status(400)
-        .json({ error: 'Content has no text to generate audio from' });
-    }
+      if (!content.text) {
+        return res
+          .status(400)
+          .json({ error: 'Content has no text to generate audio from' });
+      }
 
-    const audioUrl = await generateAudioForContent(content.id, content.text, {
-      outputDir: audioDir,
-    });
+      const audioUrl = await generateAudioForContent(content.id, content.text, {
+        outputDir: audioDir,
+      });
 
-    const updatedContent = await prisma.content.update({
-      where: { id: content.id },
-      data: { audioUrl },
-    });
+      const updatedContent = await prisma.content.update({
+        where: { id: content.id },
+        data: { audioUrl },
+      });
 
-    res.json(updatedContent);
-  } catch (error) {
-    let errorMessage = 'Failed to generate audio';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      if (
-        error.message.includes('GOOGLE_APPLICATION_CREDENTIALS') ||
-        error.message.includes('credentials') ||
-        error.message.includes('authentication')
-      ) {
-        errorMessage = `${error.message}
+      res.json(updatedContent);
+    } catch (error) {
+      let errorMessage = 'Failed to generate audio';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        if (
+          error.message.includes('GOOGLE_APPLICATION_CREDENTIALS') ||
+          error.message.includes('credentials') ||
+          error.message.includes('authentication')
+        ) {
+          errorMessage = `${error.message}
 
 Make sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentials are set up correctly.`;
+        }
       }
+      res.status(500).json({ error: errorMessage });
     }
-    res.status(500).json({ error: errorMessage });
   }
-});
+);
 
 // POST /admin/artifacts/:artifactId/generate-introduction
 app.post(
@@ -3825,7 +3933,10 @@ app.post(
         return res.status(401).json({ error: 'Not authenticated' });
       }
 
-      const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+      const signupAllowed = await enforceSignupPolicy({
+        actor: req.actor,
+        res,
+      });
       if (!signupAllowed) {
         return;
       }
@@ -3877,127 +3988,144 @@ app.post(
 );
 
 // GET /admin/llm-usage/monthly
-app.get('/admin/llm-usage/monthly', requireAuth, requireAdmin, async (_req, res) => {
-  try {
-    const spend = await getMonthlySpendEur();
-    res.json({ spend });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch usage data' });
+app.get(
+  '/admin/llm-usage/monthly',
+  requireAuth,
+  requireAdmin,
+  async (_req, res) => {
+    try {
+      const spend = await getMonthlySpendEur();
+      res.json({ spend });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch usage data' });
+    }
   }
-});
+);
 
 // GET /admin/openai-usage/daily - Get today's OpenAI token usage by model tier
-app.get('/admin/openai-usage/daily', requireAuth, requireAdmin, async (_req, res) => {
-  try {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+app.get(
+  '/admin/openai-usage/daily',
+  requireAuth,
+  requireAdmin,
+  async (_req, res) => {
+    try {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
 
-    const PREMIUM_MODELS = new Set([
-      'gpt-5.2',
-      'gpt-5.1',
-      'gpt-5.1-codex',
-      'gpt-5',
-      'gpt-5-codex',
-      'gpt-5-chat-latest',
-      'gpt-4.1',
-      'gpt-4o',
-      'o1',
-      'o3',
-    ]);
+      const PREMIUM_MODELS = new Set([
+        'gpt-5.2',
+        'gpt-5.1',
+        'gpt-5.1-codex',
+        'gpt-5',
+        'gpt-5-codex',
+        'gpt-5-chat-latest',
+        'gpt-4.1',
+        'gpt-4o',
+        'o1',
+        'o3',
+      ]);
 
-    const MINI_MODELS = new Set([
-      'gpt-5.1-codex-mini',
-      'gpt-5-mini',
-      'gpt-5-nano',
-      'gpt-4.1-mini',
-      'gpt-4.1-nano',
-      'gpt-4o-mini',
-      'o1-mini',
-      'o3-mini',
-      'o4-mini',
-      'codex-mini-latest',
-    ]);
+      const MINI_MODELS = new Set([
+        'gpt-5.1-codex-mini',
+        'gpt-5-mini',
+        'gpt-5-nano',
+        'gpt-4.1-mini',
+        'gpt-4.1-nano',
+        'gpt-4o-mini',
+        'o1-mini',
+        'o3-mini',
+        'o4-mini',
+        'codex-mini-latest',
+      ]);
 
-    const rows = await prisma.apiCall.findMany({
-      where: {
-        service: 'OpenAI',
-        createdAt: { gte: startOfDay },
-      },
-      select: {
-        model: true,
-        inputTokens: true,
-        outputTokens: true,
-      },
-    });
+      const rows = await prisma.apiCall.findMany({
+        where: {
+          service: 'OpenAI',
+          createdAt: { gte: startOfDay },
+        },
+        select: {
+          model: true,
+          inputTokens: true,
+          outputTokens: true,
+        },
+      });
 
-    let premiumTokens = 0;
-    let miniTokens = 0;
+      let premiumTokens = 0;
+      let miniTokens = 0;
 
-    for (const row of rows) {
-      const total = (row.inputTokens ?? 0) + (row.outputTokens ?? 0);
-      if (row.model && PREMIUM_MODELS.has(row.model)) {
-        premiumTokens += total;
-      } else if (row.model && MINI_MODELS.has(row.model)) {
-        miniTokens += total;
-      } else {
-        // Unknown model - count as premium to be safe
-        premiumTokens += total;
+      for (const row of rows) {
+        const total = (row.inputTokens ?? 0) + (row.outputTokens ?? 0);
+        if (row.model && PREMIUM_MODELS.has(row.model)) {
+          premiumTokens += total;
+        } else if (row.model && MINI_MODELS.has(row.model)) {
+          miniTokens += total;
+        } else {
+          // Unknown model - count as premium to be safe
+          premiumTokens += total;
+        }
       }
-    }
 
-    res.json({
-      premium: {
-        used: premiumTokens,
-        limit: 250_000,
-      },
-      mini: {
-        used: miniTokens,
-        limit: 2_500_000,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch daily usage data' });
+      res.json({
+        premium: {
+          used: premiumTokens,
+          limit: 250_000,
+        },
+        mini: {
+          used: miniTokens,
+          limit: 2_500_000,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch daily usage data' });
+    }
   }
-});
+);
 
 // GET /admin/api-calls/daily - Summary of today's API calls by service
-app.get('/admin/api-calls/daily', requireAuth, requireAdmin, async (_req, res) => {
-  try {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+app.get(
+  '/admin/api-calls/daily',
+  requireAuth,
+  requireAdmin,
+  async (_req, res) => {
+    try {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
 
-    const rows = await prisma.apiCall.findMany({
-      where: { createdAt: { gte: startOfDay } },
-      select: { service: true, durationMs: true },
-    });
+      const rows = await prisma.apiCall.findMany({
+        where: { createdAt: { gte: startOfDay } },
+        select: { service: true, durationMs: true },
+      });
 
-    const totalCalls = rows.length;
+      const totalCalls = rows.length;
 
-    const byService = new Map<
-      string,
-      { count: number; totalDurationMs: number }
-    >();
-    for (const row of rows) {
-      const entry = byService.get(row.service) ?? {
-        count: 0,
-        totalDurationMs: 0,
-      };
-      entry.count++;
-      entry.totalDurationMs += row.durationMs;
-      byService.set(row.service, entry);
+      const byService = new Map<
+        string,
+        { count: number; totalDurationMs: number }
+      >();
+      for (const row of rows) {
+        const entry = byService.get(row.service) ?? {
+          count: 0,
+          totalDurationMs: 0,
+        };
+        entry.count++;
+        entry.totalDurationMs += row.durationMs;
+        byService.set(row.service, entry);
+      }
+
+      const services = Array.from(byService.entries()).map(
+        ([service, data]) => ({
+          service,
+          count: data.count,
+          avgDurationMs: Math.round(data.totalDurationMs / data.count),
+        })
+      );
+
+      res.json({ totalCalls, services, globalLimits: GLOBAL_DAILY_LIMITS });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch daily API call data' });
     }
-
-    const services = Array.from(byService.entries()).map(([service, data]) => ({
-      service,
-      count: data.count,
-      avgDurationMs: Math.round(data.totalDurationMs / data.count),
-    }));
-
-    res.json({ totalCalls, services, globalLimits: GLOBAL_DAILY_LIMITS });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch daily API call data' });
   }
-});
+);
 
 // GET /admin/api-calls - Paginated recent API calls
 app.get('/admin/api-calls', requireAuth, requireAdmin, async (req, res) => {

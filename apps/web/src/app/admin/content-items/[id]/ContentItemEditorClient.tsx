@@ -77,7 +77,9 @@ export function ContentItemEditorClient({
           </div>
         )}
       </div>
-      {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
+      {errorMessage && (
+        <p className="text-sm text-destructive">{errorMessage}</p>
+      )}
     </form>
   );
 }

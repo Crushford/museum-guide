@@ -16,7 +16,9 @@ import type { StructuredApiErrorBody, UsageSnapshot } from '@/lib/api-errors';
 import { apiErrorEventName } from '@/lib/api-errors';
 
 const FEEDBACK_URL =
-  process.env.NEXT_PUBLIC_FEEDBACK_URL || process.env.NEXT_PUBLIC_WAITLIST_URL || 'https://forms.gle/';
+  process.env.NEXT_PUBLIC_FEEDBACK_URL ||
+  process.env.NEXT_PUBLIC_WAITLIST_URL ||
+  'https://forms.gle/';
 const LINKEDIN_URL = 'https://www.linkedin.com/in/rushfordj/';
 
 export function ApiErrorDialogs() {
@@ -24,7 +26,9 @@ export function ApiErrorDialogs() {
   const { signIn } = useAuth();
   const [showGlobalLimit, setShowGlobalLimit] = useState(false);
   const [showAuthRequired, setShowAuthRequired] = useState(false);
-  const [userLimitUsage, setUserLimitUsage] = useState<UsageSnapshot | null>(null);
+  const [userLimitUsage, setUserLimitUsage] = useState<UsageSnapshot | null>(
+    null
+  );
 
   useEffect(() => {
     const handleError = (event: Event) => {
@@ -54,7 +58,10 @@ export function ApiErrorDialogs() {
 
     window.addEventListener(apiErrorEventName(), handleError as EventListener);
     return () => {
-      window.removeEventListener(apiErrorEventName(), handleError as EventListener);
+      window.removeEventListener(
+        apiErrorEventName(),
+        handleError as EventListener
+      );
     };
   }, [router]);
 
@@ -65,21 +72,28 @@ export function ApiErrorDialogs() {
           <DialogHeader>
             <DialogTitle>Prototype limit reached for today</DialogTitle>
             <DialogDescription>
-              We appreciate you using Museum Guide. This app is still in prototype stage and we
-              have hit the usage limits set for today.
+              We appreciate you using Museum Guide. This app is still in
+              prototype stage and we have hit the usage limits set for today.
             </DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            I am still working out how this app works and I am trying to avoid running up large
-            bills, so for the rest of today Museum Guide will not run more actions.
+            I am still working out how this app works and I am trying to avoid
+            running up large bills, so for the rest of today Museum Guide will
+            not run more actions.
           </p>
           <p className="text-sm text-muted-foreground">
-            I am super keen to hear your feedback on anything we can improve. The form below goes
-            straight to my email and I really appreciate any feedback you have.
+            I am super keen to hear your feedback on anything we can improve.
+            The form below goes straight to my email and I really appreciate any
+            feedback you have.
           </p>
-          <p className="text-sm text-muted-foreground">Thanks again, James Rushford</p>
+          <p className="text-sm text-muted-foreground">
+            Thanks again, James Rushford
+          </p>
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setShowGlobalLimit(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowGlobalLimit(false)}
+            >
               Close
             </Button>
             <Button asChild>
@@ -103,8 +117,8 @@ export function ApiErrorDialogs() {
           <DialogHeader>
             <DialogTitle>You have reached your daily limit</DialogTitle>
             <DialogDescription>
-              Museum Guide is in prototype stage, so each user has a daily usage limit. You have
-              reached your limit for today.
+              Museum Guide is in prototype stage, so each user has a daily usage
+              limit. You have reached your limit for today.
             </DialogDescription>
           </DialogHeader>
 
@@ -113,7 +127,8 @@ export function ApiErrorDialogs() {
               <p>Today you have:</p>
               <ul className="space-y-1 text-muted-foreground">
                 <li>
-                  Created {userLimitUsage.user.artifactCreates} artifacts from scans
+                  Created {userLimitUsage.user.artifactCreates} artifacts from
+                  scans
                 </li>
                 <li>Created {userLimitUsage.user.museumCreates} museums</li>
                 <li>Made {userLimitUsage.user.llmCalls} LLM requests</li>
@@ -123,8 +138,8 @@ export function ApiErrorDialogs() {
           )}
 
           <p className="text-sm text-muted-foreground">
-            To increase your limits, contact me for a promo code to try the premium experience.
-            You can reach me on LinkedIn:{' '}
+            To increase your limits, contact me for a promo code to try the
+            premium experience. You can reach me on LinkedIn:{' '}
             <a
               href={LINKEDIN_URL}
               target="_blank"
@@ -157,12 +172,15 @@ export function ApiErrorDialogs() {
           <DialogHeader>
             <DialogTitle>Sign in required</DialogTitle>
             <DialogDescription>
-              Welcome, and thanks for checking out Museum Guide. To create new museums and
-              artifacts, you need to be signed in.
+              Welcome, and thanks for checking out Museum Guide. To create new
+              museums and artifacts, you need to be signed in.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setShowAuthRequired(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowAuthRequired(false)}
+            >
               Close
             </Button>
             <Button onClick={() => void signIn()}>Sign in with Google</Button>

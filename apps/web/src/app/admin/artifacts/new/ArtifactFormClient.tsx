@@ -182,7 +182,9 @@ export function ArtifactFormClient({
 
     startTransition(async () => {
       try {
-        await authedApi.run((token) => createArtifactWithRoom(token, artifactData));
+        await authedApi.run((token) =>
+          createArtifactWithRoom(token, artifactData)
+        );
         // Clear localStorage on successful save
         if (typeof window !== 'undefined') {
           localStorage.removeItem(STORAGE_KEY);

@@ -53,14 +53,20 @@ export default function AccountPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await authedApi.get<AccountUsageResponse>('/account/usage');
+      const response =
+        await authedApi.get<AccountUsageResponse>('/account/usage');
       setData(response);
     } catch (err) {
-      if (err instanceof ApiRequestError && err.body?.code === 'SIGNUP_WAITLIST') {
+      if (
+        err instanceof ApiRequestError &&
+        err.body?.code === 'SIGNUP_WAITLIST'
+      ) {
         router.push('/waitlist');
         return;
       }
-      setError(err instanceof Error ? err.message : 'Failed to load account usage.');
+      setError(
+        err instanceof Error ? err.message : 'Failed to load account usage.'
+      );
     } finally {
       setLoading(false);
     }
@@ -77,7 +83,10 @@ export default function AccountPage() {
       <PageTitle>Account</PageTitle>
 
       {!authLoading && !user && (
-        <SectionCard title="Not signed in" subtitle="Sign in to view your account.">
+        <SectionCard
+          title="Not signed in"
+          subtitle="Sign in to view your account."
+        >
           <Button onClick={() => void signIn()}>Sign in with Google</Button>
         </SectionCard>
       )}
@@ -91,7 +100,10 @@ export default function AccountPage() {
       )}
 
       {user && (
-        <SectionCard title="Profile" subtitle="Current login status and usage for today.">
+        <SectionCard
+          title="Profile"
+          subtitle="Current login status and usage for today."
+        >
           <div className="space-y-4 text-sm">
             <div>
               <p className="text-muted-foreground">Email</p>
@@ -99,7 +111,9 @@ export default function AccountPage() {
             </div>
             <div>
               <p className="text-muted-foreground">UID</p>
-              <p className="font-mono break-all">{data?.user.uid || user.uid}</p>
+              <p className="font-mono break-all">
+                {data?.user.uid || user.uid}
+              </p>
             </div>
 
             {error && <Alert>{error}</Alert>}
@@ -112,19 +126,25 @@ export default function AccountPage() {
 
             {data && (
               <div className="space-y-3">
-                <p className="font-medium">Usage today ({data.usage.dateKey})</p>
+                <p className="font-medium">
+                  Usage today ({data.usage.dateKey})
+                </p>
                 <ul className="space-y-1 text-muted-foreground">
                   <li>
-                    LLM requests: {data.usage.usage.llmCalls} / {limitLabel(data.usage.limits.llmCalls)}
+                    LLM requests: {data.usage.usage.llmCalls} /{' '}
+                    {limitLabel(data.usage.limits.llmCalls)}
                   </li>
                   <li>
-                    Wikipedia requests: {data.usage.usage.wikiCalls} / {limitLabel(data.usage.limits.wikiCalls)}
+                    Wikipedia requests: {data.usage.usage.wikiCalls} /{' '}
+                    {limitLabel(data.usage.limits.wikiCalls)}
                   </li>
                   <li>
-                    Museum creates: {data.usage.usage.museumCreates} / {limitLabel(data.usage.limits.museumCreates)}
+                    Museum creates: {data.usage.usage.museumCreates} /{' '}
+                    {limitLabel(data.usage.limits.museumCreates)}
                   </li>
                   <li>
-                    Scanned artifact creates: {data.usage.usage.artifactCreates} / {limitLabel(data.usage.limits.artifactCreates)}
+                    Scanned artifact creates: {data.usage.usage.artifactCreates}{' '}
+                    / {limitLabel(data.usage.limits.artifactCreates)}
                   </li>
                 </ul>
                 <p className="text-xs text-muted-foreground">
@@ -134,7 +154,11 @@ export default function AccountPage() {
             )}
 
             <div className="flex gap-2 pt-2">
-              <Button variant="secondary" onClick={() => void loadUsage()} disabled={loading}>
+              <Button
+                variant="secondary"
+                onClick={() => void loadUsage()}
+                disabled={loading}
+              >
                 Refresh usage
               </Button>
               <Button variant="secondary" onClick={() => void signOut()}>

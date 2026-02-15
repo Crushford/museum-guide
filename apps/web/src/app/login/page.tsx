@@ -21,7 +21,10 @@ export default function LoginPage() {
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-8">
       <PageTitle>Login</PageTitle>
-      <SectionCard title="Sign in" subtitle="Use your Google account to continue.">
+      <SectionCard
+        title="Sign in"
+        subtitle="Use your Google account to continue."
+      >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
             You need to be signed in to create museums and artifacts.

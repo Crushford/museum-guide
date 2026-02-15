@@ -152,9 +152,7 @@ export function ArtifactIntroduction({
                 emitApiError({
                   code: data.code,
                   message:
-                    typeof data.message === 'string'
-                      ? data.message
-                      : undefined,
+                    typeof data.message === 'string' ? data.message : undefined,
                 });
               }
               throw new Error(
@@ -175,7 +173,9 @@ export function ArtifactIntroduction({
             let separatorIndex = buffer.indexOf('\n\n');
 
             while (separatorIndex !== -1) {
-              const rawEvent = buffer.slice(0, separatorIndex).replace(/\r/g, '');
+              const rawEvent = buffer
+                .slice(0, separatorIndex)
+                .replace(/\r/g, '');
               buffer = buffer.slice(separatorIndex + 2);
               if (rawEvent.trim()) {
                 processEvent(rawEvent);
@@ -225,7 +225,6 @@ export function ArtifactIntroduction({
               </p>
             </div>
           )}
-
         </div>
       </SectionCard>
     );

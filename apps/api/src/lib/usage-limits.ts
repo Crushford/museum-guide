@@ -101,9 +101,9 @@ function getNextResetAtIso(): string {
 function usageSchemaAvailable(): boolean {
   return Boolean(
     db?.appUser &&
-      db?.dailyUserUsage &&
-      db?.dailyGlobalUsage &&
-      db?.$transaction
+    db?.dailyUserUsage &&
+    db?.dailyGlobalUsage &&
+    db?.$transaction
   );
 }
 
@@ -271,7 +271,10 @@ export async function enforceUsageLimits(options: {
   const dateKey = getTodayDateKey();
 
   if (hasAnyCounters(userIncrements) && options.actor?.uid) {
-    const usageFromLogs = await deriveUsageFromApiLogs(options.actor.uid, dateKey);
+    const usageFromLogs = await deriveUsageFromApiLogs(
+      options.actor.uid,
+      dateKey
+    );
     if (userLimitExceeded(usageFromLogs, userIncrements, userCaps)) {
       sendBlocked(
         options.res,
@@ -822,9 +825,15 @@ export async function getUserUsageForToday(userUid: string) {
 
   if (!usageSchemaAvailable()) {
     warnMissingUsageSchema('getUserUsageForToday:client-check');
-    debugUsageLog('Schema unavailable during usage read.', { userUid, dateKey });
+    debugUsageLog('Schema unavailable during usage read.', {
+      userUid,
+      dateKey,
+    });
     const usageFromLogs = await deriveUsageFromApiLogs(userUid, dateKey);
-    debugUsageLog('Derived usage from API logs (schema unavailable).', usageFromLogs);
+    debugUsageLog(
+      'Derived usage from API logs (schema unavailable).',
+      usageFromLogs
+    );
     return {
       dateKey,
       resetAt: getNextResetAtIso(),

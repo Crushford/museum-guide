@@ -108,7 +108,11 @@ export async function updateNodeField(
     updateData.parentId = value as number | null;
   }
 
-  return authedApiMutate(`/nodes/${id}`, { method: 'PATCH', body: updateData }, token);
+  return authedApiMutate(
+    `/nodes/${id}`,
+    { method: 'PATCH', body: updateData },
+    token
+  );
 }
 
 // Update room parent relationship (museumId or parentRoomId)
@@ -135,7 +139,11 @@ export async function updateRoomParent(
     updateData.parentRoomId = null;
   }
 
-  return authedApiMutate(`/rooms/${id}`, { method: 'PATCH', body: updateData }, token);
+  return authedApiMutate(
+    `/rooms/${id}`,
+    { method: 'PATCH', body: updateData },
+    token
+  );
 }
 
 export async function deleteEntity(

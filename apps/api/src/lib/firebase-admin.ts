@@ -1,4 +1,9 @@
-import { initializeApp, cert, getApps, applicationDefault } from 'firebase-admin/app';
+import {
+  initializeApp,
+  cert,
+  getApps,
+  applicationDefault,
+} from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 
 const hasServiceAccountEnv =

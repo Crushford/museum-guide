@@ -8,7 +8,9 @@ export function AuthStatus() {
   const { user, loading, signIn, signOut } = useAuth();
 
   if (loading) {
-    return <span className="text-sm text-muted-foreground">Checking session...</span>;
+    return (
+      <span className="text-sm text-muted-foreground">Checking session...</span>
+    );
   }
 
   if (!user) {
@@ -23,7 +25,9 @@ export function AuthStatus() {
 
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="hidden text-muted-foreground sm:inline">{user.email}</span>
+      <span className="hidden text-muted-foreground sm:inline">
+        {user.email}
+      </span>
       <Button variant="secondary" size="sm" asChild>
         <Link href="/account">Account</Link>
       </Button>

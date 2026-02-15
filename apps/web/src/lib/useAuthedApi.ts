@@ -37,7 +37,8 @@ export function useAuthedApi() {
         const refreshedIsAdmin = await refreshAdminClaims();
         if (!refreshedIsAdmin) {
           throw new Error(
-            options?.adminErrorMessage ?? 'Admin access is required for this action.'
+            options?.adminErrorMessage ??
+              'Admin access is required for this action.'
           );
         }
       }
@@ -66,15 +67,9 @@ export function useAuthedApi() {
       request: { method: string; body?: unknown },
       options?: AuthedRequestOptions
     ): Promise<T> =>
-      run(
-        (token) => authedApiMutate<T>(path, request, token),
-        options
-      ),
+      run((token) => authedApiMutate<T>(path, request, token), options),
     [run]
   );
 
-  return useMemo(
-    () => ({ run, get, post, mutate }),
-    [run, get, post, mutate]
-  );
+  return useMemo(() => ({ run, get, post, mutate }), [run, get, post, mutate]);
 }

@@ -24,9 +24,9 @@ export default function AdminContentPage() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-      try {
-        setLoading(true);
-        setError(null);
+    try {
+      setLoading(true);
+      setError(null);
       const [museumsData, roomsData, artifactsData, contentData] =
         await Promise.all([
           authedApi.get<MuseumResponse[]>('/admin/content/museums'),

@@ -102,7 +102,8 @@ export default function ApiCallsPage() {
   const totalPages = Math.ceil(total / 50);
 
   const allServices = daily?.services.map((s) => s.service) ?? [];
-  const fmtLimit = (value: number | null) => (value === null ? 'Disabled' : value);
+  const fmtLimit = (value: number | null) =>
+    value === null ? 'Disabled' : value;
 
   return (
     <PageLayout
@@ -130,13 +131,40 @@ export default function ApiCallsPage() {
               ))}
             </div>
             <div className="mt-4 rounded-lg border p-4">
-              <p className="text-sm text-muted-foreground mb-2">Global Daily Limits</p>
+              <p className="text-sm text-muted-foreground mb-2">
+                Global Daily Limits
+              </p>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 text-sm">
-                <div>LLM: <span className="font-semibold">{fmtLimit(daily.globalLimits.llmCalls)}</span></div>
-                <div>Wikipedia: <span className="font-semibold">{fmtLimit(daily.globalLimits.wikiCalls)}</span></div>
-                <div>Museums: <span className="font-semibold">{fmtLimit(daily.globalLimits.museumCreates)}</span></div>
-                <div>Artifacts: <span className="font-semibold">{fmtLimit(daily.globalLimits.artifactCreates)}</span></div>
-                <div>DB ops: <span className="font-semibold">{fmtLimit(daily.globalLimits.dbOps)}</span></div>
+                <div>
+                  LLM:{' '}
+                  <span className="font-semibold">
+                    {fmtLimit(daily.globalLimits.llmCalls)}
+                  </span>
+                </div>
+                <div>
+                  Wikipedia:{' '}
+                  <span className="font-semibold">
+                    {fmtLimit(daily.globalLimits.wikiCalls)}
+                  </span>
+                </div>
+                <div>
+                  Museums:{' '}
+                  <span className="font-semibold">
+                    {fmtLimit(daily.globalLimits.museumCreates)}
+                  </span>
+                </div>
+                <div>
+                  Artifacts:{' '}
+                  <span className="font-semibold">
+                    {fmtLimit(daily.globalLimits.artifactCreates)}
+                  </span>
+                </div>
+                <div>
+                  DB ops:{' '}
+                  <span className="font-semibold">
+                    {fmtLimit(daily.globalLimits.dbOps)}
+                  </span>
+                </div>
               </div>
             </div>
           </SectionCard>

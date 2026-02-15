@@ -84,7 +84,7 @@ export default async function MuseumPage({
           initialWikipediaSummary={museumData.wikipediaSummary ?? undefined}
           initialOfficialWebsite={museumData.officialWebsite ?? undefined}
           initialCoordinates={
-            (museumData.coordinates as { lat: number; lng: number } | undefined)
+            museumData.coordinates as { lat: number; lng: number } | undefined
           }
           initialImage={museumData.image}
           initialWikipediaUrl={museumData.wikipediaUrl}
