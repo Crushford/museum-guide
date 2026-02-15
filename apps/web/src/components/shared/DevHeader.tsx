@@ -8,7 +8,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { API_URL } from '@/lib/api';
 
 type SpendRow = {
   provider: string;
@@ -125,21 +124,21 @@ export function DevHeader() {
     let cancelled = false;
 
     const refresh = () => {
-      fetch(`${API_URL}/admin/llm-usage/monthly`)
+      fetch('/api/admin/llm-usage/monthly')
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (!cancelled && data?.spend) setSpend(data.spend);
         })
         .catch(() => {});
 
-      fetch(`${API_URL}/admin/openai-usage/daily`)
+      fetch('/api/admin/openai-usage/daily')
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (!cancelled && data?.premium && data?.mini) setDailyUsage(data);
         })
         .catch(() => {});
 
-      fetch(`${API_URL}/admin/api-calls/daily`)
+      fetch('/api/admin/api-calls/daily')
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (!cancelled && data?.totalCalls !== undefined) setApiCalls(data);

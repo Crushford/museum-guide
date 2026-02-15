@@ -12,27 +12,46 @@ enum ArtifactQuestionStatus {
   ANONYMIZED
 }
 
+enum UserTier {
+  MEMBER
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  EXPIRED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model Artifact {
-  id                   Int          @id @default(autoincrement())
-  displayTitle         String       @map("name")
+  id                   Int                @id @default(autoincrement())
+  displayTitle         String             @map("name")
   localTitle           String?
   localTitleLanguage   String?
   englishTitle         String?
   rawPlaqueText        String?
   knowledgeTextEn      String?
-  slug                 String       @default(dbgenerated())
-  furtherReading       String[]     @default([])
-  wikidataId           String?      @unique
+  slug                 String             @default(dbgenerated())
+  furtherReading       String[]           @default([])
+  wikidataId           String?            @unique
   wikipediaUrl         String?
   wikimediaImageUrl    String?
   wikipediaSummary     String?
   wikipediaSummaryLang String? // Original language code (e.g., "de", "en")
   roomId               Int?
   museumId             Int
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
-  room                 Room?        @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  museum               Museum       @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  createdByUserId      String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  room                 Room?              @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  museum               Museum             @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  createdByUser        User?              @relation("ArtifactCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   content              Content[]
   plaqueScans          PlaqueScan[]
   questions            ArtifactQuestion[]
@@ -40,50 +59,55 @@ model Artifact {
   @@unique([slug, museumId])
   @@index([roomId])
   @@index([museumId])
+  @@index([createdByUserId])
 }
 
 model PlaqueScan {
-  id          Int      @id @default(autoincrement())
-  artifactId  Int
-  museumId    Int
-  imageUrl    String
-  rawText     String
-  ocrMetadata Json?
-  createdAt   DateTime @default(now())
-  artifact    Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
-  museum      Museum   @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  id              Int      @id @default(autoincrement())
+  artifactId      Int
+  museumId        Int
+  createdByUserId String?
+  imageUrl        String
+  rawText         String
+  ocrMetadata     Json?
+  createdAt       DateTime @default(now())
+  artifact        Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  museum          Museum   @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  createdByUser   User?    @relation("PlaqueScanCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([artifactId])
   @@index([museumId])
+  @@index([createdByUserId])
 }
 
 model Content {
-  id              Int       @id @default(autoincrement())
-  text            String
-  type            String?
-  museumId        Int?
-  roomId          Int?
-  artifactId      Int?
-  llmProvider     String
-  model           String
-  prompt          String
-  promptVersion   String    @default("1.0")
-  isAdultContent  Boolean   @default(false)
-  sensitiveTopics String[]  @default([])
-  subjectTags     String[]  @default([])
-  suggestedQuestions String[] @default([])
-  audioUrl        String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  Artifact        Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
-  Museum          Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)
-  Room            Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  id                 Int       @id @default(autoincrement())
+  text               String
+  type               String?
+  museumId           Int?
+  roomId             Int?
+  artifactId         Int?
+  llmProvider        String
+  model              String
+  prompt             String
+  promptVersion      String    @default("1.0")
+  isAdultContent     Boolean   @default(false)
+  sensitiveTopics    String[]  @default([])
+  subjectTags        String[]  @default([])
+  suggestedQuestions String[]  @default([])
+  audioUrl           String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  Artifact           Artifact? @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  Museum             Museum?   @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  Room               Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
 model Museum {
   id                  Int       @id @default(autoincrement())
   name                String
   slug                String    @unique @default(dbgenerated())
+  createdByUserId     String?
   knowledgeText       String?
   furtherReading      String[]  @default([])
   wikidataId          String?   @unique
@@ -100,35 +124,40 @@ model Museum {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  rooms       Room[]
-  artifacts   Artifact[]
-  plaqueScans PlaqueScan[]
-  content     Content[]
-  questions   ArtifactQuestion[]
+  rooms         Room[]
+  artifacts     Artifact[]
+  plaqueScans   PlaqueScan[]
+  content       Content[]
+  questions     ArtifactQuestion[]
+  createdByUser User?              @relation("MuseumCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([citySlug])
+  @@index([createdByUserId])
 }
 
 model Room {
-  id             Int        @id @default(autoincrement())
-  name           String
-  slug           String     @default(dbgenerated())
-  knowledgeText  String?
-  furtherReading String[]   @default([])
-  museumId       Int
-  parentRoomId   Int?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  museum         Museum     @relation(fields: [museumId], references: [id], onDelete: Cascade)
-  parentRoom     Room?      @relation("RoomToRoom", fields: [parentRoomId], references: [id], onDelete: Cascade)
-  childRooms     Room[]     @relation("RoomToRoom")
-  artifacts      Artifact[]
-  content        Content[]
-  questions      ArtifactQuestion[]
+  id              Int                @id @default(autoincrement())
+  name            String
+  slug            String             @default(dbgenerated())
+  knowledgeText   String?
+  furtherReading  String[]           @default([])
+  museumId        Int
+  parentRoomId    Int?
+  createdByUserId String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  museum          Museum             @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  parentRoom      Room?              @relation("RoomToRoom", fields: [parentRoomId], references: [id], onDelete: Cascade)
+  childRooms      Room[]             @relation("RoomToRoom")
+  createdByUser   User?              @relation("RoomCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  artifacts       Artifact[]
+  content         Content[]
+  questions       ArtifactQuestion[]
 
   @@unique([slug, museumId])
   @@index([museumId])
   @@index([parentRoomId])
+  @@index([createdByUserId])
 }
 
 model ApiCall {
@@ -156,66 +185,74 @@ model ApiCall {
 }
 
 model ArtifactQuestion {
-  id                     Int                   @id @default(autoincrement())
-  artifactId             Int
-  museumId               Int
-  roomId                 Int?
-  questionText           String
-  normalizedQuestion     String
-  questionHash           String
-  questionLanguage       String?
-  askedByUsername        String
-  status                 ArtifactQuestionStatus @default(ACTIVE)
-  askCount               Int                   @default(1)
-  upvotes                Int                   @default(0)
-  downvotes              Int                   @default(0)
-  similarToQuestionId    Int?
-  answerText             String?
-  answerLanguage         String?
-  answerAudioUrl         String?
-  isAdultContent         Boolean               @default(false)
-  sensitiveTopics        String[]              @default([])
-  subjectTags            String[]              @default([])
-  moderationBlocked      Boolean               @default(false)
-  moderationCategories   String[]              @default([])
-  moderationPayload      Json?
-  llmProvider            String?
-  model                  String?
-  prompt                 String?
-  promptVersion          String                @default("1.0")
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @updatedAt
-  artifact               Artifact              @relation(fields: [artifactId], references: [id], onDelete: Cascade)
-  museum                 Museum                @relation(fields: [museumId], references: [id], onDelete: Cascade)
-  room                   Room?                 @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  similarToQuestion      ArtifactQuestion?     @relation("ArtifactQuestionSimilarity", fields: [similarToQuestionId], references: [id], onDelete: SetNull)
-  similarQuestions       ArtifactQuestion[]    @relation("ArtifactQuestionSimilarity")
-  votes                  ArtifactQuestionVote[]
-  listenEvents           ArtifactQuestionListenEvent[]
+  id                   Int                           @id @default(autoincrement())
+  artifactId           Int
+  museumId             Int
+  roomId               Int?
+  askedByUserId        String?
+  questionText         String
+  normalizedQuestion   String
+  questionHash         String
+  questionLanguage     String?
+  askedByUsername      String
+  status               ArtifactQuestionStatus        @default(ACTIVE)
+  askCount             Int                           @default(1)
+  upvotes              Int                           @default(0)
+  downvotes            Int                           @default(0)
+  similarToQuestionId  Int?
+  answerText           String?
+  answerLanguage       String?
+  answerAudioUrl       String?
+  isAdultContent       Boolean                       @default(false)
+  sensitiveTopics      String[]                      @default([])
+  subjectTags          String[]                      @default([])
+  moderationBlocked    Boolean                       @default(false)
+  moderationCategories String[]                      @default([])
+  moderationPayload    Json?
+  llmProvider          String?
+  model                String?
+  prompt               String?
+  promptVersion        String                        @default("1.0")
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+  artifact             Artifact                      @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  museum               Museum                        @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  room                 Room?                         @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  askedByUser          User?                         @relation("ArtifactQuestionAskedBy", fields: [askedByUserId], references: [id], onDelete: SetNull)
+  similarToQuestion    ArtifactQuestion?             @relation("ArtifactQuestionSimilarity", fields: [similarToQuestionId], references: [id], onDelete: SetNull)
+  similarQuestions     ArtifactQuestion[]            @relation("ArtifactQuestionSimilarity")
+  votes                ArtifactQuestionVote[]
+  listenEvents         ArtifactQuestionListenEvent[]
 
   @@index([artifactId, status])
   @@index([museumId])
   @@index([roomId])
   @@index([questionHash])
   @@index([similarToQuestionId])
+  @@index([askedByUserId])
 }
 
 model ArtifactQuestionVote {
-  id          Int              @id @default(autoincrement())
-  questionId  Int
-  username    String
-  value       Int
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  question    ArtifactQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  id         Int              @id @default(autoincrement())
+  questionId Int
+  userId     String?
+  username   String
+  value      Int
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  question   ArtifactQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user       User?            @relation("ArtifactQuestionVoteUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([questionId, username])
+  @@unique([questionId, userId])
   @@index([questionId])
+  @@index([userId])
 }
 
 model ArtifactQuestionListenEvent {
   id              Int              @id @default(autoincrement())
   questionId      Int
+  userId          String?
   username        String?
   sessionId       String?
   durationSeconds Float            @default(0)
@@ -223,7 +260,127 @@ model ArtifactQuestionListenEvent {
   source          String?
   createdAt       DateTime         @default(now())
   question        ArtifactQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user            User?            @relation("ArtifactQuestionListenUser", fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([questionId])
   @@index([createdAt])
+  @@index([userId])
+}
+
+model User {
+  id                   String                        @id @default(cuid())
+  email                String                        @unique
+  googleSub            String                        @unique
+  displayName          String?
+  avatarUrl            String?
+  role                 UserRole                      @default(USER)
+  tier                 UserTier                      @default(MEMBER)
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+  deletedAt            DateTime?
+  accounts             AuthAccount[]
+  sessions             UserSession[]
+  subscriptions        Subscription[]
+  usageMonthly         UsageMonthly[]
+  promoRedemptions     PromoRedemption[]
+  createdMuseums       Museum[]                      @relation("MuseumCreatedBy")
+  createdRooms         Room[]                        @relation("RoomCreatedBy")
+  createdArtifacts     Artifact[]                    @relation("ArtifactCreatedBy")
+  createdPlaqueScans   PlaqueScan[]                  @relation("PlaqueScanCreatedBy")
+  askedQuestions       ArtifactQuestion[]            @relation("ArtifactQuestionAskedBy")
+  questionVotes        ArtifactQuestionVote[]        @relation("ArtifactQuestionVoteUser")
+  questionListenEvents ArtifactQuestionListenEvent[] @relation("ArtifactQuestionListenUser")
+}
+
+model AuthAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  idToken           String?
+  tokenType         String?
+  scope             String?
+  expiresAt         Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       String
+  sessionToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Subscription {
+  id                     String             @id @default(cuid())
+  userId                 String
+  status                 SubscriptionStatus @default(ACTIVE)
+  tier                   UserTier
+  paymentProvider        String?
+  providerCustomerId     String?
+  providerSubscriptionId String?            @unique
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model UsageMonthly {
+  id                       String   @id @default(cuid())
+  userId                   String
+  monthStart               DateTime
+  museumsCreatedCount      Int      @default(0)
+  newArtifactsScannedCount Int      @default(0)
+  questionsAskedCount      Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, monthStart])
+  @@index([monthStart])
+}
+
+model PromoCode {
+  id             String            @id @default(cuid())
+  codeHash       String            @unique
+  description    String?
+  grantsTier     UserTier          @default(PREMIUM)
+  durationMonths Int?
+  maxRedemptions Int
+  redeemedCount  Int               @default(0)
+  active         Boolean           @default(true)
+  expiresAt      DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  redemptions    PromoRedemption[]
+}
+
+model PromoRedemption {
+  id           String    @id @default(cuid())
+  promoCodeId  String
+  userId       String
+  redeemedAt   DateTime  @default(now())
+  premiumUntil DateTime?
+  promoCode    PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([promoCodeId, userId])
+  @@index([userId])
 }

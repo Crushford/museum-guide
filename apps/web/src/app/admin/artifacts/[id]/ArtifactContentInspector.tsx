@@ -32,7 +32,7 @@ export function ArtifactContentInspector({
 
     try {
       const res = await fetch(
-        `${API_URL}/admin/artifacts/${artifactId}/generate-introduction`,
+        `/api/admin/artifacts/${artifactId}/generate-introduction`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

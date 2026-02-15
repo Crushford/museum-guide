@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { PageLayout, SectionCard } from '../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { ErrorText } from '@/components/ui/error-text';
-import { API_URL } from '@/lib/api';
 
 type ServiceSummary = {
   service: string;
@@ -40,7 +39,7 @@ export default function ApiCallsPage() {
   const fetchIdRef = useRef(0);
 
   useEffect(() => {
-    fetch(`${API_URL}/admin/api-calls/daily`)
+    fetch('/api/admin/api-calls/daily')
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
         return res.json();
@@ -54,7 +53,7 @@ export default function ApiCallsPage() {
     const params = new URLSearchParams({ page: String(page), pageSize: '50' });
     if (serviceFilter) params.set('service', serviceFilter);
 
-    fetch(`${API_URL}/admin/api-calls?${params}`)
+    fetch(`/api/admin/api-calls?${params}`)
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
         return res.json();

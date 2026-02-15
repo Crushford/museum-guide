@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { PageLayout, SectionCard } from '../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { ErrorText } from '@/components/ui/error-text';
-import { API_URL } from '@/lib/api';
 import type { SpendRow } from '@repo/types';
 
 export default function CostsPage() {
@@ -13,7 +12,7 @@ export default function CostsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/admin/llm-usage/monthly`)
+    fetch('/api/admin/llm-usage/monthly')
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
         return res.json();

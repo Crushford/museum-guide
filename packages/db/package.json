@@ -4,7 +4,8 @@
   "main": "index.ts",
   "types": "index.ts",
   "scripts": {
-    "prisma": "prisma"
+    "prisma": "prisma",
+    "seed:admin": "node scripts/seed-admin.cjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.1.0",

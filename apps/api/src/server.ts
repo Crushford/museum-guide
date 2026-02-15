@@ -85,6 +85,37 @@ app.use(
 
 app.use(express.json({ limit: '20mb' }));
 
+app.use('/admin', async (req, res, next) => {
+  const internalToken = process.env.API_INTERNAL_TOKEN;
+  if (!internalToken) {
+    return res.status(500).json({ error: 'Server missing API_INTERNAL_TOKEN' });
+  }
+
+  const requestToken = req.header('x-internal-api-token');
+  if (!requestToken || requestToken !== internalToken) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const actorUserId = req.header('x-actor-user-id');
+  if (!actorUserId) {
+    return res.status(401).json({ error: 'Missing actor identity' });
+  }
+
+  const db = prisma as any;
+  const actor = await db.user.findFirst({
+    where: { id: actorUserId, deletedAt: null },
+    select: { id: true, role: true },
+  });
+  if (!actor) {
+    return res.status(401).json({ error: 'Actor user not found' });
+  }
+  if (actor.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Admin role required' });
+  }
+
+  next();
+});
+
 // Serve static audio files
 const audioDir = resolve(__dirname, '../public/audio');
 if (!existsSync(audioDir)) {
@@ -2812,6 +2843,431 @@ app.post('/artifact-questions/:questionId/listen', async (req, res) => {
 });
 
 // ============================================================================
+// PROMO CODE MEMBERSHIP ENDPOINTS
+// ============================================================================
+
+app.get('/users/:userId/membership', async (req, res) => {
+  const { userId } = req.params;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Invalid userId' });
+  }
+
+  const db = prisma as any;
+  const user = await db.user.findFirst({
+    where: { id: userId, deletedAt: null },
+    select: {
+      id: true,
+      tier: true,
+      promoRedemptions: {
+        orderBy: { redeemedAt: 'desc' },
+        select: {
+          redeemedAt: true,
+          premiumUntil: true,
+          promoCode: {
+            select: {
+              id: true,
+              description: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const now = new Date();
+  const activePromo = user.promoRedemptions.find(
+    (redemption: { premiumUntil: Date | null }) =>
+      redemption.premiumUntil === null || redemption.premiumUntil >= now
+  );
+
+  const effectiveTier =
+    user.tier === 'PREMIUM' || activePromo ? 'PREMIUM' : 'MEMBER';
+
+  res.json({
+    userId: user.id,
+    baseTier: user.tier,
+    tier: effectiveTier,
+    hasActivePromo: Boolean(activePromo),
+    promo: activePromo
+      ? {
+          redeemedAt: activePromo.redeemedAt,
+          premiumUntil: activePromo.premiumUntil,
+          description: activePromo.promoCode.description,
+          promoCodeId: activePromo.promoCode.id,
+        }
+      : null,
+  });
+});
+
+app.get('/admin/promo-codes', async (_req, res) => {
+  try {
+    const db = prisma as any;
+    const promoCodes = await db.promoCode.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        description: true,
+        grantsTier: true,
+        durationMonths: true,
+        maxRedemptions: true,
+        redeemedCount: true,
+        active: true,
+        expiresAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json(promoCodes);
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch promo codes';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.get('/admin/users', async (_req, res) => {
+  try {
+    const db = prisma as any;
+    const users = await db.user.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        tier: true,
+        createdAt: true,
+      },
+    });
+    res.json(users);
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch users';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.patch('/admin/users/:userId/role', async (req, res) => {
+  const { userId } = req.params;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Invalid userId' });
+  }
+
+  const roleRaw = req.body?.role;
+  if (roleRaw !== 'USER' && roleRaw !== 'ADMIN') {
+    return res
+      .status(400)
+      .json({ error: 'role must be either "USER" or "ADMIN"' });
+  }
+
+  try {
+    const db = prisma as any;
+    const updated = await db.user.update({
+      where: { id: userId },
+      data: { role: roleRaw },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        tier: true,
+        createdAt: true,
+      },
+    });
+    res.json(updated);
+  } catch (error) {
+    const maybePrisma = error as { code?: string };
+    if (maybePrisma?.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to update user role';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.post('/admin/promo-codes', async (req, res) => {
+  try {
+    const db = prisma as any;
+    const codeRaw = req.body?.code;
+    const maxRedemptionsRaw = Number(req.body?.maxRedemptions);
+    const durationMonthsRaw =
+      req.body?.durationMonths === undefined
+        ? null
+        : Number(req.body?.durationMonths);
+    const expiresAtRaw = req.body?.expiresAt;
+    const descriptionRaw = req.body?.description;
+    const active = req.body?.active !== false;
+
+    if (typeof codeRaw !== 'string' || codeRaw.trim().length < 4) {
+      return res
+        .status(400)
+        .json({ error: 'code is required and must be at least 4 characters' });
+    }
+    if (!Number.isInteger(maxRedemptionsRaw) || maxRedemptionsRaw <= 0) {
+      return res
+        .status(400)
+        .json({ error: 'maxRedemptions must be a positive integer' });
+    }
+    if (
+      durationMonthsRaw !== null &&
+      (!Number.isInteger(durationMonthsRaw) || durationMonthsRaw <= 0)
+    ) {
+      return res
+        .status(400)
+        .json({ error: 'durationMonths must be a positive integer when set' });
+    }
+
+    const expiresAt =
+      typeof expiresAtRaw === 'string' ? new Date(expiresAtRaw) : null;
+    if (expiresAt && Number.isNaN(expiresAt.getTime())) {
+      return res.status(400).json({ error: 'expiresAt must be a valid date' });
+    }
+
+    const created = await db.promoCode.create({
+      data: {
+        codeHash: hashPromoCode(codeRaw),
+        description:
+          typeof descriptionRaw === 'string' ? descriptionRaw.trim() : null,
+        grantsTier: 'PREMIUM',
+        durationMonths: durationMonthsRaw,
+        maxRedemptions: maxRedemptionsRaw,
+        active,
+        expiresAt,
+      },
+      select: {
+        id: true,
+        description: true,
+        grantsTier: true,
+        durationMonths: true,
+        maxRedemptions: true,
+        redeemedCount: true,
+        active: true,
+        expiresAt: true,
+        createdAt: true,
+      },
+    });
+
+    res.status(201).json(created);
+  } catch (error) {
+    const maybePrisma = error as { code?: string };
+    if (maybePrisma?.code === 'P2002') {
+      return res.status(409).json({ error: 'Promo code already exists' });
+    }
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to create promo code';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.post('/promo-codes/redeem', async (req, res) => {
+  const codeRaw = req.body?.code;
+  const userId = req.body?.userId;
+
+  if (typeof codeRaw !== 'string' || codeRaw.trim().length < 4) {
+    return res
+      .status(400)
+      .json({ error: 'code is required and must be at least 4 characters' });
+  }
+  if (typeof userId !== 'string' || userId.trim().length === 0) {
+    return res.status(400).json({ error: 'userId is required' });
+  }
+
+  try {
+    const db = prisma as any;
+    const user = await db.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const now = new Date();
+    const codeHash = hashPromoCode(codeRaw);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const txAny = tx as any;
+      const promoCode = await txAny.promoCode.findUnique({
+        where: { codeHash },
+        select: {
+          id: true,
+          grantsTier: true,
+          durationMonths: true,
+          maxRedemptions: true,
+          redeemedCount: true,
+          active: true,
+          expiresAt: true,
+          description: true,
+        },
+      });
+
+      if (!promoCode) {
+        return { error: 'Promo code not found', status: 404 as const };
+      }
+      if (!promoCode.active) {
+        return { error: 'Promo code is inactive', status: 400 as const };
+      }
+      if (promoCode.expiresAt && promoCode.expiresAt < now) {
+        return { error: 'Promo code has expired', status: 400 as const };
+      }
+
+      const existingRedemption = await txAny.promoRedemption.findUnique({
+        where: {
+          promoCodeId_userId: {
+            promoCodeId: promoCode.id,
+            userId,
+          },
+        },
+        select: {
+          premiumUntil: true,
+          redeemedAt: true,
+        },
+      });
+      if (existingRedemption) {
+        return {
+          alreadyRedeemed: true as const,
+          promoCodeId: promoCode.id,
+          description: promoCode.description,
+          grantsTier: promoCode.grantsTier,
+          premiumUntil: existingRedemption.premiumUntil,
+          redeemedAt: existingRedemption.redeemedAt,
+        };
+      }
+
+      const incrementResult = await txAny.promoCode.updateMany({
+        where: {
+          id: promoCode.id,
+          active: true,
+          redeemedCount: { lt: promoCode.maxRedemptions },
+        },
+        data: {
+          redeemedCount: { increment: 1 },
+        },
+      });
+      if (incrementResult.count !== 1) {
+        return {
+          error: 'Promo code redemption limit reached',
+          status: 409 as const,
+        };
+      }
+
+      const premiumUntil =
+        promoCode.durationMonths && promoCode.durationMonths > 0
+          ? addMonths(now, promoCode.durationMonths as number)
+          : null;
+
+      const redemption = await txAny.promoRedemption.create({
+        data: {
+          promoCodeId: promoCode.id,
+          userId,
+          premiumUntil,
+        },
+        select: {
+          redeemedAt: true,
+          premiumUntil: true,
+        },
+      });
+
+      await txAny.user.update({
+        where: { id: userId },
+        data: { tier: promoCode.grantsTier },
+      });
+
+      return {
+        alreadyRedeemed: false as const,
+        promoCodeId: promoCode.id,
+        description: promoCode.description,
+        grantsTier: promoCode.grantsTier,
+        premiumUntil: redemption.premiumUntil,
+        redeemedAt: redemption.redeemedAt,
+      };
+    });
+
+    if ('error' in result) {
+      const errorResult = result as { status: number; error: string };
+      return res.status(errorResult.status).json({ error: errorResult.error });
+    }
+
+    res.json({
+      userId,
+      tier: result.grantsTier,
+      alreadyRedeemed: result.alreadyRedeemed,
+      promoCodeId: result.promoCodeId,
+      description: result.description,
+      redeemedAt: result.redeemedAt,
+      premiumUntil: result.premiumUntil,
+    });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to redeem promo code';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+app.delete('/users/:userId', async (req, res) => {
+  const { userId } = req.params;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Invalid userId' });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const txAny = tx as any;
+
+      const user = await txAny.user.findFirst({
+        where: { id: userId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!user) return null;
+
+      const anonymizedQuestions = await txAny.artifactQuestion.updateMany({
+        where: { askedByUserId: userId },
+        data: {
+          askedByUserId: null,
+          askedByUsername: 'deleted-user',
+          status: 'ANONYMIZED',
+        },
+      });
+
+      const deletedVotes = await txAny.artifactQuestionVote.deleteMany({
+        where: { userId },
+      });
+
+      await txAny.user.delete({
+        where: { id: userId },
+      });
+
+      return {
+        anonymizedQuestions: anonymizedQuestions.count,
+        deletedVotes: deletedVotes.count,
+      };
+    });
+
+    if (!result) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      ok: true,
+      userId,
+      anonymizedQuestions: result.anonymizedQuestions,
+      deletedVotes: result.deletedVotes,
+    });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to delete user';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// ============================================================================
 // ADMIN CONTENT ENDPOINTS
 // ============================================================================
 
@@ -3065,6 +3521,16 @@ function normalizeQuestionText(question: string): string {
 
 function hashText(text: string): string {
   return createHash('sha256').update(text).digest('hex');
+}
+
+function hashPromoCode(code: string): string {
+  return createHash('sha256').update(code.trim().toUpperCase()).digest('hex');
+}
+
+function addMonths(date: Date, months: number): Date {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
 }
 
 async function fetchArtifactQuestionContext(artifactId: number) {
