@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 import { InlineEditableField } from '@/components/shared/InlineEditableField';
 import { InlineEditableUrlList } from '@/components/shared/InlineEditableUrlList';
-import { updateNodeField } from './actions';
 
 type EntityDetailsFormProps = {
   id: number;
@@ -29,7 +28,10 @@ export function EntityDetailsForm({
 
   const handleSaveName = useCallback(
     async (value: string) => {
-      await authedApi.run((token) => updateNodeField(token, id, 'name', value));
+      await authedApi.mutate(`/nodes/${id}`, {
+        method: 'PATCH',
+        body: { name: value },
+      });
       router.refresh();
     },
     [id, router, authedApi]
@@ -37,9 +39,10 @@ export function EntityDetailsForm({
 
   const handleSaveKnowledgeText = useCallback(
     async (value: string) => {
-      await authedApi.run((token) =>
-        updateNodeField(token, id, 'knowledgeText', value || null)
-      );
+      await authedApi.mutate(`/nodes/${id}`, {
+        method: 'PATCH',
+        body: { knowledgeText: value || null },
+      });
       router.refresh();
     },
     [id, router, authedApi]
@@ -47,9 +50,10 @@ export function EntityDetailsForm({
 
   const handleSaveFurtherReading = useCallback(
     async (value: string[]) => {
-      await authedApi.run((token) =>
-        updateNodeField(token, id, 'furtherReading', value)
-      );
+      await authedApi.mutate(`/nodes/${id}`, {
+        method: 'PATCH',
+        body: { furtherReading: value },
+      });
       router.refresh();
     },
     [id, router, authedApi]

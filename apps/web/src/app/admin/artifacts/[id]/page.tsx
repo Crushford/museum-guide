@@ -4,7 +4,6 @@ import { api } from '../../../../lib/api';
 import { PageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
-import { deleteArtifact } from './actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -193,7 +192,6 @@ export default async function ArtifactEditPage({
           entityType="artifact"
           entityId={artifact.id}
           entityName={artifact.name}
-          onDelete={deleteArtifact}
         />
       </div>
     </PageLayout>

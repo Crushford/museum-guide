@@ -7,7 +7,6 @@ import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useAuthedApi } from '@/lib/useAuthedApi';
-import { updateNodeField } from './actions';
 import { Museum, Room } from '@/lib/types';
 
 type MuseumDisplayProps = {
@@ -62,9 +61,10 @@ export function MuseumDisplay({
           : roomsInMuseum[0].id;
 
       // Update the artifact's roomId (which is stored as parentId)
-      await authedApi.run((token) =>
-        updateNodeField(token, artifactId, 'parentId', newRoomId)
-      );
+      await authedApi.mutate(`/nodes/${artifactId}`, {
+        method: 'PATCH',
+        body: { parentId: newRoomId },
+      });
       onMuseumChange?.(selectedMuseumId);
       setIsEditing(false);
       router.refresh();

@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { InlineEditableMuseumRoom } from '@/components/shared/InlineEditableMuseumRoom';
 import { useAuthedApi } from '@/lib/useAuthedApi';
-import { updateNodeField, updateRoomParent } from './actions';
 import { Museum, Room } from '@/lib/types';
 
 type ParentSelectorProps =
@@ -147,9 +146,24 @@ export function ParentSelector(props: ParentSelectorProps) {
     async (museumId: number | null, parentRoomId: number | null) => {
       if (!roomEntityId) return;
       try {
-        await authedApi.run((token) =>
-          updateRoomParent(token, roomEntityId, museumId, parentRoomId)
-        );
+        const updateData: {
+          museumId?: number | null;
+          parentRoomId?: number | null;
+        } = {};
+        if (museumId !== null) {
+          updateData.museumId = museumId;
+          updateData.parentRoomId = null;
+        } else if (parentRoomId !== null) {
+          updateData.parentRoomId = parentRoomId;
+          updateData.museumId = null;
+        } else {
+          updateData.museumId = null;
+          updateData.parentRoomId = null;
+        }
+        await authedApi.mutate(`/rooms/${roomEntityId}`, {
+          method: 'PATCH',
+          body: updateData,
+        });
         setSelectedMuseumId(museumId);
         setSelectedParentRoomId(parentRoomId);
         roomOnMuseumChange?.(museumId);
@@ -201,9 +215,10 @@ export function ParentSelector(props: ParentSelectorProps) {
       }
 
       // Save the room change (parentId)
-      await authedApi.run((token) =>
-        updateNodeField(token, artifactEntityId, 'parentId', selectedRoomId)
-      );
+      await authedApi.mutate(`/nodes/${artifactEntityId}`, {
+        method: 'PATCH',
+        body: { parentId: selectedRoomId },
+      });
       setRoomId(selectedRoomId);
       setMuseumId(selectedMuseumId);
       artifactOnRoomChange?.(selectedRoomId);

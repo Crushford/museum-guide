@@ -1,10 +1,15 @@
 'use client';
 
 import { FormEvent, useState, useTransition } from 'react';
-import { updateContentItemBody } from './actions';
+import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useAuthedApi } from '@/lib/useAuthedApi';
+
+type Node = {
+  id: number;
+  type: 'MUSEUM' | 'ROOM' | 'ARTIFACT';
+};
 
 type ContentItemEditorClientProps = {
   contentItemId: number;
@@ -18,6 +23,7 @@ export function ContentItemEditorClient({
   returnTo,
 }: ContentItemEditorClientProps) {
   const authedApi = useAuthedApi();
+  const router = useRouter();
   const [body, setBody] = useState(initialBody);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -27,23 +33,35 @@ export function ContentItemEditorClient({
     setErrorMessage(null);
     startTransition(async () => {
       try {
-        await authedApi.run((token) =>
-          updateContentItemBody(token, contentItemId, body, returnTo)
-        );
-      } catch (error) {
-        if (
-          error &&
-          typeof error === 'object' &&
-          ('digest' in error || 'message' in error)
-        ) {
-          const redirectError = error as { digest?: string; message?: string };
-          if (
-            redirectError.digest?.startsWith('NEXT_REDIRECT') ||
-            redirectError.message === 'NEXT_REDIRECT'
-          ) {
-            return;
+        await authedApi.mutate(`/content-items/${contentItemId}`, {
+          method: 'PATCH',
+          body: { body },
+        });
+
+        if (returnTo) {
+          try {
+            const node = await authedApi.get<Node>(`/nodes/${returnTo}`);
+            if (node.type === 'MUSEUM') {
+              router.push(`/admin/museums/${returnTo}`);
+              return;
+            }
+            if (node.type === 'ROOM') {
+              router.push(`/admin/rooms/${returnTo}`);
+              return;
+            }
+            if (node.type === 'ARTIFACT') {
+              router.push(`/admin/artifacts/${returnTo}`);
+              return;
+            }
+          } catch {
+            // Fall through to admin root on lookup failure.
           }
+          router.push('/admin');
+          return;
         }
+
+        router.push(`/admin/content-items/${contentItemId}`);
+      } catch (error) {
         setErrorMessage(
           error instanceof Error ? error.message : 'Failed to save text'
         );

@@ -4,7 +4,6 @@ import { api } from '../../../../lib/api';
 import { PageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
-import { deleteRoom } from './actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Museum, Room, Artifact } from '@/lib/types';
@@ -256,7 +255,6 @@ export default async function RoomEditPage({
           entityType="room"
           entityId={room.id}
           entityName={room.name}
-          onDelete={deleteRoom}
         />
       </div>
     </PageLayout>

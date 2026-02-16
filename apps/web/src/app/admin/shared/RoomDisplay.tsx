@@ -7,7 +7,6 @@ import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useAuthedApi } from '@/lib/useAuthedApi';
-import { updateNodeField } from './actions';
 import { Room } from '@/lib/types';
 
 type RoomDisplayProps = {
@@ -50,9 +49,10 @@ export function RoomDisplay({
     }
 
     try {
-      await authedApi.run((token) =>
-        updateNodeField(token, artifactId, 'parentId', selectedRoomId)
-      );
+      await authedApi.mutate(`/nodes/${artifactId}`, {
+        method: 'PATCH',
+        body: { parentId: selectedRoomId },
+      });
       onRoomChange?.(selectedRoomId);
       setIsEditing(false);
       router.refresh();

@@ -4,7 +4,6 @@ import { api } from '../../../../lib/api';
 import { PageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
-import { deleteMuseum } from './actions';
 import { SectionCard } from '../../../../components/shared';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -136,7 +135,6 @@ export default async function MuseumEditPage({
             entityType="museum"
             entityId={museum.id}
             entityName={museum.name}
-            onDelete={deleteMuseum}
           />
         </div>
       </div>
