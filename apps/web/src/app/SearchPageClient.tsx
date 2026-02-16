@@ -17,8 +17,10 @@ import {
   Globe,
 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
-import { api, apiPost } from '@/lib/api';
+import { api } from '@/lib/api';
 import { APP_NAME } from '@/lib/constants';
+import { useAuthedApi } from '@/lib/useAuthedApi';
+import { ApiRequestError } from '@/lib/api-errors';
 import type {
   WikidataSearchResult,
   WikidataSearchResponse,
@@ -89,8 +91,12 @@ function MuseumResultRow({
             <Icon className={iconClassName} />
             <h3 className="font-medium truncate">{label}</h3>
           </div>
-          {description && <MutedText className="mt-1 line-clamp-2">{description}</MutedText>}
-          {meta && <p className="text-xs text-muted-foreground/60 mt-1">{meta}</p>}
+          {description && (
+            <MutedText className="mt-1 line-clamp-2">{description}</MutedText>
+          )}
+          {meta && (
+            <p className="text-xs text-muted-foreground/60 mt-1">{meta}</p>
+          )}
         </div>
         <div className="flex-shrink-0">
           {isSelecting ? (
@@ -125,6 +131,7 @@ function SearchLoadingCard({
 
 export default function SearchPage() {
   const router = useRouter();
+  const authedApi = useAuthedApi();
   const [searchQuery, setSearchQuery] = useState('');
   const [allLocalMuseums, setAllLocalMuseums] = useState<LocalMuseum[]>([]);
   const [isLoadingLocal, setIsLoadingLocal] = useState(true);
@@ -250,21 +257,39 @@ export default function SearchPage() {
       setSelectError(null);
 
       try {
-        const response = await apiPost<MuseumSelectResponse>(
-          `/api/museums/select/${result.qid}`
+        const response = await authedApi.post<MuseumSelectResponse>(
+          `/api/museums/select/${result.qid}`,
+          {
+            requireAdmin: true,
+            adminErrorMessage:
+              'Sign in with an admin account to add museums from Wikidata.',
+          }
         );
 
         console.log('Museum selected:', response);
         router.push(`/${response.museum.slug}`);
       } catch (error) {
         console.error('Select error:', error);
+        if (
+          error instanceof ApiRequestError &&
+          (error.status === 503 ||
+            error.message.toLowerCase().includes('rate-limit') ||
+            error.message.toLowerCase().includes('rate limit') ||
+            error.message.toLowerCase().includes('wikidata'))
+        ) {
+          setSelectError(
+            'Wikidata is temporarily rate-limiting requests. Please wait a moment and try again.'
+          );
+          setIsSelecting(null);
+          return;
+        }
         setSelectError(
           error instanceof Error ? error.message : 'Failed to add museum'
         );
         setIsSelecting(null);
       }
     },
-    [router]
+    [router, authedApi]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -348,7 +373,9 @@ export default function SearchPage() {
   const showNearbyResults = !isSearchingNearby && nearbyResults.length > 0;
   const isSearching = isSearchingWikidata || isSearchingLocation;
   const isSearchDisabled =
-    isSearching || isSelecting !== null || searchQuery.trim().length < MIN_SEARCH_LENGTH;
+    isSearching ||
+    isSelecting !== null ||
+    searchQuery.trim().length < MIN_SEARCH_LENGTH;
   const isNearbyDisabled = isSearchingNearby || isSelecting !== null;
 
   return (
@@ -376,15 +403,8 @@ export default function SearchPage() {
                   autoFocus
                 />
               </div>
-              <Button
-                onClick={handleSearch}
-                disabled={isSearchDisabled}
-              >
-                {isSearching ? (
-                  <Spinner />
-                ) : (
-                  <Globe className="h-4 w-4" />
-                )}
+              <Button onClick={handleSearch} disabled={isSearchDisabled}>
+                {isSearching ? <Spinner /> : <Globe className="h-4 w-4" />}
                 <span className="ml-2">Search</span>
               </Button>
               <Button
@@ -455,14 +475,13 @@ export default function SearchPage() {
         )}
 
         {/* Location-based Results */}
-        {isSearchingLocation &&
-          hasSearched && (
-            <SearchLoadingCard
-              title="Museums by Location"
-              subtitle="Searching for museums in matching locations..."
-              message="This may take a moment..."
-            />
-          )}
+        {isSearchingLocation && hasSearched && (
+          <SearchLoadingCard
+            title="Museums by Location"
+            subtitle="Searching for museums in matching locations..."
+            message="This may take a moment..."
+          />
+        )}
 
         {showLocationResults && !isSearchingLocation && (
           <SectionCard

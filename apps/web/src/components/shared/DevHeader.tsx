@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useSyncExternalStore } from 'react';
 import Link from 'next/link';
+import type { OcrProviderName } from '@repo/types';
+import type { TtsProviderName } from '@/hooks/usePreferredTTSProvider';
 import {
   Tooltip,
   TooltipContent,
@@ -9,6 +11,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { API_URL } from '@/lib/api';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type SpendRow = {
   provider: string;
@@ -109,6 +112,7 @@ function UsageBar({
 }
 
 export function DevHeader() {
+  const { user, isAdmin, getIdToken } = useAuth();
   const [spend, setSpend] = useState<SpendRow[]>([]);
   const [dailyUsage, setDailyUsage] = useState<DailyUsage>({
     premium: { used: 0, limit: 250_000 },
@@ -119,32 +123,62 @@ export function DevHeader() {
   const providerRaw = useLocalStorageValue('preferred-llm-provider', 'google');
   const provider: 'google' | 'openai' =
     providerRaw === 'openai' ? 'openai' : 'google';
+  const ocrProviderRaw = useLocalStorageValue(
+    'preferred-ocr-provider',
+    'ocr-space'
+  );
+  const ocrProvider: OcrProviderName =
+    ocrProviderRaw === 'google-vision' ? 'google-vision' : 'ocr-space';
+  const ttsProviderRaw = useLocalStorageValue(
+    'preferred-tts-provider',
+    'inworld'
+  );
+  const ttsProvider: TtsProviderName =
+    ttsProviderRaw === 'google-tts' ? 'google-tts' : 'inworld';
   const hidden = useLocalStorageValue('dev-header-hidden', '0') === '1';
 
   useEffect(() => {
     let cancelled = false;
 
-    const refresh = () => {
-      fetch(`${API_URL}/admin/llm-usage/monthly`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (!cancelled && data?.spend) setSpend(data.spend);
-        })
-        .catch(() => {});
+    const refresh = async () => {
+      if (!user || !isAdmin) {
+        if (!cancelled) {
+          setSpend([]);
+          setDailyUsage({
+            premium: { used: 0, limit: 250_000 },
+            mini: { used: 0, limit: 2_500_000 },
+          });
+          setApiCalls(null);
+        }
+        return;
+      }
 
-      fetch(`${API_URL}/admin/openai-usage/daily`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (!cancelled && data?.premium && data?.mini) setDailyUsage(data);
-        })
-        .catch(() => {});
+      try {
+        const token = await getIdToken();
+        const headers = { Authorization: `Bearer ${token}` };
 
-      fetch(`${API_URL}/admin/api-calls/daily`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (!cancelled && data?.totalCalls !== undefined) setApiCalls(data);
-        })
-        .catch(() => {});
+        const [spendRes, usageRes, callsRes] = await Promise.all([
+          fetch(`${API_URL}/admin/llm-usage/monthly`, { headers }),
+          fetch(`${API_URL}/admin/openai-usage/daily`, { headers }),
+          fetch(`${API_URL}/admin/api-calls/daily`, { headers }),
+        ]);
+
+        const [spendData, usageData, callsData] = await Promise.all([
+          spendRes.ok ? spendRes.json() : null,
+          usageRes.ok ? usageRes.json() : null,
+          callsRes.ok ? callsRes.json() : null,
+        ]);
+
+        if (!cancelled && spendData?.spend) setSpend(spendData.spend);
+        if (!cancelled && usageData?.premium && usageData?.mini) {
+          setDailyUsage(usageData);
+        }
+        if (!cancelled && callsData?.totalCalls !== undefined) {
+          setApiCalls(callsData);
+        }
+      } catch {
+        // Ignore DevHeader polling errors
+      }
     };
 
     refresh();
@@ -154,12 +188,18 @@ export function DevHeader() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [user, isAdmin, getIdToken]);
 
   const totalEur = spend.reduce((sum, r) => sum + r.totalEur, 0);
 
   const handleToggle = (value: 'google' | 'openai') => {
     setLocalStorage('preferred-llm-provider', value);
+  };
+  const handleOcrToggle = (value: OcrProviderName) => {
+    setLocalStorage('preferred-ocr-provider', value);
+  };
+  const handleTtsToggle = (value: TtsProviderName) => {
+    setLocalStorage('preferred-tts-provider', value);
   };
 
   const handleHide = () => {
@@ -183,7 +223,7 @@ export function DevHeader() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="sticky top-0 z-50 flex h-8 items-center gap-4 bg-zinc-900 px-3 text-xs text-zinc-300 font-mono border-2 border-pink-500">
+      <div className="sticky top-0 z-50 flex h-10 items-center gap-4 bg-zinc-900 px-3 text-xs text-zinc-300 font-mono border-2 border-pink-500">
         <span className="font-semibold text-amber-400">DEV</span>
 
         <Link href="/" className="hover:text-white transition-colors">
@@ -249,6 +289,51 @@ export function DevHeader() {
         )}
 
         <div className="ml-auto flex items-center gap-1">
+          <span className="text-zinc-500 mr-1">OCR</span>
+          <button
+            onClick={() => handleOcrToggle('ocr-space')}
+            className={`rounded px-1.5 py-0.5 transition-colors ${
+              ocrProvider === 'ocr-space'
+                ? 'bg-amber-500/20 text-amber-400'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            OCR.space
+          </button>
+          <button
+            onClick={() => handleOcrToggle('google-vision')}
+            className={`rounded px-1.5 py-0.5 transition-colors ${
+              ocrProvider === 'google-vision'
+                ? 'bg-amber-500/20 text-amber-400'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Vision
+          </button>
+          <span className="text-zinc-600 mx-1">|</span>
+          <span className="text-zinc-500 mr-1">TTS</span>
+          <button
+            onClick={() => handleTtsToggle('inworld')}
+            className={`rounded px-1.5 py-0.5 transition-colors ${
+              ttsProvider === 'inworld'
+                ? 'bg-amber-500/20 text-amber-400'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Inworld
+          </button>
+          <button
+            onClick={() => handleTtsToggle('google-tts')}
+            className={`rounded px-1.5 py-0.5 transition-colors ${
+              ttsProvider === 'google-tts'
+                ? 'bg-amber-500/20 text-amber-400'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Google
+          </button>
+          <span className="text-zinc-600 mx-1">|</span>
+          <span className="text-zinc-500 mr-1">LLM</span>
           <button
             onClick={() => handleToggle('google')}
             className={`rounded px-1.5 py-0.5 transition-colors ${

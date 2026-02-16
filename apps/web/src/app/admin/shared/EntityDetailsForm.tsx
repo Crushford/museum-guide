@@ -2,9 +2,9 @@
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import { InlineEditableField } from '@/components/shared/InlineEditableField';
 import { InlineEditableUrlList } from '@/components/shared/InlineEditableUrlList';
-import { updateNodeField } from './actions';
 
 type EntityDetailsFormProps = {
   id: number;
@@ -24,29 +24,39 @@ export function EntityDetailsForm({
   allowEdit = true,
 }: EntityDetailsFormProps) {
   const router = useRouter();
+  const authedApi = useAuthedApi();
 
   const handleSaveName = useCallback(
     async (value: string) => {
-      await updateNodeField(id, 'name', value);
+      await authedApi.mutate(`/nodes/${id}`, {
+        method: 'PATCH',
+        body: { name: value },
+      });
       router.refresh();
     },
-    [id, router]
+    [id, router, authedApi]
   );
 
   const handleSaveKnowledgeText = useCallback(
     async (value: string) => {
-      await updateNodeField(id, 'knowledgeText', value || null);
+      await authedApi.mutate(`/nodes/${id}`, {
+        method: 'PATCH',
+        body: { knowledgeText: value || null },
+      });
       router.refresh();
     },
-    [id, router]
+    [id, router, authedApi]
   );
 
   const handleSaveFurtherReading = useCallback(
     async (value: string[]) => {
-      await updateNodeField(id, 'furtherReading', value);
+      await authedApi.mutate(`/nodes/${id}`, {
+        method: 'PATCH',
+        body: { furtherReading: value },
+      });
       router.refresh();
     },
-    [id, router]
+    [id, router, authedApi]
   );
 
   // If allowEdit is false, always set isEditing to false and don't pass onSave handlers

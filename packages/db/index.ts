@@ -19,6 +19,7 @@ const adapter = new PrismaPg(pool);
 // Create a Prisma Client using the adapter (required in Prisma 7)
 const client = new PrismaClient({
   adapter,
+  log: [{ emit: 'event', level: 'query' }],
 });
 
 export const prisma = client;

@@ -1,19 +1,22 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { SectionCard } from '@/components/shared/SectionCard';
 import { SaveBar } from '@/components/shared/SaveBar';
 import { MuseumInput } from '@/lib/types';
-import { createMuseum } from './actions';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type MuseumFormClientProps = {
   importedData?: MuseumInput | null;
 };
 
 export function MuseumFormClient({ importedData }: MuseumFormClientProps = {}) {
+  const authedApi = useAuthedApi();
+  const router = useRouter();
   const [name, setName] = useState('');
   const [knowledgeText, setKnowledgeText] = useState('');
   const [furtherReading, setFurtherReading] = useState('');
@@ -64,12 +67,16 @@ export function MuseumFormClient({ importedData }: MuseumFormClientProps = {}) {
           .map((line) => line.trim())
           .filter((line) => line.length > 0);
 
-        await createMuseum({
-          name: name.trim(),
-          knowledgeText: knowledgeText.trim() || undefined,
-          furtherReading:
-            furtherReadingArray.length > 0 ? furtherReadingArray : undefined,
+        const museum = await authedApi.mutate<{ id: number }>('/museums', {
+          method: 'POST',
+          body: {
+            name: name.trim(),
+            knowledgeText: knowledgeText.trim() || null,
+            furtherReading:
+              furtherReadingArray.length > 0 ? furtherReadingArray : [],
+          },
         });
+        router.push(`/admin/museums/${museum.id}`);
       } catch (error) {
         console.error('Failed to create museum:', error);
         const errorMsg =

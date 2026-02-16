@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PageLayout } from '@/components/shared';
 import { SectionCard } from '@/components/shared';
 import { ContentTabsClient } from './ContentTabsClient';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import type {
   MuseumResponse,
   RoomResponse,
@@ -14,6 +15,7 @@ import type {
 import type { ContentRow } from '@/lib/types';
 
 export default function AdminContentPage() {
+  const authedApi = useAuthedApi();
   const [museums, setMuseums] = useState<MuseumResponse[]>([]);
   const [rooms, setRooms] = useState<RoomResponse[]>([]);
   const [artifacts, setArtifacts] = useState<ArtifactResponse[]>([]);
@@ -21,33 +23,16 @@ export default function AdminContentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [museumsRes, roomsRes, artifactsRes, contentRes] =
-        await Promise.all([
-          fetch('/api/admin/museums'),
-          fetch('/api/admin/rooms'),
-          fetch('/api/admin/artifacts'),
-          fetch('/api/admin/content'),
-        ]);
-
-      if (
-        !museumsRes.ok ||
-        !roomsRes.ok ||
-        !artifactsRes.ok ||
-        !contentRes.ok
-      ) {
-        throw new Error('Failed to fetch admin data');
-      }
-
       const [museumsData, roomsData, artifactsData, contentData] =
         await Promise.all([
-          museumsRes.json(),
-          roomsRes.json(),
-          artifactsRes.json(),
-          contentRes.json(),
+          authedApi.get<MuseumResponse[]>('/admin/content/museums'),
+          authedApi.get<RoomResponse[]>('/admin/content/rooms'),
+          authedApi.get<ArtifactResponse[]>('/admin/content/artifacts'),
+          authedApi.get<ContentRow[]>('/admin/content/content'),
         ]);
 
       setMuseums(museumsData);
@@ -59,11 +44,11 @@ export default function AdminContentPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authedApi]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   return (
     <PageLayout title="Content Management">

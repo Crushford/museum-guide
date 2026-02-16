@@ -4,12 +4,20 @@ import { useState, useEffect, useRef } from 'react';
 import { PageLayout, SectionCard } from '../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { ErrorText } from '@/components/ui/error-text';
-import { API_URL } from '@/lib/api';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type ServiceSummary = {
   service: string;
   count: number;
   avgDurationMs: number;
+};
+
+type GlobalLimitSummary = {
+  llmCalls: number | null;
+  wikiCalls: number | null;
+  dbOps: number | null;
+  museumCreates: number | null;
+  artifactCreates: number | null;
 };
 
 type ApiCallRow = {
@@ -27,9 +35,11 @@ type ApiCallRow = {
 };
 
 export default function ApiCallsPage() {
+  const authedApi = useAuthedApi();
   const [daily, setDaily] = useState<{
     totalCalls: number;
     services: ServiceSummary[];
+    globalLimits: GlobalLimitSummary;
   } | null>(null);
   const [rows, setRows] = useState<ApiCallRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -40,43 +50,60 @@ export default function ApiCallsPage() {
   const fetchIdRef = useRef(0);
 
   useEffect(() => {
-    fetch(`${API_URL}/admin/api-calls/daily`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
-        return res.json();
-      })
-      .then((data) => setDaily(data))
-      .catch(() => {});
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await authedApi.get<{
+          totalCalls: number;
+          services: ServiceSummary[];
+          globalLimits: GlobalLimitSummary;
+        }>('/admin/api-calls/daily');
+        if (!cancelled) setDaily(data);
+      } catch {
+        // Non-blocking summary panel
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authedApi]);
 
   useEffect(() => {
+    let cancelled = false;
     const id = ++fetchIdRef.current;
-    const params = new URLSearchParams({ page: String(page), pageSize: '50' });
-    if (serviceFilter) params.set('service', serviceFilter);
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          page: String(page),
+          pageSize: '50',
+        });
+        if (serviceFilter) params.set('service', serviceFilter);
 
-    fetch(`${API_URL}/admin/api-calls?${params}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
-        return res.json();
-      })
-      .then((data) => {
-        if (id === fetchIdRef.current) {
+        const data = await authedApi.get<{ rows: ApiCallRow[]; total: number }>(
+          `/admin/api-calls?${params}`
+        );
+        if (!cancelled && id === fetchIdRef.current) {
           setRows(data.rows);
           setTotal(data.total);
           setLoading(false);
         }
-      })
-      .catch((err) => {
-        if (id === fetchIdRef.current) {
+      } catch (err) {
+        if (!cancelled && id === fetchIdRef.current) {
           setError(err instanceof Error ? err.message : 'Failed to load');
           setLoading(false);
         }
-      });
-  }, [page, serviceFilter]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, serviceFilter, authedApi]);
 
   const totalPages = Math.ceil(total / 50);
 
   const allServices = daily?.services.map((s) => s.service) ?? [];
+  const fmtLimit = (value: number | null) =>
+    value === null ? 'Disabled' : value;
 
   return (
     <PageLayout
@@ -102,6 +129,43 @@ export default function ApiCallsPage() {
                   </p>
                 </div>
               ))}
+            </div>
+            <div className="mt-4 rounded-lg border p-4">
+              <p className="text-sm text-muted-foreground mb-2">
+                Global Daily Limits
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 text-sm">
+                <div>
+                  LLM:{' '}
+                  <span className="font-semibold">
+                    {fmtLimit(daily.globalLimits.llmCalls)}
+                  </span>
+                </div>
+                <div>
+                  Wikipedia:{' '}
+                  <span className="font-semibold">
+                    {fmtLimit(daily.globalLimits.wikiCalls)}
+                  </span>
+                </div>
+                <div>
+                  Museums:{' '}
+                  <span className="font-semibold">
+                    {fmtLimit(daily.globalLimits.museumCreates)}
+                  </span>
+                </div>
+                <div>
+                  Artifacts:{' '}
+                  <span className="font-semibold">
+                    {fmtLimit(daily.globalLimits.artifactCreates)}
+                  </span>
+                </div>
+                <div>
+                  DB ops:{' '}
+                  <span className="font-semibold">
+                    {fmtLimit(daily.globalLimits.dbOps)}
+                  </span>
+                </div>
+              </div>
             </div>
           </SectionCard>
         )}

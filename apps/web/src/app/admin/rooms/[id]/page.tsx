@@ -3,9 +3,7 @@ import { redirect } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { PageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
-import { updateRoom } from '../../shared/actions';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
-import { deleteRoom } from './actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Museum, Room, Artifact } from '@/lib/types';
@@ -59,18 +57,12 @@ export default async function RoomEditPage({
     redirect('/admin');
   }
 
-  const [room, artifacts, childRooms, museums, allRooms] = await Promise.all([
+  const [room, artifacts, childRooms, museums] = await Promise.all([
     api<Room>(`/rooms/${nodeId}`),
     api<Artifact[]>(`/rooms/${nodeId}/artifacts`).catch(() => []),
     api<Room[]>(`/rooms/${nodeId}/children`).catch(() => []),
     api<Museum[]>(`/museums`).catch(() => []),
-    api<Room[]>(`/admin/rooms`).catch(() => []),
   ]);
-
-  // Filter out the current room and its children from parent room options
-  const availableParentRooms = allRooms.filter(
-    (r) => r.id !== nodeId && r.parentRoomId !== nodeId
-  );
 
   // If this is a parent room, get all artifacts from child rooms too
   let allArtifacts = artifacts;
@@ -101,6 +93,15 @@ export default async function RoomEditPage({
       // Failed to fetch parent room
     }
   }
+
+  const allRooms = parentMuseum
+    ? await api<Room[]>(`/museums/${parentMuseum.id}/rooms`).catch(() => [])
+    : [];
+
+  // Filter out the current room and its children from parent room options
+  const availableParentRooms = allRooms.filter(
+    (r) => r.id !== nodeId && r.parentRoomId !== nodeId
+  );
 
   // Fetch museum information for child rooms
   const childRoomsWithMuseums = await Promise.all(
@@ -212,16 +213,6 @@ export default async function RoomEditPage({
         )
       : artifactsWithMuseums;
 
-  const handleSave = async (data: {
-    name: string;
-    parentId: number | null;
-    knowledgeText: string | null;
-    furtherReading: string[];
-  }) => {
-    'use server';
-    await updateRoom(nodeId, data);
-  };
-
   return (
     <PageLayout
       title={`Room: ${room.name}`}
@@ -258,14 +249,12 @@ export default async function RoomEditPage({
           childRooms.length > 0 ? allArtifactsWithMuseums : undefined
         }
         museums={museums}
-        onSave={handleSave}
       />
       <div className="flex justify-end pt-4">
         <DeleteEntityButton
           entityType="room"
           entityId={room.id}
           entityName={room.name}
-          onDelete={deleteRoom}
         />
       </div>
     </PageLayout>

@@ -1,11 +1,12 @@
 import { GoogleAuth } from 'google-auth-library';
-import type { OcrResult } from '@repo/types';
+import type { OcrProviderName, OcrResult } from '@repo/types';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { recordApiCall } from '../telemetry/api-call-tracker';
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const VISION_OCR_COST_USD = 0.02457252;
+const DEFAULT_OCR_PROVIDER: OcrProviderName = 'ocr-space';
 
 export interface DecodedImage {
   buffer: Buffer;
@@ -54,9 +55,35 @@ function resolveQuotaProjectFromAdc(): string | null {
   }
 }
 
-export async function extractTextFromImage(
-  imageBase64: string
-): Promise<OcrResult> {
+export function parseOcrProvider(
+  value: unknown,
+  fallback: OcrProviderName = DEFAULT_OCR_PROVIDER
+): OcrProviderName {
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (
+    normalized === 'google' ||
+    normalized === 'google-vision' ||
+    normalized === 'vision'
+  ) {
+    return 'google-vision';
+  }
+  if (
+    normalized === 'ocr-space' ||
+    normalized === 'ocrspace' ||
+    normalized === 'ocr_space'
+  ) {
+    return 'ocr-space';
+  }
+  return fallback;
+}
+
+export function getDefaultOcrProvider(): OcrProviderName {
+  return parseOcrProvider(process.env.SCAN_OCR_PROVIDER, DEFAULT_OCR_PROVIDER);
+}
+
+async function extractWithGoogleVision(imageBase64: string): Promise<OcrResult> {
   const auth = new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/cloud-platform'],
   });
@@ -184,4 +211,228 @@ export async function extractTextFromImage(
     blocks: blocks.filter((block: { text: string }) => block.text.length > 0),
     provider: 'google-vision',
   };
+}
+
+interface OcrSpaceWord {
+  WordText?: string;
+  Left?: number;
+  Top?: number;
+  Height?: number;
+  Width?: number;
+  Confidence?: number;
+}
+
+interface OcrSpaceLine {
+  LineText?: string;
+  Words?: OcrSpaceWord[];
+}
+
+interface OcrSpaceParsedResult {
+  ParsedText?: string;
+  TextOverlay?: {
+    Lines?: OcrSpaceLine[];
+  };
+}
+
+interface OcrSpacePayload {
+  IsErroredOnProcessing?: boolean;
+  ErrorMessage?: string | string[];
+  ParsedResults?: OcrSpaceParsedResult[];
+}
+
+function normalizeOcrSpaceErrorMessage(
+  message: string | string[] | undefined
+): string {
+  if (Array.isArray(message)) {
+    return message.filter((item) => typeof item === 'string').join('; ');
+  }
+  return typeof message === 'string' ? message : 'OCR.space processing failed';
+}
+
+async function extractWithOcrSpace(imageBase64: string): Promise<OcrResult> {
+  const apiKey = process.env.OCR_SPACE_API_KEY?.trim();
+  if (!apiKey) throw new Error('OCR_SPACE_API_KEY not configured');
+
+  const endpoint = 'https://api.ocr.space/parse/image';
+  const { buffer, mimeType } = decodeBase64Image(imageBase64);
+  const start = Date.now();
+
+  const language = process.env.OCR_SPACE_LANGUAGE?.trim() || 'eng';
+  const engine = process.env.OCR_SPACE_ENGINE?.trim() || '2';
+  const base64Content = `data:${mimeType};base64,${buffer.toString('base64')}`;
+  const form = new URLSearchParams();
+  form.set('base64Image', base64Content);
+  form.set('language', language);
+  form.set('isOverlayRequired', 'true');
+  form.set('OCREngine', engine);
+  form.set('scale', 'true');
+
+  const usdToEurRate = Number(process.env.USD_TO_EUR_RATE || '0.92');
+  const ocrSpaceCostUsd = Number(process.env.OCR_SPACE_OCR_COST_USD || '0');
+  const ocrSpaceCostEur =
+    Number.isFinite(usdToEurRate) && Number.isFinite(ocrSpaceCostUsd)
+      ? ocrSpaceCostUsd * usdToEurRate
+      : undefined;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      apikey: apiKey,
+    },
+    body: form.toString(),
+  });
+
+  if (!response.ok) {
+    recordApiCall({
+      service: 'OCR.space',
+      endpoint: 'parse/image',
+      durationMs: Date.now() - start,
+      status: 'error',
+      statusCode: response.status,
+      error: `OCR failed (${response.status})`,
+      metadata: {
+        language,
+        ocrEngine: engine,
+        costUsd: Number.isFinite(ocrSpaceCostUsd) ? ocrSpaceCostUsd : null,
+        usdToEurRate: Number.isFinite(usdToEurRate) ? usdToEurRate : null,
+      },
+    });
+    const payload = await response.text().catch(() => '');
+    throw new Error(`OCR.space request failed (${response.status}). ${payload}`);
+  }
+
+  const payload = (await response.json()) as OcrSpacePayload;
+
+  if (payload.IsErroredOnProcessing) {
+    const message = normalizeOcrSpaceErrorMessage(payload.ErrorMessage);
+    recordApiCall({
+      service: 'OCR.space',
+      endpoint: 'parse/image',
+      durationMs: Date.now() - start,
+      status: 'error',
+      statusCode: response.status,
+      error: message,
+      metadata: {
+        language,
+        ocrEngine: engine,
+      },
+    });
+    throw new Error(message);
+  }
+
+  const parsedResults = Array.isArray(payload.ParsedResults)
+    ? payload.ParsedResults
+    : [];
+  const fullText = parsedResults
+    .map((result) =>
+      typeof result.ParsedText === 'string' ? result.ParsedText : ''
+    )
+    .join('\n')
+    .trim();
+
+  if (!fullText) {
+    throw new Error('OCR.space did not return any text');
+  }
+
+  const blocks = parsedResults.flatMap((result) => {
+    const lines = Array.isArray(result.TextOverlay?.Lines)
+      ? result.TextOverlay.Lines
+      : [];
+
+    return lines
+      .map((line) => {
+        const words = Array.isArray(line.Words) ? line.Words : [];
+        const textFromLine =
+          typeof line.LineText === 'string' && line.LineText.trim()
+            ? line.LineText
+            : words
+                .map((word) =>
+                  typeof word.WordText === 'string' ? word.WordText : ''
+                )
+                .join(' ')
+                .trim();
+
+        const confidenceValues = words
+          .map((word) =>
+            typeof word.Confidence === 'number' ? word.Confidence : null
+          )
+          .filter((value): value is number => value !== null);
+
+        const lineConfidence =
+          confidenceValues.length > 0
+            ? confidenceValues.reduce((sum, value) => sum + value, 0) /
+              confidenceValues.length
+            : undefined;
+
+        const firstWordWithBounds = words.find(
+          (word) =>
+            typeof word.Left === 'number' &&
+            typeof word.Top === 'number' &&
+            typeof word.Width === 'number' &&
+            typeof word.Height === 'number'
+        );
+
+        return {
+          text: textFromLine.trim(),
+          confidence: lineConfidence,
+          boundingPoly: firstWordWithBounds
+            ? {
+                left: firstWordWithBounds.Left,
+                top: firstWordWithBounds.Top,
+                width: firstWordWithBounds.Width,
+                height: firstWordWithBounds.Height,
+              }
+            : undefined,
+        };
+      })
+      .filter((line) => line.text.length > 0);
+  });
+
+  const confidenceValues = blocks
+    .map((block) =>
+      typeof block.confidence === 'number' ? block.confidence : null
+    )
+    .filter((value): value is number => value !== null);
+
+  const averageConfidence =
+    confidenceValues.length > 0
+      ? confidenceValues.reduce((sum, value) => sum + value, 0) /
+        confidenceValues.length
+      : null;
+
+  recordApiCall({
+    service: 'OCR.space',
+    endpoint: 'parse/image',
+    durationMs: Date.now() - start,
+    status: 'success',
+    statusCode: response.status,
+    costEur: ocrSpaceCostEur,
+    metadata: {
+      textLength: fullText.length,
+      blockCount: blocks.length,
+      language,
+      ocrEngine: engine,
+      costUsd: Number.isFinite(ocrSpaceCostUsd) ? ocrSpaceCostUsd : null,
+      usdToEurRate: Number.isFinite(usdToEurRate) ? usdToEurRate : null,
+    },
+  });
+
+  return {
+    rawText: fullText,
+    languageHints: [language],
+    confidence: averageConfidence,
+    blocks,
+    provider: 'ocr-space',
+  };
+}
+
+export async function extractTextFromImage(
+  imageBase64: string,
+  providerName: OcrProviderName = getDefaultOcrProvider()
+): Promise<OcrResult> {
+  if (providerName === 'google-vision') {
+    return extractWithGoogleVision(imageBase64);
+  }
+  return extractWithOcrSpace(imageBase64);
 }
