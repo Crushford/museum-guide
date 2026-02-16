@@ -26,6 +26,7 @@ export function ApiErrorDialogs() {
   const { signIn } = useAuth();
   const [showGlobalLimit, setShowGlobalLimit] = useState(false);
   const [showAuthRequired, setShowAuthRequired] = useState(false);
+  const [showAuthRateLimit, setShowAuthRateLimit] = useState(false);
   const [userLimitUsage, setUserLimitUsage] = useState<UsageSnapshot | null>(
     null
   );
@@ -48,6 +49,11 @@ export function ApiErrorDialogs() {
 
       if (payload.code === 'AUTH_REQUIRED') {
         setShowAuthRequired(true);
+        return;
+      }
+
+      if (payload.code === 'RATE_LIMIT_AUTH') {
+        setShowAuthRateLimit(true);
         return;
       }
 
@@ -184,6 +190,26 @@ export function ApiErrorDialogs() {
               Close
             </Button>
             <Button onClick={() => void signIn()}>Sign in with Google</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAuthRateLimit} onOpenChange={setShowAuthRateLimit}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Too many auth attempts</DialogTitle>
+            <DialogDescription>
+              We are temporarily limiting authentication checks. Please wait a
+              moment and try again.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setShowAuthRateLimit(false)}
+            >
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

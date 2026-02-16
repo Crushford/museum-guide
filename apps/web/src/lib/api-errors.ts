@@ -2,7 +2,8 @@ export type ApiErrorCode =
   | 'LIMIT_GLOBAL_DAILY'
   | 'LIMIT_USER_DAILY'
   | 'SIGNUP_WAITLIST'
-  | 'AUTH_REQUIRED';
+  | 'AUTH_REQUIRED'
+  | 'RATE_LIMIT_AUTH';
 
 export type UsageSnapshot = {
   user: {

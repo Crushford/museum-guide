@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import { adminAuth } from '../lib/firebase-admin';
 import { sendBlocked } from '../lib/usage-limits';
 import { recordApiCall } from '../lib/telemetry/api-call-tracker';
@@ -15,6 +16,57 @@ declare module 'express-serve-static-core' {
     actor?: Actor;
   }
 }
+
+const AUTH_VERIFY_WINDOW_MS = parsePositiveInt(
+  process.env.AUTH_VERIFY_RATE_LIMIT_WINDOW_MS,
+  60_000
+);
+const AUTH_VERIFY_RATE_LIMIT_MAX = parsePositiveInt(
+  process.env.AUTH_VERIFY_RATE_LIMIT_MAX,
+  180
+);
+
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
+function getClientIp(req: Request): string {
+  return req.ip ?? req.socket.remoteAddress ?? 'unknown';
+}
+
+export const authVerificationRateLimit = rateLimit({
+  windowMs: AUTH_VERIFY_WINDOW_MS,
+  limit: AUTH_VERIFY_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(getClientIp(req)),
+  skip: (req) => !req.headers.authorization?.startsWith('Bearer '),
+  handler: (req, res) => {
+    recordApiCall({
+      service: 'FirebaseAuth',
+      endpoint: 'verifyIdToken',
+      durationMs: 0,
+      status: 'error',
+      statusCode: 429,
+      metadata: {
+        authHeaderPresent: true,
+        reason: 'rate_limited',
+        ip: getClientIp(req),
+      },
+      error: 'Auth token verification rate limit exceeded',
+    });
+    sendBlocked(
+      res,
+      429,
+      'RATE_LIMIT_AUTH',
+      'Too many authentication attempts. Please try again shortly.'
+    );
+  },
+});
 
 export async function requireAuth(
   req: Request,

@@ -18,6 +18,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
     "firebase-admin": "^13.6.1",
     "langfuse": "^3.38.6",
     "openai": "^6.18.0"

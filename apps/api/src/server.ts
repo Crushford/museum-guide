@@ -67,6 +67,7 @@ import {
 import { generateSlug } from './lib/slug';
 import { buildUniqueArtifactSlug } from './lib/artifact-slug';
 import {
+  authVerificationRateLimit,
   attachActorIfPresent,
   requireAuth,
   requireAdmin,
@@ -87,6 +88,11 @@ dotenv.config({ path: resolve(__dirname, '../../web/.env.local') });
 const app = express();
 const PORT = process.env.PORT || 3001;
 const ENABLE_DB_QUERY_BILLING_LOGS = process.env.DB_QUERY_BILLING_LOGS !== '0';
+const TRUST_PROXY_HOPS = Number(process.env.TRUST_PROXY_HOPS ?? 0);
+
+if (Number.isFinite(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
+  app.set('trust proxy', TRUST_PROXY_HOPS);
+}
 
 function shouldLogDbQuery(query: string): boolean {
   const normalized = query.toLowerCase();
@@ -104,6 +110,7 @@ app.use(
 );
 
 app.use(express.json({ limit: '20mb' }));
+app.use(authVerificationRateLimit);
 app.use(attachActorIfPresent);
 app.use((req, res, next) => {
   const startedAt = Date.now();
