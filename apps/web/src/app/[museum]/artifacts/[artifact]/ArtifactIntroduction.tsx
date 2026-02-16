@@ -1,13 +1,16 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { Volume2 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { ErrorText } from '@/components/ui/error-text';
 import { SectionCard } from '@/components/shared';
 import { API_URL } from '@/lib/api';
+import { emitApiError, extractErrorBody } from '@/lib/api-errors';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
+import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import { ContentItem } from '@/lib/types';
 
 type GenerationStep =
@@ -23,89 +26,223 @@ interface ArtifactIntroductionProps {
   initialContent: ContentItem | null;
 }
 
+type StreamCompletePayload = {
+  content?: ContentItem;
+  audioError?: string;
+};
+
 export function ArtifactIntroduction({
   artifactId,
   initialContent,
 }: ArtifactIntroductionProps) {
+  const authedApi = useAuthedApi();
   const [content, setContent] = useState<ContentItem | null>(initialContent);
+  const [isRetryingAudio, setIsRetryingAudio] = useState(false);
   const [generationStep, setGenerationStep] = useState<GenerationStep>('idle');
   const [streamingText, setStreamingText] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
   const preferredProvider = usePreferredLLMProvider();
+  const preferredTtsProvider = usePreferredTTSProvider();
 
   const isGenerating = generationStep !== 'idle' && generationStep !== 'done';
 
   const handleGenerateIntroduction = useCallback(async () => {
-    // Clean up any existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
     setGenerationStep('loading');
     setStreamingText('');
-    setStatusMessage('Loading artifact data...');
+    setStatusMessage('Generating introduction...');
     setError(null);
 
     try {
-      const eventSource = new EventSource(
-        `${API_URL}/generate-content/artefact/${artifactId}/stream?provider=${preferredProvider}`
+      await authedApi.run(
+        async (token) => {
+          const response = await fetch(
+            `${API_URL}/generate-content/artefact/${artifactId}/stream?provider=${preferredProvider}&ttsProvider=${preferredTtsProvider}`,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'text/event-stream',
+              },
+              cache: 'no-store',
+            }
+          );
+
+          if (!response.ok) {
+            let message = `Failed to generate introduction (${response.status})`;
+            try {
+              const payload = await response.json();
+              const parsedError = extractErrorBody(payload);
+              if (parsedError?.code) {
+                emitApiError(parsedError);
+              }
+              if (parsedError?.message) {
+                message = parsedError.message;
+              }
+            } catch {
+              // Ignore parse errors
+            }
+            throw new Error(message);
+          }
+
+          if (!response.body) {
+            throw new Error('No stream body returned by server.');
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let completed = false;
+
+          const processEvent = (rawEvent: string) => {
+            const lines = rawEvent.split('\n');
+            let eventName = 'message';
+            const dataLines: string[] = [];
+
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventName = line.slice('event:'.length).trim();
+                continue;
+              }
+              if (line.startsWith('data:')) {
+                dataLines.push(line.slice('data:'.length).trim());
+              }
+            }
+
+            const dataRaw = dataLines.join('\n');
+            if (!dataRaw) return;
+
+            const data = JSON.parse(dataRaw);
+
+            if (eventName === 'status') {
+              if (typeof data.step === 'string') {
+                setGenerationStep(data.step as GenerationStep);
+              }
+              if (typeof data.message === 'string') {
+                setStatusMessage(data.message);
+              }
+              return;
+            }
+
+            if (eventName === 'chunk') {
+              if (typeof data.text === 'string') {
+                setStreamingText((prev) => prev + data.text);
+              }
+              return;
+            }
+
+            if (eventName === 'complete') {
+              const complete = data as StreamCompletePayload;
+              if (complete.content) {
+                const generated = complete.content;
+                setContent(generated);
+                if (!generated.audioUrl) {
+                  const audioErrorMessage =
+                    typeof complete.audioError === 'string' &&
+                    complete.audioError.trim()
+                      ? `Introduction generated, but text-to-speech audio failed: ${complete.audioError}`
+                      : 'Introduction generated, but text-to-speech audio failed. Please try again in a moment.';
+                  console.error(
+                    '[ArtifactIntroduction] Auto audio generation failed:',
+                    {
+                      artifactId,
+                      contentId: generated.id,
+                      provider: preferredProvider,
+                      ttsProvider: preferredTtsProvider,
+                    }
+                  );
+                  setError(audioErrorMessage);
+                }
+              }
+              setStreamingText('');
+              setGenerationStep('done');
+              completed = true;
+              return;
+            }
+
+            if (eventName === 'error') {
+              if (data?.code && typeof data.code === 'string') {
+                emitApiError({
+                  code: data.code,
+                  message:
+                    typeof data.message === 'string' ? data.message : undefined,
+                });
+              }
+              throw new Error(
+                typeof data.error === 'string'
+                  ? data.error
+                  : typeof data.message === 'string'
+                    ? data.message
+                    : 'Failed to generate introduction'
+              );
+            }
+          };
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            let separatorIndex = buffer.indexOf('\n\n');
+
+            while (separatorIndex !== -1) {
+              const rawEvent = buffer
+                .slice(0, separatorIndex)
+                .replace(/\r/g, '');
+              buffer = buffer.slice(separatorIndex + 2);
+              if (rawEvent.trim()) {
+                processEvent(rawEvent);
+              }
+              separatorIndex = buffer.indexOf('\n\n');
+            }
+          }
+
+          if (buffer.trim()) {
+            processEvent(buffer.replace(/\r/g, ''));
+          }
+
+          if (!completed) {
+            throw new Error('Generation stream ended before completion.');
+          }
+        },
+        { requireAdmin: true }
       );
-      eventSourceRef.current = eventSource;
-
-      eventSource.addEventListener('status', (event) => {
-        const data = JSON.parse(event.data);
-        setGenerationStep(data.step as GenerationStep);
-        setStatusMessage(data.message);
-      });
-
-      eventSource.addEventListener('chunk', (event) => {
-        const data = JSON.parse(event.data);
-        setStreamingText((prev) => prev + data.text);
-      });
-
-      eventSource.addEventListener('complete', (event) => {
-        const data = JSON.parse(event.data);
-        setContent(data.content);
-        setGenerationStep('done');
-        setStreamingText('');
-        eventSource.close();
-        eventSourceRef.current = null;
-      });
-
-      eventSource.addEventListener('error', (event) => {
-        // Check if it's a custom error event or connection error
-        if (event instanceof MessageEvent) {
-          const data = JSON.parse(event.data);
-          setError(data.error);
-        } else {
-          setError('Connection error. Please try again.');
-        }
-        setGenerationStep('idle');
-        eventSource.close();
-        eventSourceRef.current = null;
-      });
-
-      // Handle connection errors
-      eventSource.onerror = () => {
-        if (eventSource.readyState === EventSource.CLOSED) {
-          // Normal close, ignore
-          return;
-        }
-        setError('Connection error. Please try again.');
-        setGenerationStep('idle');
-        eventSource.close();
-        eventSourceRef.current = null;
-      };
     } catch (err) {
-      console.error('Error setting up stream:', err);
+      console.error('Error generating introduction:', err);
       setError(
         err instanceof Error ? err.message : 'Failed to generate introduction'
       );
       setGenerationStep('idle');
     }
-  }, [artifactId, preferredProvider]);
+  }, [artifactId, preferredProvider, preferredTtsProvider, authedApi]);
+
+  const handleRetryAudio = useCallback(async () => {
+    if (!content) return;
+
+    setIsRetryingAudio(true);
+    setError(null);
+    try {
+      const updated = await authedApi.mutate<ContentItem>(
+        `/generate-audio/content/${content.id}`,
+        {
+          method: 'POST',
+          body: { ttsProvider: preferredTtsProvider },
+        },
+        { requireAdmin: true }
+      );
+
+      setContent(updated);
+      if (!updated.audioUrl) {
+        setError(
+          'Audio retry completed but no audio URL was returned. Check API logs.'
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to regenerate audio');
+    } finally {
+      setIsRetryingAudio(false);
+    }
+  }, [authedApi, content, preferredTtsProvider]);
 
   // Show streaming UI when generating (before we have final content)
   if (isGenerating && !content) {
@@ -121,8 +258,6 @@ export function ArtifactIntroduction({
               <p className="text-primary font-medium">{statusMessage}</p>
             </div>
           </div>
-
-          {/* Streaming text display */}
           {streamingText && (
             <div className="relative">
               <p className="text-primary leading-relaxed whitespace-pre-wrap">
@@ -170,6 +305,21 @@ export function ArtifactIntroduction({
             >
               Your browser does not support the audio element.
             </audio>
+          </div>
+        )}
+        {!content.audioUrl && (
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+            <p className="text-sm text-muted-foreground">
+              Audio is unavailable for this introduction.
+            </p>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleRetryAudio}
+              disabled={isRetryingAudio}
+            >
+              {isRetryingAudio ? 'Retrying audio...' : 'Retry audio'}
+            </Button>
           </div>
         )}
 

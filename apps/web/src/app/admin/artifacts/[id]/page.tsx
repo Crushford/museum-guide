@@ -3,9 +3,7 @@ import { redirect } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { PageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
-import { updateArtifact } from '../../shared/actions';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
-import { deleteArtifact } from './actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -64,12 +62,14 @@ export default async function ArtifactEditPage({
     redirect('/admin');
   }
 
-  const [artifact, museums, allRooms, artifactContent] = await Promise.all([
+  const [artifact, museums, artifactContent] = await Promise.all([
     api<Artifact>(`/artifacts/${nodeId}`),
     api<Museum[]>(`/museums`).catch(() => []),
-    api<Room[]>(`/admin/rooms`).catch(() => []),
     api<ContentItem[]>(`/artifacts/${nodeId}/content`).catch(() => []),
   ]);
+  const allRooms = await api<Room[]>(
+    `/museums/${artifact.museumId}/rooms`
+  ).catch(() => []);
 
   // Get parent room
   const parentRoom: Room | null = artifact.roomId
@@ -88,19 +88,6 @@ export default async function ArtifactEditPage({
   const parentMuseum: Museum | null = await api<Museum>(
     `/museums/${artifact.museumId}`
   ).catch(() => null);
-
-  const handleSave = async (data: {
-    name: string;
-    parentId: number | null;
-    knowledgeText: string | null;
-    furtherReading: string[];
-  }) => {
-    'use server';
-    await updateArtifact(nodeId, {
-      ...data,
-      knowledgeText: data.knowledgeText,
-    });
-  };
 
   // Find the museum for this artifact to build the public page link
   const artifactMuseum = museums.find((m) => m.id === artifact.museumId);
@@ -172,7 +159,6 @@ export default async function ArtifactEditPage({
           name: r.name,
           parentId: (r as { museumId?: number | null }).museumId ?? null,
         }))}
-        onSave={handleSave}
       />
       {/* Content Tags */}
       {(hasAdultContent ||
@@ -206,7 +192,6 @@ export default async function ArtifactEditPage({
           entityType="artifact"
           entityId={artifact.id}
           entityName={artifact.name}
-          onDelete={deleteArtifact}
         />
       </div>
     </PageLayout>

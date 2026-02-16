@@ -37,12 +37,6 @@ type MuseumProps = {
   childRooms: Array<{ id: number; name: string }>;
   childArtifacts?: Array<{ id: number; name: string }>;
   museums: Museum[];
-  onSave: (data: {
-    name: string;
-    parentId: number | null;
-    knowledgeText: string | null;
-    furtherReading: string[];
-  }) => Promise<void>;
 };
 
 type RoomProps = {
@@ -57,12 +51,6 @@ type RoomProps = {
     museum?: string | null;
   }>; // All artifacts including from child rooms
   museums: Museum[];
-  onSave: (data: {
-    name: string;
-    parentId: number | null;
-    knowledgeText: string | null;
-    furtherReading: string[];
-  }) => Promise<void>;
 };
 
 type ArtifactProps = {
@@ -72,12 +60,6 @@ type ArtifactProps = {
   parentMuseum: Museum | null;
   museums: Museum[];
   rooms: Room[];
-  onSave: (data: {
-    name: string;
-    parentId: number | null;
-    knowledgeText: string | null;
-    furtherReading: string[];
-  }) => Promise<void>;
 };
 
 type EditPageClientProps = MuseumProps | RoomProps | ArtifactProps;

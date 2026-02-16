@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { PageLayout } from '@/components/shared';
 import { SectionCard } from '@/components/shared';
@@ -8,6 +8,7 @@ import { AdminTabsClient } from './AdminTabsClient';
 import { Button } from '@/components/ui/button';
 import { Database } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import type {
   MuseumResponse,
   RoomResponse,
@@ -19,30 +20,21 @@ type Room = RoomResponse;
 type Artifact = ArtifactResponse;
 
 export default function AdminPage() {
+  const authedApi = useAuthedApi();
   const [museums, setMuseums] = useState<Museum[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [museumsRes, roomsRes, artifactsRes] = await Promise.all([
-        fetch('/api/admin/museums'),
-        fetch('/api/admin/rooms'),
-        fetch('/api/admin/artifacts'),
-      ]);
-
-      if (!museumsRes.ok || !roomsRes.ok || !artifactsRes.ok) {
-        throw new Error('Failed to fetch admin data');
-      }
-
       const [museumsData, roomsData, artifactsData] = await Promise.all([
-        museumsRes.json(),
-        roomsRes.json(),
-        artifactsRes.json(),
+        authedApi.get<Museum[]>('/admin/content/museums'),
+        authedApi.get<Room[]>('/admin/content/rooms'),
+        authedApi.get<Artifact[]>('/admin/content/artifacts'),
       ]);
 
       setMuseums(museumsData);
@@ -53,11 +45,11 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authedApi]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   if (loading) {
     return (

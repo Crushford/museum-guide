@@ -7,7 +7,7 @@ import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { InlineEditableMuseumRoom } from '@/components/shared/InlineEditableMuseumRoom';
-import { updateNodeField, updateRoomParent } from './actions';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 import { Museum, Room } from '@/lib/types';
 
 type ParentSelectorProps =
@@ -40,6 +40,7 @@ type ParentSelectorProps =
 
 export function ParentSelector(props: ParentSelectorProps) {
   const router = useRouter();
+  const authedApi = useAuthedApi();
 
   // Room-specific state (only used when type === 'room')
   const [internalIsEditingRoom, setInternalIsEditingRoom] = useState(false);
@@ -145,7 +146,24 @@ export function ParentSelector(props: ParentSelectorProps) {
     async (museumId: number | null, parentRoomId: number | null) => {
       if (!roomEntityId) return;
       try {
-        await updateRoomParent(roomEntityId, museumId, parentRoomId);
+        const updateData: {
+          museumId?: number | null;
+          parentRoomId?: number | null;
+        } = {};
+        if (museumId !== null) {
+          updateData.museumId = museumId;
+          updateData.parentRoomId = null;
+        } else if (parentRoomId !== null) {
+          updateData.parentRoomId = parentRoomId;
+          updateData.museumId = null;
+        } else {
+          updateData.museumId = null;
+          updateData.parentRoomId = null;
+        }
+        await authedApi.mutate(`/rooms/${roomEntityId}`, {
+          method: 'PATCH',
+          body: updateData,
+        });
         setSelectedMuseumId(museumId);
         setSelectedParentRoomId(parentRoomId);
         roomOnMuseumChange?.(museumId);
@@ -160,7 +178,14 @@ export function ParentSelector(props: ParentSelectorProps) {
         alert('Failed to update room parent. Please try again.');
       }
     },
-    [roomEntityId, roomOnMuseumChange, roomIsEditing, roomOnEditChange, router]
+    [
+      roomEntityId,
+      roomOnMuseumChange,
+      roomIsEditing,
+      roomOnEditChange,
+      router,
+      authedApi,
+    ]
   );
 
   // Extract values for useCallback dependencies
@@ -190,7 +215,10 @@ export function ParentSelector(props: ParentSelectorProps) {
       }
 
       // Save the room change (parentId)
-      await updateNodeField(artifactEntityId, 'parentId', selectedRoomId);
+      await authedApi.mutate(`/nodes/${artifactEntityId}`, {
+        method: 'PATCH',
+        body: { parentId: selectedRoomId },
+      });
       setRoomId(selectedRoomId);
       setMuseumId(selectedMuseumId);
       artifactOnRoomChange?.(selectedRoomId);
@@ -203,6 +231,7 @@ export function ParentSelector(props: ParentSelectorProps) {
       artifactOnRoomChange,
       artifactOnMuseumChange,
       router,
+      authedApi,
     ]
   );
 

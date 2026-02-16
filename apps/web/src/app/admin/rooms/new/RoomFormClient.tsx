@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/shared/SectionCard';
 import { SaveBar } from '@/components/shared/SaveBar';
-import { createRoom } from './actions';
 import { Room, RoomDraft } from '@/lib/types';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type RoomFormClientProps = {
   museumId: number;
@@ -21,6 +22,8 @@ export function RoomFormClient({
   rooms,
   importedData,
 }: RoomFormClientProps) {
+  const authedApi = useAuthedApi();
+  const router = useRouter();
   const [name, setName] = useState('');
   const [knowledgeText, setKnowledgeText] = useState('');
   const [furtherReading, setFurtherReading] = useState('');
@@ -83,15 +86,19 @@ export function RoomFormClient({
           .map((line) => line.trim())
           .filter((line) => line.length > 0);
 
-        await createRoom({
+        const body: Record<string, unknown> = {
           ...(parentType === 'museum'
             ? { museumId }
             : { parentRoomId: parentRoomId! }),
           name: name.trim(),
-          knowledgeText: knowledgeText.trim() || undefined,
-          furtherReading:
-            furtherReadingArray.length > 0 ? furtherReadingArray : undefined,
+          knowledgeText: knowledgeText.trim() || null,
+          furtherReading: furtherReadingArray.length > 0 ? furtherReadingArray : [],
+        };
+        const room = await authedApi.mutate<{ id: number }>('/rooms', {
+          method: 'POST',
+          body,
         });
+        router.push(`/admin/rooms/${room.id}`);
       } catch (error) {
         console.error('Failed to create room:', error);
         const errorMsg =

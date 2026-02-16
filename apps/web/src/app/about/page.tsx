@@ -10,7 +10,7 @@ export default function AboutPage() {
   return (
     <PageLayout title="About Museum Guide">
       <div className="space-y-6">
-      <SectionCard title="Built by">
+        <SectionCard title="Built by">
           <div className="space-y-4 text-primary leading-relaxed">
             <p>This app was built by James Rushford.</p>
             <p>
@@ -26,22 +26,24 @@ export default function AboutPage() {
               </a>
               .
             </p>
-            <p>I&apos;m currently looking for a job. If you&apos;re hiring, let&apos;s talk.</p>
+            <p>
+              I&apos;m currently looking for a job. If you&apos;re hiring,
+              let&apos;s talk.
+            </p>
           </div>
         </SectionCard>
         <SectionCard title="Purpose of this app">
           <div className="space-y-4 text-primary leading-relaxed">
             <p>
-              Many museums have limited labels, no
-              audio guide, or an audio guide that is outdated. This app helps
-              you explore what you&apos;re seeing by letting you ask questions
-              in the moment and listen to richer explanations while you walk.
+              Many museums have limited labels, no audio guide, or an audio
+              guide that is outdated. This app helps you explore what
+              you&apos;re seeing by letting you ask questions in the moment and
+              listen to richer explanations while you walk.
             </p>
             <p>
-              Museums are the authority on their collections.
-              Museum Guide sits alongside that work and makes it easier for
-              visitors to explore, learn, and share curiosity with other
-              visitors.
+              Museums are the authority on their collections. Museum Guide sits
+              alongside that work and makes it easier for visitors to explore,
+              learn, and share curiosity with other visitors.
             </p>
           </div>
         </SectionCard>

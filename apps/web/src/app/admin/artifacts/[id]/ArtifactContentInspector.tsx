@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { API_URL } from '@/lib/api';
 import { ContentItem } from '@/lib/types';
+import { useAuthedApi } from '@/lib/useAuthedApi';
+import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
 
 type Props = {
   artifactId: number;
@@ -17,9 +19,11 @@ export function ArtifactContentInspector({
   artifactId,
   initialContent,
 }: Props) {
+  const authedApi = useAuthedApi();
   const [content, setContent] = useState<ContentItem[]>(initialContent);
   const [generating, setGenerating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const preferredTtsProvider = usePreferredTTSProvider();
   const [preferredProvider] = useState<'google' | 'openai'>(() => {
     if (typeof window === 'undefined') return 'google';
     const stored = localStorage.getItem('preferred-llm-provider');
@@ -31,21 +35,13 @@ export function ArtifactContentInspector({
     setError(null);
 
     try {
-      const res = await fetch(
-        `${API_URL}/admin/artifacts/${artifactId}/generate-introduction`,
+      const data = await authedApi.mutate<{ content: ContentItem }>(
+        `/admin/artifacts/${artifactId}/generate-introduction`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider }),
+          body: { provider, ttsProvider: preferredTtsProvider },
         }
       );
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `Failed to generate (${res.status})`);
-      }
-
-      const data = await res.json();
       // Replace or add the introduction content
       setContent((prev) => {
         const idx = prev.findIndex((c) => c.type === 'introduction');

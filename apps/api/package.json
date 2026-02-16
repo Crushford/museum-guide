@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "grant-admin": "tsx src/scripts/grant-admin.ts"
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.32.0",
@@ -17,6 +18,8 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "firebase-admin": "^13.6.1",
     "langfuse": "^3.38.6",
     "openai": "^6.18.0"
   },

@@ -47,3 +47,4 @@
 ## Bugs
 
 - [ ] Investigate why this artifact page is in German: http://localhost:3000/british-museum/artifacts/bildnis-leendert-van-der-cooghen-mit-groem-hut
+- [ ] Search selection bug: selecting an already-existing museum from Wikidata/location results can show "A museum with a similar name already exists" instead of redirecting to the existing museum page.

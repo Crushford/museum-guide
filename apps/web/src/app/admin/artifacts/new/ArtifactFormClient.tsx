@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { SaveBar } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { UrlListEditor } from '../../../../components/shared';
 import { ArtifactCreateInput, ArtifactImportData, Room } from '@/lib/types';
-import { createArtifactWithRoom } from './actions';
+import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type FormData = {
   name: string;
@@ -37,6 +38,8 @@ export function ArtifactFormClient({
   initialParentName,
   importedData,
 }: ArtifactFormClientProps) {
+  const authedApi = useAuthedApi();
+  const router = useRouter();
   const STORAGE_KEY = `artifact-form-${museumId}`;
 
   const [showAddNewRoom, setShowAddNewRoom] = useState(false);
@@ -180,34 +183,92 @@ export function ArtifactFormClient({
 
     startTransition(async () => {
       try {
-        await createArtifactWithRoom(artifactData);
+        let roomId: number | null = null;
+
+        // museumId is required for artifacts.
+        if (!artifactData.museumId || typeof artifactData.museumId !== 'number') {
+          throw new Error('museumId is required for artifacts');
+        }
+
+        if (artifactData.parentId) {
+          roomId = artifactData.parentId;
+        } else if (artifactData.parentName) {
+          const museumIdForRoom = artifactData.museumId;
+
+          try {
+            const existingRooms = await authedApi.get<
+              Array<{ id: number; name: string; museumId: number | null }>
+            >(`/museums/${museumIdForRoom}/rooms`);
+
+            const existingRoom = existingRooms.find(
+              (room) =>
+                room.name.toLowerCase() ===
+                  artifactData.parentName!.toLowerCase() &&
+                room.museumId === museumIdForRoom
+            );
+
+            if (existingRoom) {
+              roomId = existingRoom.id;
+            }
+          } catch (error) {
+            console.error('Error fetching rooms:', error);
+          }
+
+          if (!roomId) {
+            const roomParentType = artifactData.newRoomParentType || 'museum';
+            const roomPayload: Record<string, unknown> = {
+              name: artifactData.parentName,
+              knowledgeText: null,
+              furtherReading: [],
+            };
+
+            if (roomParentType === 'museum') {
+              roomPayload.museumId = museumIdForRoom;
+            } else if (
+              roomParentType === 'room' &&
+              artifactData.newRoomParentRoomId
+            ) {
+              roomPayload.parentRoomId = artifactData.newRoomParentRoomId;
+            } else {
+              roomPayload.museumId = museumIdForRoom;
+            }
+
+            const newRoom = await authedApi.mutate<{
+              id: number;
+              parentId: number;
+            }>('/rooms', {
+              method: 'POST',
+              body: roomPayload,
+            });
+
+            roomId = newRoom.id;
+
+            if (newRoom.parentId !== museumIdForRoom) {
+              console.warn(
+                `Room created with parentId ${newRoom.parentId}, expected ${museumIdForRoom}`
+              );
+            }
+          }
+        }
+
+        const artifact = await authedApi.mutate<{ id: number }>('/artifacts', {
+          method: 'POST',
+          body: {
+            name: artifactData.name,
+            museumId: artifactData.museumId,
+            roomId: roomId || null,
+            knowledgeText: artifactData.knowledgeText || null,
+            furtherReading: artifactData.furtherReading || [],
+          },
+        });
+
         // Clear localStorage on successful save
         if (typeof window !== 'undefined') {
           localStorage.removeItem(STORAGE_KEY);
         }
         setSaveStatus('success');
-        // If successful, redirect will happen server-side
+        router.push(`/admin/artifacts/${artifact.id}`);
       } catch (error: unknown) {
-        // Next.js redirect() throws a special error - don't show it as an error
-        if (
-          error &&
-          typeof error === 'object' &&
-          ('digest' in error || 'message' in error)
-        ) {
-          const errorObj = error as { digest?: string; message?: string };
-          if (
-            errorObj.digest?.startsWith('NEXT_REDIRECT') ||
-            errorObj.message === 'NEXT_REDIRECT'
-          ) {
-            // Clear localStorage on successful redirect
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem(STORAGE_KEY);
-            }
-            setSaveStatus('success');
-            // Let the redirect happen
-            return;
-          }
-        }
         console.error('Failed to create artifact:', error);
         const errorMsg =
           error instanceof Error

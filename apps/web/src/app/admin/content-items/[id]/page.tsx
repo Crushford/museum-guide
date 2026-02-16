@@ -1,8 +1,6 @@
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
-import { updateContentItemBody } from './actions';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
+import { ContentItemEditorClient } from './ContentItemEditorClient';
 
 type ContentItem = {
   id: number;
@@ -36,12 +34,6 @@ export default async function ContentItemPage({
   const contentItemId = Number(id);
 
   const contentItem = await api<ContentItem>(`/content-items/${contentItemId}`);
-
-  async function saveBodyAction(formData: FormData) {
-    'use server';
-    const body = formData.get('body') as string;
-    return updateContentItemBody(contentItemId, body, returnTo);
-  }
 
   // Find the node type for returnTo if it's in nodeContents
   const returnToNode = returnTo
@@ -123,29 +115,11 @@ export default async function ContentItemPage({
 
       <section className="mb-8">
         <h2 className="text-2xl font-semibold mb-4">Generated Content Text</h2>
-        <form action={saveBodyAction} className="space-y-4">
-          <div>
-            <label htmlFor="body" className="block text-sm font-medium mb-1">
-              Paste generated text here
-            </label>
-            <Textarea
-              id="body"
-              name="body"
-              rows={12}
-              defaultValue={contentItem.body}
-              placeholder="Paste the generated text from ChatGPT here..."
-              className="w-full font-mono text-sm"
-            />
-          </div>
-          <div className="flex gap-4">
-            <Button type="submit">Save Text</Button>
-            {contentItem.body.trim() && (
-              <div className="flex items-center text-sm text-success">
-                ✓ Text saved ({contentItem.body.length} characters)
-              </div>
-            )}
-          </div>
-        </form>
+        <ContentItemEditorClient
+          contentItemId={contentItemId}
+          initialBody={contentItem.body}
+          returnTo={returnTo}
+        />
       </section>
     </main>
   );

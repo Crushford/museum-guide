@@ -3,9 +3,7 @@ import { redirect } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { PageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
-import { updateMuseum } from '../../shared/actions';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
-import { deleteMuseum } from './actions';
 import { SectionCard } from '../../../../components/shared';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -73,16 +71,6 @@ export default async function MuseumEditPage({
   const intro = content.find((c) => c.type === 'intro') || content[0];
   const followups = content.filter((c) => c.type === 'followup').slice(0, 3);
 
-  const handleSave = async (data: {
-    name: string;
-    parentId: number | null;
-    knowledgeText: string | null;
-    furtherReading: string[];
-  }) => {
-    'use server';
-    await updateMuseum(nodeId, data);
-  };
-
   return (
     <PageLayout
       title={`Museum: ${museum.name}`}
@@ -117,7 +105,6 @@ export default async function MuseumEditPage({
           childRooms={rooms}
           childArtifacts={artifacts}
           museums={museums}
-          onSave={handleSave}
         />
         {/* Generated Content */}
         {intro && intro.text.trim() && (
@@ -148,7 +135,6 @@ export default async function MuseumEditPage({
             entityType="museum"
             entityId={museum.id}
             entityName={museum.name}
-            onDelete={deleteMuseum}
           />
         </div>
       </div>

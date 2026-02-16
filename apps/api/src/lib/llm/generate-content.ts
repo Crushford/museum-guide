@@ -3,7 +3,7 @@ import { createProvider } from './index';
 import { checkSpendLimit } from './cost-tracker';
 import { recordUsage } from './cost-tracker';
 import { traceGeneration } from '../telemetry/langfuse';
-import { generateAudioForContent } from '../audio';
+import { generateAudioForContent, type TtsProviderName } from '../audio';
 import {
   buildIntroductionPrompt,
   buildMuseumGuideSystemPrompt,
@@ -28,7 +28,8 @@ export async function fetchArtifactWithRelations(artifactId: number) {
 export async function generateIntroduction(
   artifactId: number,
   providerName: 'google' | 'openai',
-  audioDir: string
+  audioDir: string,
+  ttsProvider: TtsProviderName
 ): Promise<{
   content: {
     id: number;
@@ -146,6 +147,7 @@ export async function generateIntroduction(
   try {
     const audioUrl = await generateAudioForContent(content.id, result.text, {
       outputDir: audioDir,
+      provider: ttsProvider,
     });
     content = await prisma.content.update({
       where: { id: content.id },
