@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { API_URL } from '@/lib/api';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
+import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
 import { ArtifactQuestion, AskResponse } from '@/lib/types';
 
 interface ArtifactQuestionsPanelProps {
@@ -51,6 +52,7 @@ export function ArtifactQuestionsPanel({
   const [modalAnsweredQuestion, setModalAnsweredQuestion] =
     useState<ArtifactQuestion | null>(null);
   const preferredProvider = usePreferredLLMProvider();
+  const preferredTtsProvider = usePreferredTTSProvider();
   const sessionIdRef = useRef(
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
@@ -79,7 +81,7 @@ export function ArtifactQuestionsPanel({
     setModalError(null);
     try {
       const res = await fetch(
-        `${API_URL}/artifacts/${artifactId}/questions/ask?provider=${preferredProvider}`,
+        `${API_URL}/artifacts/${artifactId}/questions/ask?provider=${preferredProvider}&ttsProvider=${preferredTtsProvider}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -129,7 +131,7 @@ export function ArtifactQuestionsPanel({
     setSimilarPrompt(null);
     try {
       const res = await fetch(
-        `${API_URL}/artifacts/${artifactId}/questions/ask?provider=${preferredProvider}`,
+        `${API_URL}/artifacts/${artifactId}/questions/ask?provider=${preferredProvider}&ttsProvider=${preferredTtsProvider}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

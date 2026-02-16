@@ -17,6 +17,8 @@ import { existsSync } from 'node:fs';
 import {
   generateAudioForArtifactQuestion,
   generateAudioForContent,
+  parseTtsProvider,
+  getDefaultTtsProvider,
 } from './lib/audio';
 import {
   generateIntroduction,
@@ -2804,6 +2806,10 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
     }
 
     const providerName = parseProvider(req.query.provider, 'google');
+    const ttsProvider = parseTtsProvider(
+      req.query.ttsProvider,
+      getDefaultTtsProvider()
+    );
     let approvedQuestionText: string | null = null;
     if (typeof approvedQuestionTextRaw === 'string') {
       const trimmed = approvedQuestionTextRaw.trim();
@@ -3014,13 +3020,19 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
       answerAudioUrl = await generateAudioForArtifactQuestion(
         question.id,
         answerText,
-        { outputDir: audioDir }
+        { outputDir: audioDir, provider: ttsProvider }
       );
       await prisma.artifactQuestion.update({
         where: { id: question.id },
         data: { answerAudioUrl },
       });
-    } catch {
+    } catch (audioError) {
+      console.error('[questions.ask] Audio generation failed', {
+        artifactId,
+        questionId: question.id,
+        ttsProvider,
+        error: audioError instanceof Error ? audioError.message : audioError,
+      });
       // Audio is optional.
     }
 
@@ -3544,6 +3556,10 @@ app.post(
       }
 
       const providerName = parseProvider(req.query.provider, 'google');
+      const ttsProvider = parseTtsProvider(
+        req.body?.ttsProvider,
+        getDefaultTtsProvider()
+      );
       const provider = createProvider(providerName);
 
       const result = await provider.generate({
@@ -3567,12 +3583,19 @@ app.post(
       try {
         audioUrl = await generateAudioForContent(content.id, result.text, {
           outputDir: audioDir,
+          provider: ttsProvider,
         });
         await prisma.content.update({
           where: { id: content.id },
           data: { audioUrl },
         });
-      } catch {
+      } catch (audioError) {
+        console.error('[generate-content.post] Audio generation failed', {
+          artifactId: artefactId,
+          contentId: content.id,
+          ttsProvider,
+          error: audioError instanceof Error ? audioError.message : audioError,
+        });
         // Audio is optional
       }
 
@@ -3635,6 +3658,10 @@ app.get(
     }
 
     const providerName = parseProvider(req.query.provider, 'google');
+    const ttsProvider = parseTtsProvider(
+      req.query.ttsProvider,
+      getDefaultTtsProvider()
+    );
 
     // Set up SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -3760,15 +3787,25 @@ app.get(
       });
 
       let audioUrl: string | null = null;
+      let audioErrorMessage: string | null = null;
       try {
         audioUrl = await generateAudioForContent(content.id, fullText, {
           outputDir: audioDir,
+          provider: ttsProvider,
         });
         await prisma.content.update({
           where: { id: content.id },
           data: { audioUrl },
         });
-      } catch {
+      } catch (audioError) {
+        audioErrorMessage =
+          audioError instanceof Error ? audioError.message : String(audioError);
+        console.error('[generate-content.stream] Audio generation failed', {
+          artifactId: artefactId,
+          contentId: content.id,
+          ttsProvider,
+          error: audioErrorMessage,
+        });
         // Continue without audio
       }
 
@@ -3776,7 +3813,7 @@ app.get(
         where: { id: content.id },
       });
 
-      sendEvent('complete', { content: finalContent });
+      sendEvent('complete', { content: finalContent, audioError: audioErrorMessage });
       res.end();
     } catch (error) {
       sendEvent('error', {
@@ -3853,6 +3890,10 @@ app.post(
 
       const audioUrl = await generateAudioForContent(content.id, content.text, {
         outputDir: audioDir,
+        provider: parseTtsProvider(
+          req.body?.ttsProvider,
+          getDefaultTtsProvider()
+        ),
       });
 
       const updatedContent = await prisma.content.update({
@@ -3865,15 +3906,6 @@ app.post(
       let errorMessage = 'Failed to generate audio';
       if (error instanceof Error) {
         errorMessage = error.message;
-        if (
-          error.message.includes('GOOGLE_APPLICATION_CREDENTIALS') ||
-          error.message.includes('credentials') ||
-          error.message.includes('authentication')
-        ) {
-          errorMessage = `${error.message}
-
-Make sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentials are set up correctly.`;
-        }
       }
       res.status(500).json({ error: errorMessage });
     }
@@ -3908,6 +3940,10 @@ app.post(
 
       const audioUrl = await generateAudioForContent(content.id, content.text, {
         outputDir: audioDir,
+        provider: parseTtsProvider(
+          req.body?.ttsProvider,
+          getDefaultTtsProvider()
+        ),
       });
 
       const updatedContent = await prisma.content.update({
@@ -3920,15 +3956,6 @@ app.post(
       let errorMessage = 'Failed to generate audio';
       if (error instanceof Error) {
         errorMessage = error.message;
-        if (
-          error.message.includes('GOOGLE_APPLICATION_CREDENTIALS') ||
-          error.message.includes('credentials') ||
-          error.message.includes('authentication')
-        ) {
-          errorMessage = `${error.message}
-
-Make sure GOOGLE_APPLICATION_CREDENTIALS is configured or Google Cloud credentials are set up correctly.`;
-        }
       }
       res.status(500).json({ error: errorMessage });
     }
@@ -3975,11 +4002,16 @@ app.post(
           .status(400)
           .json({ error: 'provider must be "google" or "openai"' });
       }
+      const ttsProvider = parseTtsProvider(
+        req.body?.ttsProvider,
+        getDefaultTtsProvider()
+      );
 
       const result = await generateIntroduction(
         artifactId,
         providerName,
-        audioDir
+        audioDir,
+        ttsProvider
       );
       res.json(result);
     } catch (error) {

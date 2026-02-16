@@ -4,12 +4,20 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'path';
 import { recordApiCall } from './telemetry/api-call-tracker';
 
+export type TtsProviderName = 'google-tts' | 'inworld';
+
+const DEFAULT_TTS_PROVIDER: TtsProviderName = 'inworld';
+const INWORLD_MODEL_ID = 'inworld-tts-1.5-mini';
+const INWORLD_VOICE_ID = 'Craig';
+const INWORLD_MAX_TEXT_CHARS = 2000;
+
 export type AudioGenerationOptions = {
   text: string;
   voiceName?: string;
   languageCode?: string;
   outputDir?: string;
   fileName?: string;
+  provider?: TtsProviderName;
 };
 
 export type AudioGenerationResult = {
@@ -19,32 +27,58 @@ export type AudioGenerationResult = {
   duration: number;
 };
 
-/**
- * Generate audio from text using Google Cloud Text-to-Speech API
- * @param options Audio generation options
- * @returns Audio file URL and metadata
- */
-export async function generateAudio(
+function saveAudioFile(params: {
+  audioBuffer: Buffer;
+  outputDir?: string;
+  fileName?: string;
+  startTime: number;
+}): AudioGenerationResult {
+  const finalOutputDir = params.outputDir || resolve(__dirname, '../../public/audio');
+  const finalFileName = params.fileName || `audio-${Date.now()}.mp3`;
+  const filePath = resolve(finalOutputDir, finalFileName);
+  const duration = Date.now() - params.startTime;
+  const audioUrl = `/audio/${finalFileName}`;
+
+  return {
+    audioUrl,
+    filePath,
+    fileSize: params.audioBuffer.length,
+    duration,
+  };
+}
+
+export function parseTtsProvider(
+  value: unknown,
+  fallback: TtsProviderName = DEFAULT_TTS_PROVIDER
+): TtsProviderName {
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (normalized === 'google' || normalized === 'google-tts' || normalized === 'gcp') {
+    return 'google-tts';
+  }
+  if (normalized === 'inworld' || normalized === 'inworld-ai' || normalized === 'inworld.ai') {
+    return 'inworld';
+  }
+  return fallback;
+}
+
+export function getDefaultTtsProvider(): TtsProviderName {
+  return parseTtsProvider(process.env.SCAN_TTS_PROVIDER, DEFAULT_TTS_PROVIDER);
+}
+
+async function generateAudioWithGoogle(
   options: AudioGenerationOptions
 ): Promise<AudioGenerationResult> {
   const {
     text,
-    voiceName = 'en-AU-Standard-B', // Australian English, Standard voice B
+    voiceName = 'en-AU-Standard-B',
     languageCode = 'en-AU',
     outputDir,
     fileName,
   } = options;
-
   const startTime = Date.now();
 
-  // Initialize Google Cloud Text-to-Speech client
-  // Uses GOOGLE_APPLICATION_CREDENTIALS env var or default application credentials
-  // Default credentials are automatically detected from:
-  // 1. GOOGLE_APPLICATION_CREDENTIALS environment variable
-  // 2. gcloud auth application-default login credentials
-  // 3. Google Cloud environment (if running on GCP)
-
-  // Log credential detection for debugging
   const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const homeDir = process.env.HOME || process.env.USERPROFILE;
   const defaultCredentialsPath = homeDir
@@ -61,20 +95,11 @@ export async function generateAudio(
   });
 
   const client = new TextToSpeechClient();
-
-  console.log('[Audio Generation] Initializing Google Cloud TTS client...', {
-    hasCredentialsEnv: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
-    voiceName,
-    languageCode,
-    textLength: text.length,
-  });
-
-  // Construct the request
   const request = {
     input: { text },
     voice: {
       name: voiceName,
-      languageCode: languageCode,
+      languageCode,
     },
     audioConfig: {
       audioEncoding: 'MP3' as const,
@@ -82,9 +107,8 @@ export async function generateAudio(
     },
   };
 
-  // Generate audio
-  let response;
   const ttsStart = Date.now();
+  let response;
   try {
     [response] = await client.synthesizeSpeech(request);
     recordApiCall({
@@ -92,7 +116,7 @@ export async function generateAudio(
       endpoint: 'synthesizeSpeech',
       durationMs: Date.now() - ttsStart,
       status: 'success',
-      metadata: { textLength: text.length, voiceName },
+      metadata: { textLength: text.length, voiceName, provider: 'google-tts' },
     });
   } catch (error) {
     recordApiCall({
@@ -100,11 +124,10 @@ export async function generateAudio(
       endpoint: 'synthesizeSpeech',
       durationMs: Date.now() - ttsStart,
       status: 'error',
-      metadata: { textLength: text.length, voiceName },
+      metadata: { textLength: text.length, voiceName, provider: 'google-tts' },
       error: error instanceof Error ? error.message : String(error),
     });
-    console.error('[Audio Generation] Google Cloud TTS API error:', error);
-    // Provide helpful error messages for common credential issues
+
     if (error instanceof Error) {
       if (
         error.message.includes('Could not load the default credentials') ||
@@ -126,39 +149,169 @@ export async function generateAudio(
     throw new Error('No audio content returned from Google Cloud TTS');
   }
 
-  // Convert audio content to buffer
   const audioBuffer = Buffer.from(response.audioContent);
-
-  // Determine output directory and filename
-  const finalOutputDir = outputDir || resolve(__dirname, '../../public/audio');
-  const finalFileName = fileName || `audio-${Date.now()}.mp3`;
-  const filePath = resolve(finalOutputDir, finalFileName);
-
-  // Save audio file
-  await writeFile(filePath, audioBuffer);
-
-  const duration = Date.now() - startTime;
-  const audioUrl = `/audio/${finalFileName}`;
-
-  console.log('[Audio Generation] Audio generated and saved:', {
-    audioUrl,
-    filePath,
-    fileSize: `${(audioBuffer.length / 1024).toFixed(2)}KB`,
-    duration: `${duration}ms`,
-  });
-
-  return {
-    audioUrl,
-    filePath,
-    fileSize: audioBuffer.length,
-    duration,
-  };
+  const saved = saveAudioFile({ audioBuffer, outputDir, fileName, startTime });
+  await writeFile(saved.filePath, audioBuffer);
+  return saved;
 }
 
-/**
- * Generate audio for content and return the URL
- * This is a convenience wrapper that uses content ID for filename
- */
+function getInworldBasicCredential(): string | null {
+  const direct = process.env.INWORLD_TTS_BASIC_AUTH?.trim();
+  if (direct) return direct.replace(/^Basic\s+/i, '').trim();
+  const runtime = process.env.INWORLD_RUNTIME_BASE64_CREDENTIAL?.trim();
+  if (runtime) return runtime.replace(/^Basic\s+/i, '').trim();
+  return null;
+}
+
+async function generateAudioWithInworld(
+  options: AudioGenerationOptions
+): Promise<AudioGenerationResult> {
+  const { text, outputDir, fileName } = options;
+  const startTime = Date.now();
+  const credential = getInworldBasicCredential();
+  if (!credential) {
+    throw new Error(
+      'INWORLD_TTS_BASIC_AUTH (or INWORLD_RUNTIME_BASE64_CREDENTIAL) not configured'
+    );
+  }
+
+  const modelId = INWORLD_MODEL_ID;
+  const voiceId = INWORLD_VOICE_ID;
+  const truncatedText =
+    text.length > INWORLD_MAX_TEXT_CHARS
+      ? text.slice(0, INWORLD_MAX_TEXT_CHARS)
+      : text;
+  const wasTruncated = truncatedText.length !== text.length;
+  if (wasTruncated) {
+    console.warn('[Inworld TTS] Input text truncated', {
+      originalLength: text.length,
+      truncatedLength: truncatedText.length,
+      limit: INWORLD_MAX_TEXT_CHARS,
+      modelId,
+      voiceId,
+    });
+  }
+
+  const endpoint = 'https://api.inworld.ai/tts/v1/voice';
+  console.log('[Inworld TTS] Starting request', {
+    endpoint,
+    textLength: truncatedText.length,
+    originalTextLength: text.length,
+    wasTruncated,
+    modelId,
+    voiceId,
+    hasCredential: Boolean(credential),
+  });
+  const reqStart = Date.now();
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${credential}`,
+    },
+    body: JSON.stringify({
+      text: truncatedText,
+      voiceId,
+      modelId,
+      audioConfig: {
+        audioEncoding: 'MP3',
+        sampleRateHertz: 24000,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = await response.text().catch(() => '');
+    console.error('[Inworld TTS] Request failed', {
+      status: response.status,
+      durationMs: Date.now() - reqStart,
+      bodyPreview: payload.slice(0, 500),
+      modelId,
+      voiceId,
+    });
+    recordApiCall({
+      service: 'Inworld TTS',
+      endpoint: '/tts/v1/voice',
+      durationMs: Date.now() - reqStart,
+      status: 'error',
+      statusCode: response.status,
+      error: payload || `Inworld TTS failed (${response.status})`,
+      metadata: {
+        textLength: truncatedText.length,
+        originalTextLength: text.length,
+        wasTruncated,
+        voiceId,
+        modelId,
+        provider: 'inworld',
+      },
+    });
+    throw new Error(
+      `Inworld TTS request failed (${response.status}). ${payload || 'Check Inworld credentials and model/voice IDs.'}`
+    );
+  }
+
+  const payload = (await response.json()) as {
+    audioContent?: string;
+    usage?: { processedCharactersCount?: number; modelId?: string };
+    message?: string;
+  };
+
+  console.log('[Inworld TTS] Response received', {
+    status: response.status,
+    durationMs: Date.now() - reqStart,
+    hasAudioContent: Boolean(payload.audioContent),
+    textLength: truncatedText.length,
+    originalTextLength: text.length,
+    wasTruncated,
+    processedCharactersCount: payload.usage?.processedCharactersCount ?? null,
+    responseModelId: payload.usage?.modelId ?? null,
+    modelId,
+    voiceId,
+  });
+
+  if (!payload.audioContent) {
+    console.error('[Inworld TTS] Missing audio content', {
+      message: payload.message ?? null,
+      modelId,
+      voiceId,
+    });
+    throw new Error(payload.message || 'Inworld TTS did not return audioContent');
+  }
+
+  const audioBuffer = Buffer.from(payload.audioContent, 'base64');
+  const saved = saveAudioFile({ audioBuffer, outputDir, fileName, startTime });
+  await writeFile(saved.filePath, audioBuffer);
+
+  recordApiCall({
+    service: 'Inworld TTS',
+    endpoint: '/tts/v1/voice',
+    durationMs: Date.now() - reqStart,
+    status: 'success',
+    statusCode: response.status,
+    metadata: {
+      textLength: truncatedText.length,
+      originalTextLength: text.length,
+      wasTruncated,
+      voiceId,
+      modelId: payload.usage?.modelId || modelId,
+      processedCharactersCount: payload.usage?.processedCharactersCount ?? null,
+      provider: 'inworld',
+    },
+  });
+
+  return saved;
+}
+
+export async function generateAudio(
+  options: AudioGenerationOptions
+): Promise<AudioGenerationResult> {
+  const provider = parseTtsProvider(options.provider, getDefaultTtsProvider());
+  if (provider === 'google-tts') {
+    return generateAudioWithGoogle({ ...options, provider });
+  }
+  return generateAudioWithInworld({ ...options, provider });
+}
+
 export async function generateAudioForContent(
   contentId: number,
   text: string,

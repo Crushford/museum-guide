@@ -3,6 +3,7 @@
 import { useState, useEffect, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import type { OcrProviderName } from '@repo/types';
+import type { TtsProviderName } from '@/hooks/usePreferredTTSProvider';
 import {
   Tooltip,
   TooltipContent,
@@ -128,6 +129,12 @@ export function DevHeader() {
   );
   const ocrProvider: OcrProviderName =
     ocrProviderRaw === 'google-vision' ? 'google-vision' : 'ocr-space';
+  const ttsProviderRaw = useLocalStorageValue(
+    'preferred-tts-provider',
+    'inworld'
+  );
+  const ttsProvider: TtsProviderName =
+    ttsProviderRaw === 'google-tts' ? 'google-tts' : 'inworld';
   const hidden = useLocalStorageValue('dev-header-hidden', '0') === '1';
 
   useEffect(() => {
@@ -190,6 +197,9 @@ export function DevHeader() {
   };
   const handleOcrToggle = (value: OcrProviderName) => {
     setLocalStorage('preferred-ocr-provider', value);
+  };
+  const handleTtsToggle = (value: TtsProviderName) => {
+    setLocalStorage('preferred-tts-provider', value);
   };
 
   const handleHide = () => {
@@ -299,6 +309,28 @@ export function DevHeader() {
             }`}
           >
             Vision
+          </button>
+          <span className="text-zinc-600 mx-1">|</span>
+          <span className="text-zinc-500 mr-1">TTS</span>
+          <button
+            onClick={() => handleTtsToggle('inworld')}
+            className={`rounded px-1.5 py-0.5 transition-colors ${
+              ttsProvider === 'inworld'
+                ? 'bg-amber-500/20 text-amber-400'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Inworld
+          </button>
+          <button
+            onClick={() => handleTtsToggle('google-tts')}
+            className={`rounded px-1.5 py-0.5 transition-colors ${
+              ttsProvider === 'google-tts'
+                ? 'bg-amber-500/20 text-amber-400'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Google
           </button>
           <span className="text-zinc-600 mx-1">|</span>
           <span className="text-zinc-500 mr-1">LLM</span>

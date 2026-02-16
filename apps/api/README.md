@@ -45,6 +45,31 @@ Env vars:
 - `SCAN_OCR_PROVIDER=ocr-space` (or `google-vision`)
 - `OCR_SPACE_API_KEY` (required when using OCR.space)
 
+## TTS Providers
+
+Text-to-speech supports two providers:
+
+- `inworld` (default)
+- `google-tts`
+
+Env vars:
+
+- `SCAN_TTS_PROVIDER=inworld` (or `google-tts`)
+
+Inworld (required when using `inworld`):
+
+- `INWORLD_TTS_BASIC_AUTH` (base64 credential used as `Authorization: Basic ...`)
+  - alternatively `INWORLD_RUNTIME_BASE64_CREDENTIAL`
+
+Inworld model/voice are currently hardcoded in app code:
+
+- model: `inworld-tts-1.5-mini`
+- voiceId: `Craig`
+
+Google TTS (required when using `google-tts`):
+
+- ADC / service account credentials for Google Cloud TTS
+
 
 ## Admin Claim Bootstrap
 

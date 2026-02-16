@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { API_URL } from '@/lib/api';
 import { ContentItem } from '@/lib/types';
 import { useAuthedApi } from '@/lib/useAuthedApi';
+import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
 
 type Props = {
   artifactId: number;
@@ -22,6 +23,7 @@ export function ArtifactContentInspector({
   const [content, setContent] = useState<ContentItem[]>(initialContent);
   const [generating, setGenerating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const preferredTtsProvider = usePreferredTTSProvider();
   const [preferredProvider] = useState<'google' | 'openai'>(() => {
     if (typeof window === 'undefined') return 'google';
     const stored = localStorage.getItem('preferred-llm-provider');
@@ -35,7 +37,10 @@ export function ArtifactContentInspector({
     try {
       const data = await authedApi.mutate<{ content: ContentItem }>(
         `/admin/artifacts/${artifactId}/generate-introduction`,
-        { method: 'POST', body: { provider } }
+        {
+          method: 'POST',
+          body: { provider, ttsProvider: preferredTtsProvider },
+        }
       );
       // Replace or add the introduction content
       setContent((prev) => {

@@ -25,6 +25,7 @@ import { PromptTemplateBox } from '@/components/shared';
 import { generateIntroductionTemplate } from '../_lib/templates';
 import { API_URL } from '@/lib/api';
 import { useAuthedApi } from '@/lib/useAuthedApi';
+import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
 import {
   Dialog,
   DialogContent,
@@ -633,6 +634,7 @@ export function ContentTabsClient({
   onRefresh,
 }: ContentTabsClientProps) {
   const authedApi = useAuthedApi();
+  const preferredTtsProvider = usePreferredTTSProvider();
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab') || 'museums';
@@ -840,7 +842,10 @@ export function ContentTabsClient({
     async (artifactId: number) => {
       try {
         setGeneratingArtifactIds((prev) => new Set(prev).add(artifactId));
-        await authedApi.post(`/generate-content/artefact/${artifactId}`);
+        await authedApi.mutate(`/generate-content/artefact/${artifactId}`, {
+          method: 'POST',
+          body: { ttsProvider: preferredTtsProvider },
+        });
         // Refresh content after successful generation
         onRefresh?.();
       } catch (error) {
@@ -858,14 +863,17 @@ export function ContentTabsClient({
         });
       }
     },
-    [onRefresh, authedApi]
+    [onRefresh, authedApi, preferredTtsProvider]
   );
 
   const handleGenerateAudio = useCallback(
     async (artifactId: number) => {
       try {
         setGeneratingAudioArtifactIds((prev) => new Set(prev).add(artifactId));
-        await authedApi.post(`/generate-audio/artefact/${artifactId}`);
+        await authedApi.mutate(`/generate-audio/artefact/${artifactId}`, {
+          method: 'POST',
+          body: { ttsProvider: preferredTtsProvider },
+        });
         // Refresh content after successful generation
         onRefresh?.();
       } catch (error) {
@@ -883,14 +891,17 @@ export function ContentTabsClient({
         });
       }
     },
-    [onRefresh, authedApi]
+    [onRefresh, authedApi, preferredTtsProvider]
   );
 
   const handleGenerateAudioForContent = useCallback(
     async (contentId: number) => {
       try {
         setGeneratingAudioContentIds((prev) => new Set(prev).add(contentId));
-        await authedApi.post(`/generate-audio/content/${contentId}`);
+        await authedApi.mutate(`/generate-audio/content/${contentId}`, {
+          method: 'POST',
+          body: { ttsProvider: preferredTtsProvider },
+        });
         // Refresh content after successful generation
         onRefresh?.();
       } catch (error) {
@@ -908,7 +919,7 @@ export function ContentTabsClient({
         });
       }
     },
-    [onRefresh, authedApi]
+    [onRefresh, authedApi, preferredTtsProvider]
   );
 
   const currentData = getCurrentData();

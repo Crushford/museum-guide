@@ -9,6 +9,7 @@ import { SectionCard } from '@/components/shared';
 import { API_URL } from '@/lib/api';
 import { emitApiError, extractErrorBody } from '@/lib/api-errors';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
+import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 import { ContentItem } from '@/lib/types';
 
@@ -25,17 +26,24 @@ interface ArtifactIntroductionProps {
   initialContent: ContentItem | null;
 }
 
+type StreamCompletePayload = {
+  content?: ContentItem;
+  audioError?: string;
+};
+
 export function ArtifactIntroduction({
   artifactId,
   initialContent,
 }: ArtifactIntroductionProps) {
   const authedApi = useAuthedApi();
   const [content, setContent] = useState<ContentItem | null>(initialContent);
+  const [isRetryingAudio, setIsRetryingAudio] = useState(false);
   const [generationStep, setGenerationStep] = useState<GenerationStep>('idle');
   const [streamingText, setStreamingText] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const preferredProvider = usePreferredLLMProvider();
+  const preferredTtsProvider = usePreferredTTSProvider();
 
   const isGenerating = generationStep !== 'idle' && generationStep !== 'done';
 
@@ -49,7 +57,7 @@ export function ArtifactIntroduction({
       await authedApi.run(
         async (token) => {
           const response = await fetch(
-            `${API_URL}/generate-content/artefact/${artifactId}/stream?provider=${preferredProvider}`,
+            `${API_URL}/generate-content/artefact/${artifactId}/stream?provider=${preferredProvider}&ttsProvider=${preferredTtsProvider}`,
             {
               method: 'GET',
               headers: {
@@ -124,18 +132,23 @@ export function ArtifactIntroduction({
             }
 
             if (eventName === 'complete') {
-              if (data.content) {
-                const generated = data.content as ContentItem;
+              const complete = data as StreamCompletePayload;
+              if (complete.content) {
+                const generated = complete.content;
                 setContent(generated);
                 if (!generated.audioUrl) {
                   const audioErrorMessage =
-                    'Introduction generated, but text-to-speech audio failed. Please try again in a moment.';
+                    typeof complete.audioError === 'string' &&
+                    complete.audioError.trim()
+                      ? `Introduction generated, but text-to-speech audio failed: ${complete.audioError}`
+                      : 'Introduction generated, but text-to-speech audio failed. Please try again in a moment.';
                   console.error(
                     '[ArtifactIntroduction] Auto audio generation failed:',
                     {
                       artifactId,
                       contentId: generated.id,
                       provider: preferredProvider,
+                      ttsProvider: preferredTtsProvider,
                     }
                   );
                   setError(audioErrorMessage);
@@ -201,7 +214,35 @@ export function ArtifactIntroduction({
       );
       setGenerationStep('idle');
     }
-  }, [artifactId, preferredProvider, authedApi]);
+  }, [artifactId, preferredProvider, preferredTtsProvider, authedApi]);
+
+  const handleRetryAudio = useCallback(async () => {
+    if (!content) return;
+
+    setIsRetryingAudio(true);
+    setError(null);
+    try {
+      const updated = await authedApi.mutate<ContentItem>(
+        `/generate-audio/content/${content.id}`,
+        {
+          method: 'POST',
+          body: { ttsProvider: preferredTtsProvider },
+        },
+        { requireAdmin: true }
+      );
+
+      setContent(updated);
+      if (!updated.audioUrl) {
+        setError(
+          'Audio retry completed but no audio URL was returned. Check API logs.'
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to regenerate audio');
+    } finally {
+      setIsRetryingAudio(false);
+    }
+  }, [authedApi, content, preferredTtsProvider]);
 
   // Show streaming UI when generating (before we have final content)
   if (isGenerating && !content) {
@@ -264,6 +305,21 @@ export function ArtifactIntroduction({
             >
               Your browser does not support the audio element.
             </audio>
+          </div>
+        )}
+        {!content.audioUrl && (
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+            <p className="text-sm text-muted-foreground">
+              Audio is unavailable for this introduction.
+            </p>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleRetryAudio}
+              disabled={isRetryingAudio}
+            >
+              {isRetryingAudio ? 'Retrying audio...' : 'Retry audio'}
+            </Button>
           </div>
         )}
 
