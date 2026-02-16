@@ -11,6 +11,7 @@ import type {
 } from '@repo/types';
 import { API_URL } from '@/lib/api';
 import { useAuthedApi } from '@/lib/useAuthedApi';
+import { usePreferredOcrProvider } from '@/hooks/usePreferredOcrProvider';
 import { SectionCard } from '@/components/shared';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,7 @@ interface PlaqueScannerProps {
 export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
   const router = useRouter();
   const authedApi = useAuthedApi();
+  const ocrProvider = usePreferredOcrProvider();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const ocrRef = useRef<OcrPayload | null>(null);
   const imageBase64Ref = useRef<string | null>(null);
@@ -291,7 +293,13 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
         ocr: OcrPayload;
       }>(
         `/museums/${museumId}/scan/ocr`,
-        { method: 'POST', body: { imageBase64: encodedImage } },
+        {
+          method: 'POST',
+          body: {
+            imageBase64: encodedImage,
+            provider: ocrProvider,
+          },
+        },
         {
           requireAdmin: true,
           adminErrorMessage:

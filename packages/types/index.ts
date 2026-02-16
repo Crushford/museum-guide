@@ -61,12 +61,14 @@ export interface OcrBlock {
   boundingPoly?: unknown;
 }
 
+export type OcrProviderName = 'google-vision' | 'ocr-space';
+
 export interface OcrResult {
   rawText: string;
   languageHints: string[];
   confidence: number | null;
   blocks: OcrBlock[];
-  provider: 'google-vision';
+  provider: OcrProviderName;
 }
 
 export interface ArtifactDraft {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useSyncExternalStore } from 'react';
 import Link from 'next/link';
+import type { OcrProviderName } from '@repo/types';
 import {
   Tooltip,
   TooltipContent,
@@ -121,6 +122,12 @@ export function DevHeader() {
   const providerRaw = useLocalStorageValue('preferred-llm-provider', 'google');
   const provider: 'google' | 'openai' =
     providerRaw === 'openai' ? 'openai' : 'google';
+  const ocrProviderRaw = useLocalStorageValue(
+    'preferred-ocr-provider',
+    'ocr-space'
+  );
+  const ocrProvider: OcrProviderName =
+    ocrProviderRaw === 'google-vision' ? 'google-vision' : 'ocr-space';
   const hidden = useLocalStorageValue('dev-header-hidden', '0') === '1';
 
   useEffect(() => {
@@ -181,6 +188,9 @@ export function DevHeader() {
   const handleToggle = (value: 'google' | 'openai') => {
     setLocalStorage('preferred-llm-provider', value);
   };
+  const handleOcrToggle = (value: OcrProviderName) => {
+    setLocalStorage('preferred-ocr-provider', value);
+  };
 
   const handleHide = () => {
     setLocalStorage('dev-header-hidden', '1');
@@ -203,7 +213,7 @@ export function DevHeader() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="sticky top-0 z-50 flex h-8 items-center gap-4 bg-zinc-900 px-3 text-xs text-zinc-300 font-mono border-2 border-pink-500">
+      <div className="sticky top-0 z-50 flex h-10 items-center gap-4 bg-zinc-900 px-3 text-xs text-zinc-300 font-mono border-2 border-pink-500">
         <span className="font-semibold text-amber-400">DEV</span>
 
         <Link href="/" className="hover:text-white transition-colors">
@@ -269,6 +279,29 @@ export function DevHeader() {
         )}
 
         <div className="ml-auto flex items-center gap-1">
+          <span className="text-zinc-500 mr-1">OCR</span>
+          <button
+            onClick={() => handleOcrToggle('ocr-space')}
+            className={`rounded px-1.5 py-0.5 transition-colors ${
+              ocrProvider === 'ocr-space'
+                ? 'bg-amber-500/20 text-amber-400'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            OCR.space
+          </button>
+          <button
+            onClick={() => handleOcrToggle('google-vision')}
+            className={`rounded px-1.5 py-0.5 transition-colors ${
+              ocrProvider === 'google-vision'
+                ? 'bg-amber-500/20 text-amber-400'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Vision
+          </button>
+          <span className="text-zinc-600 mx-1">|</span>
+          <span className="text-zinc-500 mr-1">LLM</span>
           <button
             onClick={() => handleToggle('google')}
             className={`rounded px-1.5 py-0.5 transition-colors ${

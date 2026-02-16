@@ -33,6 +33,19 @@ Also required for API CORS:
 
 - `FRONTEND_URL`
 
+## OCR Providers
+
+Plaque scanning OCR now supports two providers:
+
+- `ocr-space` (default)
+- `google-vision`
+
+Env vars:
+
+- `SCAN_OCR_PROVIDER=ocr-space` (or `google-vision`)
+- `OCR_SPACE_API_KEY` (required when using OCR.space)
+
+
 ## Admin Claim Bootstrap
 
 Grant admin:

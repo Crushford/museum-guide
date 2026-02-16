@@ -58,6 +58,8 @@ import {
 import type { WikidataSearchResult } from '@repo/types';
 import {
   extractTextFromImage,
+  parseOcrProvider,
+  getDefaultOcrProvider,
   searchDuplicatesFromRawText,
   extractArtifactDraft,
   searchDuplicatesFromDraft,
@@ -2173,6 +2175,10 @@ app.post(
       if (!imageBase64) {
         return res.status(400).json({ error: 'imageBase64 is required' });
       }
+      const ocrProvider = parseOcrProvider(
+        req.body?.provider,
+        getDefaultOcrProvider()
+      );
 
       const museum = await prisma.museum.findUnique({
         where: { id: museumId },
@@ -2181,7 +2187,7 @@ app.post(
         return res.status(404).json({ error: 'Museum not found' });
       }
 
-      const ocr = await extractTextFromImage(imageBase64);
+      const ocr = await extractTextFromImage(imageBase64, ocrProvider);
       if (!ocr.rawText.trim()) {
         return res.status(422).json({
           error:
@@ -2370,7 +2376,7 @@ app.post(
           confidence:
             typeof ocr.confidence === 'number' ? ocr.confidence : null,
           blocks: Array.isArray(ocr.blocks) ? ocr.blocks : [],
-          provider: 'google-vision',
+          provider: parseOcrProvider(ocr.provider, getDefaultOcrProvider()),
         },
         draft: {
           localTitle:

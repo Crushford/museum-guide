@@ -1,4 +1,8 @@
-export { extractTextFromImage } from './ocr';
+export {
+  extractTextFromImage,
+  parseOcrProvider,
+  getDefaultOcrProvider,
+} from './ocr';
 export {
   searchDuplicatesFromRawText,
   searchDuplicatesFromDraft,
