@@ -8,9 +8,15 @@ This is a practical checklist for deploying **web + API + database** safely, wit
   - `yarn --cwd apps/api build`
   - `yarn --cwd apps/web build`
 - Confirm DB migrations are generated and committed.
+- Confirm legal/trust pages are published and linked in footer/nav:
+  - Privacy policy
+  - Terms of use
+  - Public questions disclosure
+- Confirm cookie banner is enabled in web for production.
 - Confirm usage limits in `apps/api/src/lib/usage-limit-constants.ts` are intentional for the target environment.
 - Confirm Firebase admin users are known (who should have `admin: true`).
 - Confirm `SIGNUP_MODE` is set to the intended mode (`open`, `allowlist`, `cap`).
+- Confirm Sentry is configured for both web and API with sensitive-data scrubbing enabled.
 
 ## 2. Environment Variables
 
@@ -73,6 +79,12 @@ Debug/ops flags:
 - `DB_QUERY_BILLING_LOGS` (`1` by default unless set to `0`)
 - `DEBUG_USAGE_LIMITS` (`1` to debug usage checks)
 
+Observability and analytics:
+
+- `NEXT_PUBLIC_GA_MEASUREMENT_ID` (if GA is enabled)
+- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (depending on app runtime wiring)
+- Any provider-specific Sentry env flags used in build/runtime setup
+
 ## 3. Database + Prisma
 
 Before deploying API code that depends on new tables, run migrations first.
@@ -91,6 +103,7 @@ Prisma commands (from repo root):
 Why this matters:
 
 - If usage tables are missing, usage enforcement falls back and logs warnings.
+- If prompt/audit/versioning tables are missing, admin prompt override features will not be reproducible.
 
 ## 4. Auth and Admin Setup
 
@@ -131,6 +144,10 @@ Run these in order:
 5. Hit auth endpoint rapidly (script/manual) and confirm `429 RATE_LIMIT_AUTH`
 6. Verify waitlist route works when signup policy blocks
 7. Verify usage counters increment after real actions
+8. Verify cookie banner appears for first-time visitors and links to privacy/terms
+9. Verify GA receives allowed metadata events only (no question text/plaque text/prompts/answers/emails/names)
+10. Trigger a handled API and web error and verify Sentry event appears with scrubbed payloads
+11. If intro prompt override is enabled, run one override generation and verify audit/provenance fields are persisted
 
 ## 7. Common Failure Modes
 
@@ -158,3 +175,5 @@ If production issues occur:
 - Move usage limits from constants into DB-backed admin-configurable settings.
 - Add structured dashboards/alerts for auth verification spikes and 429 rates.
 - Add deploy-time env validation script to fail fast on missing critical vars.
+- Add GA event contract tests to prevent accidental sensitive field leakage.
+- Add Sentry server-side `beforeSend` test coverage to assert redaction behavior.
