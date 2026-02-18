@@ -200,7 +200,7 @@ export function ArtifactQuestionsPanel({
       }
 
       setQuestions((prev) =>
-        prev.map((q) =>
+        prev.map((q: ArtifactQuestion) =>
           q.id === questionId
             ? { ...q, upvotes: payload.upvotes, downvotes: payload.downvotes }
             : q
@@ -229,7 +229,7 @@ export function ArtifactQuestionsPanel({
         throw new Error(payload.error || `Failed (${response.status})`);
       }
       setQuestions((prev) =>
-        prev.map((q) =>
+        prev.map((q: ArtifactQuestion) =>
           q.id === questionId
             ? { ...q, askCount: payload.askCount ?? q.askCount }
             : q
@@ -290,7 +290,7 @@ export function ArtifactQuestionsPanel({
             {(isAsking || isPreviewing) && <Spinner className="mr-2" />}
             Ask Question
           </Button>
-          {suggestedQuestions.slice(0, 5).map((suggestion) => (
+          {suggestedQuestions.slice(0, 5).map((suggestion: string) => (
             <Button
               key={suggestion}
               variant="secondary"
@@ -311,7 +311,7 @@ export function ArtifactQuestionsPanel({
           </p>
         ) : (
           <div className="space-y-4">
-            {sortedQuestions.map((question) => (
+            {sortedQuestions.map((question: ArtifactQuestion) => (
               <div
                 key={question.id}
                 className="rounded-md border p-4 space-y-3"
@@ -357,12 +357,12 @@ export function ArtifactQuestionsPanel({
                       {question.isAdultContent && (
                         <Badge variant="destructive">Adult Content</Badge>
                       )}
-                      {question.sensitiveTopics.map((topic) => (
+                      {question.sensitiveTopics.map((topic: string) => (
                         <Badge key={topic} variant="outline">
                           {topic}
                         </Badge>
                       ))}
-                      {question.subjectTags.map((tag) => (
+                      {question.subjectTags.map((tag: string) => (
                         <Badge key={tag} variant="secondary">
                           {tag}
                         </Badge>
