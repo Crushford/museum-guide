@@ -32,6 +32,12 @@ All commands run from the repo root using `yarn`:
 4. Run `yarn workspace web lint` to check for ESLint errors
 5. If there are lint or type errors, fix them before considering the task done
 
+### Required Verification Rules
+
+- If any files under `apps/web/**` changed, always run `yarn build:web` before considering the task complete.
+- If any files under `apps/api/**` or `packages/db/**` changed, always run `yarn build:api` before considering the task complete.
+- If changes touch both web and API/db areas, run both build commands.
+
 ## Database
 
 - Postgres runs in Docker (`yarn db:start`)
