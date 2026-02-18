@@ -116,6 +116,11 @@ app.use(
 app.use(express.json({ limit: '20mb' }));
 app.use(authVerificationRateLimit);
 app.use(attachActorIfPresent);
+
+app.get('/health', (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
 app.use((req, res, next) => {
   const startedAt = Date.now();
 

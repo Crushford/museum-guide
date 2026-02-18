@@ -1,0 +1,25 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "corepack enable && yarn install --immutable && yarn workspace @repo/db prisma generate && yarn build:api",
+    "watchPatterns": [
+      "apps/api/**",
+      "packages/db/**",
+      "packages/types/**",
+      "package.json",
+      "yarn.lock"
+    ]
+  },
+  "deploy": {
+    "preDeployCommand": "yarn workspace @repo/db prisma migrate deploy",
+    "startCommand": "yarn workspace api start",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 120,
+    "sleepApplication": true,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10,
+    "overlapSeconds": 0,
+    "drainingSeconds": 0
+  }
+}
