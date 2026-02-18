@@ -22,11 +22,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: yarn
 
       - name: Install dependencies
         run: |
           corepack enable
+          corepack prepare yarn@4.9.2 --activate
           yarn install --immutable
 
       - name: Generate Prisma client
@@ -52,11 +52,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: yarn
 
       - name: Install dependencies
         run: |
           corepack enable
+          corepack prepare yarn@4.9.2 --activate
           yarn install --immutable
 
       - name: Build Web
