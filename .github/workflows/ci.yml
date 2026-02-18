@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-build:
+    name: API Build
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/museum"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          corepack prepare yarn@4.9.2 --activate
+          yarn install --immutable
+
+      - name: Generate Prisma client
+        run: yarn workspace @repo/db prisma generate
+
+      - name: Build API
+        run: yarn build:api
+
+  web-build:
+    name: Web Build
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/museum"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: "http://localhost:3001"
+      NEXT_PUBLIC_FIREBASE_API_KEY: "ci-placeholder"
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "ci-placeholder.firebaseapp.com"
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: "ci-placeholder"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          corepack prepare yarn@4.9.2 --activate
+          yarn install --immutable
+
+      - name: Generate Prisma client
+        run: yarn workspace @repo/db prisma generate
+
+      - name: Build Web
+        run: yarn build:web
