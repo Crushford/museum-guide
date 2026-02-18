@@ -96,7 +96,7 @@ export function ArtifactContentInspector({
         </div>
       ) : (
         <div className="space-y-4">
-          {content.map((item) => (
+          {content.map((item: ContentItem) => (
             <div key={item.id} className="rounded-lg border p-4 space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 {item.type && <Badge variant="default">{item.type}</Badge>}
@@ -120,12 +120,12 @@ export function ArtifactContentInspector({
                   {item.isAdultContent && (
                     <Badge variant="destructive">Adult Content</Badge>
                   )}
-                  {item.sensitiveTopics?.map((topic) => (
+                  {item.sensitiveTopics?.map((topic: string) => (
                     <Badge key={topic} variant="warning">
                       {topic}
                     </Badge>
                   ))}
-                  {item.subjectTags?.map((tag) => (
+                  {item.subjectTags?.map((tag: string) => (
                     <Badge key={tag} variant="secondary">
                       {tag}
                     </Badge>
