@@ -1,5 +1,79 @@
 # TODO
 
+## Launch and MVP
+
+### Public Questions Disclosure
+
+- [ ] Add inline question-box copy: "Questions are public."
+- [ ] Add first-time modal/onboarding note explaining public question archive behavior.
+- [ ] Update `/about` (or privacy page) with public Q&A behavior and anonymization policy.
+- [ ] Ensure account deletion flow anonymizes prior questions (remove username linkage, keep public content).
+
+### Cookies, Privacy, and Terms
+
+- [ ] Add MVP cookie banner covering session/auth cookies and anonymous analytics cookies.
+- [ ] Publish plain-language privacy policy:
+  - [ ] What data is collected.
+  - [ ] What is public vs private.
+  - [ ] Retention basics.
+  - [ ] Account deletion/anonymization behavior.
+- [ ] Publish lightweight MVP terms of use.
+
+### Product Analytics (Google Analytics)
+
+- [ ] Add GA setup in web app with environment-based configuration.
+- [ ] Track only metadata events for funnel visibility:
+  - [ ] `scan_started`, `scan_completed`
+  - [ ] `duplicate_found`, `duplicate_chosen`, `create_new_confirmed`
+  - [ ] `intro_generated`, `audio_played`
+  - [ ] `question_asked`, `answer_played`
+- [ ] Enforce analytics payload allowlist so sensitive content is never sent to GA.
+- [ ] Document GA usage in cookie banner and privacy policy.
+
+### Cost and Usage Tracking
+
+- [ ] Ensure server-side billing telemetry covers OpenAI, Google Vision OCR, Google TTS, and related providers.
+- [ ] Verify DB logging fields for billable calls:
+  - [ ] `userId` (nullable), `service`, `endpoint`, `model`
+  - [ ] Token usage (where applicable)
+  - [ ] Estimated `costEur`
+  - [ ] Related entity IDs (`artifactId`, `contentId`)
+  - [ ] `durationMs`, `status`, `error`
+- [ ] Add monthly aggregation jobs and enforcement hooks for tier caps.
+- [ ] Implement rule: scan usage counts only when a new artifact is created.
+- [ ] Add admin/internal usage dashboard view (month-to-date + remaining quota placeholders).
+
+### Sentry (Web + API)
+
+- [ ] Integrate Sentry SDK in `apps/web` and `apps/api`.
+- [ ] Add default data scrubbing rules (no prompts, plaque text, question text, answers, or images).
+- [ ] Add useful tags/breadcrumbs:
+  - [ ] Route
+  - [ ] Entity IDs (`museumId`, `artifactId`, `contentId`) when present
+  - [ ] Provider/service tag (`openai`, `google-vision`, `google-tts`, `wikidata`)
+  - [ ] Provider request IDs in metadata only
+
+### Admin Prompt Preview and Override (Introductions)
+
+- [ ] Add admin UI preview of final resolved intro prompt before generation.
+- [ ] Add context preview in admin UI (sources used, fields included, approximate length).
+- [ ] Support one-off prompt override for single generation.
+- [ ] Support template update flow for future generations (can be v1.1 if needed).
+- [ ] Persist generation provenance:
+  - [ ] Prompt text (or template + variables)
+  - [ ] `promptVersion`
+  - [ ] Provider + model
+  - [ ] Timestamp + acting admin/user ID
+- [ ] Add prompt override audit logging.
+- [ ] Restrict prompt editing to admin users only.
+- [ ] Add UX controls: "Reset to default", "Save as new version", "Generate intro now".
+
+### Soon After Launch (Optional)
+
+- [ ] Add content reporting and moderation queue for public question/answer content.
+- [ ] Add user account tiers + quotas UI.
+- [ ] Add promo codes and premium subscription flow.
+
 ## Q&A and Community Features
 
 - [ ] Add admin moderation tooling for blocked/hidden artifact questions.
