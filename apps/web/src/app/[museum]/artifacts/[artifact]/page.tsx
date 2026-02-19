@@ -8,10 +8,9 @@ import { SectionCard } from '../../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Globe, ExternalLink } from 'lucide-react';
-import { ArtifactIntroduction } from './ArtifactIntroduction';
 import { WikipediaSummaryDisplay } from './WikipediaSummaryDisplay';
 import { IncorrectMatchNotice } from './IncorrectMatchNotice';
-import { ArtifactQuestionsPanel } from './ArtifactQuestionsPanel';
+import { ArtifactInteractionSection } from './ArtifactInteractionSection';
 import {
   Room,
   Artifact,
@@ -180,9 +179,8 @@ export default async function ArtifactPage({
           </div>
         )}
 
-        {/* Two-column layout for About and Introduction */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Artifact Details - Left */}
+          {/* Left: About */}
           <SectionCard title="About">
             <div className="space-y-4">
               {/* Image */}
@@ -247,22 +245,18 @@ export default async function ArtifactPage({
             </div>
           </SectionCard>
 
-          {/* Introduction Section - Right */}
-          <ArtifactIntroduction
+          {/* Right: Introduction + Questions */}
+          <ArtifactInteractionSection
             artifactId={artifact.id}
             initialContent={
               artifactMain && artifactMain.text.trim() ? artifactMain : null
             }
+            initialQuestions={questions}
+            initialSuggestedQuestions={suggestedQuestions}
           />
         </div>
 
-        <ArtifactQuestionsPanel
-          artifactId={artifact.id}
-          initialQuestions={questions}
-          suggestedQuestions={suggestedQuestions}
-        />
-
-        {/* Follow-up Content */}
+        {/* Learn More (full width) */}
         {followups.length > 0 && (
           <SectionCard title="Learn More">
             <div className="space-y-4">
