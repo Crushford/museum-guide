@@ -26,17 +26,30 @@ All commands run from the repo root using `yarn`:
 
 ## After Making Changes
 
-1. Run `yarn format` to format all changed files
-2. Run `yarn build:api` to check for API type errors
-3. Run `yarn build:web` to check for web type/build errors
-4. Run `yarn workspace web lint` to check for ESLint errors
-5. If there are lint or type errors, fix them before considering the task done
+Run these steps **every time**, in order, before considering any task complete:
+
+1. `yarn format` — format all changed files
+2. `yarn build:web` — check for type/build errors _(if any `apps/web/**` files changed)_
+3. `yarn build:api` — check for API type errors _(if any `apps/api/**` or `packages/db/**` files changed)_
+4. `yarn workspace web lint` — check for ESLint errors _(if any `apps/web/**` files changed)_
 
 ### Required Verification Rules
 
-- If any files under `apps/web/**` changed, always run `yarn build:web` before considering the task complete.
-- If any files under `apps/api/**` or `packages/db/**` changed, always run `yarn build:api` before considering the task complete.
-- If changes touch both web and API/db areas, run both build commands.
+These are **non-negotiable** — the task is not done until all pass:
+
+| Changed area              | Must run                                         |
+| ------------------------- | ------------------------------------------------ |
+| `apps/web/**`             | `yarn format` + `yarn build:web` + `yarn workspace web lint` |
+| `apps/api/**`             | `yarn format` + `yarn build:api`                 |
+| `packages/db/**`          | `yarn format` + `yarn build:api`                 |
+| Both web and API/db       | All three build commands                         |
+
+### Handling lint output
+
+- **Errors** introduced by your changes must be fixed before the task is done.
+- **Warnings** introduced by your changes should be fixed unless doing so requires changes well outside the task scope — call them out explicitly if you leave them.
+- **Pre-existing** errors/warnings (in files you did not touch) do not need to be fixed, but note them if they are relevant.
+- To distinguish new from pre-existing: only count issues in files you modified.
 
 ## Database
 
