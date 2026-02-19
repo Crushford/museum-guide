@@ -37,7 +37,7 @@ export function buildIntroductionPrompt(
     'Aim for 260–320 words (about 2 minutes). ' +
     'Start immediately with the artifact; no greetings, no self-introductions, and do not say "welcome". ' +
     'Do not mention being a guide, and do not include stage directions or gestures. ' +
-    'Also provide 3-5 thoughtful suggestedQuestions that visitors can ask next.';
+    'Do not include any questions or question lists in the introduction text — put follow-up questions in the "suggestedQuestions" field only.';
 
   const lines: string[] = [`Artifact: ${context.artifactName}`];
 

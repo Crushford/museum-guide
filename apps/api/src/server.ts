@@ -3696,93 +3696,38 @@ app.get(
 
       await assertTextAllowedForLlm(context.template, 'introduction-stream');
 
-      let fullText = '';
-      let modelName = '';
-      const streamStart = Date.now();
+      const provider = createProvider(providerName);
+      const result = await provider.generate({
+        prompt: context.template,
+        systemInstruction: buildMuseumGuideSystemPrompt(),
+      });
 
-      if (providerName === 'google') {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-          sendEvent('error', { error: 'GEMINI_API_KEY not configured' });
-          res.end();
-          return;
-        }
+      sendEvent('chunk', { text: result.text });
 
-        const genAI = new GoogleGenerativeAI(apiKey);
-        modelName = 'gemini-2.5-flash';
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContentStream(context.template);
-
-        for await (const chunk of result.stream) {
-          const chunkText = chunk.text();
-          fullText += chunkText;
-          sendEvent('chunk', { text: chunkText });
-        }
-
-        const finalResponse = await result.response;
-        const usage = finalResponse.usageMetadata;
-
-        recordApiCall({
-          service: 'Gemini',
-          endpoint: 'generateContentStream',
-          durationMs: Date.now() - streamStart,
-          status: 'success',
-          inputTokens: usage?.promptTokenCount ?? 0,
-          outputTokens: usage?.candidatesTokenCount ?? 0,
-          model: modelName,
-        });
-      } else {
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-          sendEvent('error', { error: 'OPENAI_API_KEY not configured' });
-          res.end();
-          return;
-        }
-
-        const client = new OpenAI({ apiKey });
-        modelName = process.env.OPENAI_MODEL_INTRODUCTION || 'gpt-5-nano';
-
-        const stream = client.responses.stream({
-          model: modelName,
-          input: [{ role: 'user', content: context.template }],
-          max_output_tokens: Number(
-            process.env.OPENAI_MAX_OUTPUT_TOKENS || 1000
-          ),
-          reasoning: { effort: 'minimal' },
-        });
-
-        stream.on('response.output_text.delta', (event) => {
-          const delta = typeof event?.delta === 'string' ? event.delta : '';
-          if (!delta) return;
-          fullText += delta;
-          sendEvent('chunk', { text: delta });
-        });
-
-        await stream.done();
-        const finalResponse = await stream.finalResponse();
-        const usage = finalResponse.usage;
-
-        recordApiCall({
-          service: 'OpenAI',
-          endpoint: 'responses.stream',
-          durationMs: Date.now() - streamStart,
-          status: 'success',
-          inputTokens: usage?.input_tokens ?? 0,
-          outputTokens: usage?.output_tokens ?? 0,
-          model: modelName,
-        });
-      }
+      await recordUsage({
+        provider: result.provider,
+        model: result.model,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        durationMs: result.durationMs,
+        apiCallId: result.apiCallId ?? null,
+        artifactId: artefactId,
+      });
 
       sendEvent('status', { step: 'saving', message: 'Saving content...' });
 
       const content = await prisma.content.create({
         data: {
-          text: fullText,
+          text: result.text,
           type: 'introduction',
           artifactId: artefactId,
-          llmProvider: providerName,
-          model: modelName,
+          llmProvider: result.provider,
+          model: result.model,
           prompt: context.template,
+          isAdultContent: result.isAdultContent ?? false,
+          sensitiveTopics: result.sensitiveTopics ?? [],
+          subjectTags: result.subjectTags ?? [],
+          suggestedQuestions: result.suggestedQuestions ?? [],
         },
       });
 
@@ -3794,7 +3739,7 @@ app.get(
       let audioUrl: string | null = null;
       let audioErrorMessage: string | null = null;
       try {
-        audioUrl = await generateAudioForContent(content.id, fullText, {
+        audioUrl = await generateAudioForContent(content.id, result.text, {
           outputDir: audioDir,
           provider: ttsProvider,
         });
@@ -3818,7 +3763,10 @@ app.get(
         where: { id: content.id },
       });
 
-      sendEvent('complete', { content: finalContent, audioError: audioErrorMessage });
+      sendEvent('complete', {
+        content: finalContent,
+        audioError: audioErrorMessage,
+      });
       res.end();
     } catch (error) {
       sendEvent('error', {
