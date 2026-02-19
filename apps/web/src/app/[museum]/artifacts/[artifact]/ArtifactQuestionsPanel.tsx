@@ -298,6 +298,7 @@ export function ArtifactQuestionsPanel({
               size="sm"
               onClick={() => setDraft(suggestion)}
               disabled={isAsking}
+              className="whitespace-normal break-words text-left h-auto py-2 max-w-full"
             >
               {suggestion}
             </Button>
