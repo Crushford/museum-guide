@@ -37,12 +37,12 @@ Run these steps **every time**, in order, before considering any task complete:
 
 These are **non-negotiable** — the task is not done until all pass:
 
-| Changed area              | Must run                                         |
-| ------------------------- | ------------------------------------------------ |
-| `apps/web/**`             | `yarn format` + `yarn build:web` + `yarn workspace web lint` |
-| `apps/api/**`             | `yarn format` + `yarn build:api`                 |
-| `packages/db/**`          | `yarn format` + `yarn build:api`                 |
-| Both web and API/db       | All three build commands                         |
+| Changed area        | Must run                                                     |
+| ------------------- | ------------------------------------------------------------ |
+| `apps/web/**`       | `yarn format` + `yarn build:web` + `yarn workspace web lint` |
+| `apps/api/**`       | `yarn format` + `yarn build:api`                             |
+| `packages/db/**`    | `yarn format` + `yarn build:api`                             |
+| Both web and API/db | All three build commands                                     |
 
 ### Handling lint output
 
