@@ -238,7 +238,9 @@ export function ArtifactIntroduction({
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to regenerate audio');
+      setError(
+        err instanceof Error ? err.message : 'Failed to regenerate audio'
+      );
     } finally {
       setIsRetryingAudio(false);
     }

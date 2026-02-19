@@ -92,7 +92,8 @@ export function RoomFormClient({
             : { parentRoomId: parentRoomId! }),
           name: name.trim(),
           knowledgeText: knowledgeText.trim() || null,
-          furtherReading: furtherReadingArray.length > 0 ? furtherReadingArray : [],
+          furtherReading:
+            furtherReadingArray.length > 0 ? furtherReadingArray : [],
         };
         const room = await authedApi.mutate<{ id: number }>('/rooms', {
           method: 'POST',

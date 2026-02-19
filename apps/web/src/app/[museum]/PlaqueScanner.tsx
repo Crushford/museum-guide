@@ -16,6 +16,7 @@ import { SectionCard } from '@/components/shared';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ErrorText } from '@/components/ui/error-text';
+import { Progress } from '@/components/ui/progress';
 import {
   Dialog,
   DialogContent,
@@ -106,6 +107,14 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
 
   const visibleStages = useMemo(
     () => stageOrder.filter((stage) => stageStates[stage] !== 'idle'),
+    [stageStates]
+  );
+
+  const progressValue = useMemo(
+    () =>
+      (stageOrder.filter((s) => stageStates[s] === 'done').length /
+        stageOrder.length) *
+      100,
     [stageStates]
   );
 
@@ -472,16 +481,19 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
             )}
 
             {visibleStages.length > 0 && (
-              <div className="space-y-1 text-sm">
-                {visibleStages.map((stage) => {
-                  const state = stageStates[stage];
-                  const marker = state === 'done' ? 'Done' : 'In progress';
-                  return (
-                    <p key={stage} className="text-muted-foreground">
-                      {stageLabels[stage]} {marker}
-                    </p>
-                  );
-                })}
+              <div className="space-y-2">
+                <Progress value={progressValue} className="h-2" />
+                <div className="space-y-1 text-sm">
+                  {visibleStages.map((stage) => {
+                    const state = stageStates[stage];
+                    const marker = state === 'done' ? 'Done' : 'In progress';
+                    return (
+                      <p key={stage} className="text-muted-foreground">
+                        {stageLabels[stage]} {marker}
+                      </p>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

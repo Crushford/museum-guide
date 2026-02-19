@@ -59,7 +59,9 @@ export function DeleteEntityButton({
             : entityType === 'room'
               ? 'rooms'
               : 'artifacts';
-        await authedApi.mutate(`/${resource}/${entityId}`, { method: 'DELETE' });
+        await authedApi.mutate(`/${resource}/${entityId}`, {
+          method: 'DELETE',
+        });
         router.push(`/admin?tab=${resource}`);
         router.refresh();
       } catch (err) {
