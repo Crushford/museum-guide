@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Script from 'next/script';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { DevHeader } from '../components/shared/DevHeader';
-import { AuthStatus } from '../components/shared/AuthStatus';
+import { HamburgerMenu } from '../components/shared/HamburgerMenu';
 import { NavLink } from '../components/ui/nav-link';
 import { AuthProvider } from '../components/providers/AuthProvider';
 import { ApiErrorDialogs } from '../components/providers/ApiErrorDialogs';
@@ -65,7 +65,7 @@ export default function RootLayout({
               <span className="font-semibold">Museum Guide</span>
             </Link>
             <div className="ml-auto">
-              <AuthStatus />
+              <HamburgerMenu />
             </div>
           </header>
           <div className="flex-1">{children}</div>
