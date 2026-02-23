@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 export default function ArtifactLoading() {
   return (
-    <div className="bg-background">
+    <div className="bg-canvas">
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Header */}
         <header className="mb-8">

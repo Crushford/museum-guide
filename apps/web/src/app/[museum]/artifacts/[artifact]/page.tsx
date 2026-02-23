@@ -182,7 +182,7 @@ export default async function ArtifactPage({
             <div className="space-y-4">
               {/* Image */}
               {artifactImageUrl && (
-                <div className="overflow-hidden rounded-lg bg-muted inline-block">
+                <div className="overflow-hidden rounded-lg bg-raised inline-block">
                   <img
                     src={artifactImageUrl}
                     alt={artifact.name}

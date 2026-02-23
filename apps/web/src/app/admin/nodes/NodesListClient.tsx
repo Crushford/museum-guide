@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { EntityList } from '../../../components/shared';
 
 import { ReactNode } from 'react';
@@ -69,30 +69,17 @@ export function NodesListClient({
   primaryAction,
   emptyState,
 }: NodesListClientProps) {
-  const [itemsWithStatus, setItemsWithStatus] = useState<
-    Array<
-      Item & {
-        hasUnsavedChanges: boolean;
-        childrenWithChanges: ChildWithChanges[];
-      }
-    >
-  >([]);
-
-  useEffect(() => {
-    const itemsWithStatus = items.map((item) => {
-      const hasUnsavedChanges = checkNodeHasUnsavedChanges(item.id);
-      const childrenWithChanges = hasUnsavedChanges
-        ? findChildrenWithChanges(item.id, items)
-        : [];
-
-      return {
-        ...item,
-        hasUnsavedChanges,
-        childrenWithChanges,
-      };
-    });
-    setItemsWithStatus(itemsWithStatus);
-  }, [items]);
+  const itemsWithStatus = useMemo(
+    () =>
+      items.map((item) => {
+        const hasUnsavedChanges = checkNodeHasUnsavedChanges(item.id);
+        const childrenWithChanges = hasUnsavedChanges
+          ? findChildrenWithChanges(item.id, items)
+          : [];
+        return { ...item, hasUnsavedChanges, childrenWithChanges };
+      }),
+    [items]
+  );
 
   return (
     <EntityList

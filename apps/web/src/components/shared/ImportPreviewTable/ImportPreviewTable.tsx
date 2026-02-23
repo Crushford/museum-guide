@@ -27,9 +27,9 @@ const statusConfig = {
 
 export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
   return (
-    <div className="border border-border rounded-md overflow-hidden">
+    <div className="border border-line rounded-md overflow-hidden">
       <table className="w-full">
-        <thead className="bg-muted border-b border-border">
+        <thead className="bg-raised border-b border-line">
           <tr>
             <th className="px-4 py-2 text-left text-sm font-medium text-primary">
               Status
@@ -54,7 +54,7 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
             return (
               <tr
                 key={index}
-                className="border-b border-border last:border-b-0 hover:bg-muted/50 transition-colors"
+                className="border-b border-line last:border-b-0 hover:bg-raised/50 transition-colors"
               >
                 <td className="px-4 py-2">
                   <span

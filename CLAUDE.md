@@ -67,46 +67,50 @@ These are **non-negotiable** — the task is not done until all pass:
 
 ## Design System
 
-The theme is defined in `apps/web/src/styles/theme.css`. All colors flow through two layers:
+The theme is defined in `apps/web/src/styles/theme.css`. Colors flow through three layers:
 
-1. **BM palette variables** (`--bm-bg`, `--bm-fg`, etc.) — raw HSL values
-2. **Shadcn semantic tokens** (`--background`, `--primary`, etc.) — mapped to BM palette
+1. **Semantic tokens** (`--fg`, `--canvas`, `--brand`, etc.) — purpose-named CSS vars with light/dark values
+2. **Shadcn aliases** (`--background`, `--primary`, etc.) — map to semantic tokens for component compat
+3. **Tailwind `@theme`** — registers both layers as Tailwind utilities
 
-Always use Tailwind classes that reference the shadcn tokens. Never use raw Tailwind color scales (`red-*`, `amber-*`, `green-*`, `blue-*`, `zinc-*`, etc.) or legacy BM utility classes.
+**Prefer semantic classes in new code.** Shadcn aliases still work but are considered legacy aliases.
+
+Themes are applied automatically via `prefers-color-scheme`. To force a theme, set `data-theme="dark"` or `data-theme="light"` on `<html>`. Never use raw Tailwind color scales (`red-*`, `amber-*`, `green-*`, `blue-*`, `zinc-*`, etc.).
 
 ### Text Colors
 
-| Class                    | Use for                                   |
-| ------------------------ | ----------------------------------------- |
-| _(inherited)_            | Default body text — set via `@layer base` |
-| `text-primary`           | Emphasized text, active nav items         |
-| `text-muted-foreground`  | Secondary/helper text, descriptions       |
-| `text-accent`            | Accent/highlight text (bronze)            |
-| `text-accent-foreground` | Text on accent-colored backgrounds        |
-| `text-destructive`       | Error/danger text                         |
-| `text-card-foreground`   | Text inside cards                         |
+| Class              | Use for                                   |
+| ------------------ | ----------------------------------------- |
+| _(inherited)_      | Default body text — set via `@layer base` |
+| `text-fg`          | Emphasized text, active nav items         |
+| `text-fg-subtle`   | Secondary/helper text, descriptions       |
+| `text-fg-disabled` | Placeholder, disabled states              |
+| `text-brand`       | Accent/highlight text (bronze)            |
+| `text-brand-fg`    | Text on brand-coloured backgrounds        |
+| `text-error`       | Error/danger text                         |
+| `text-warning`     | Warning text                              |
+| `text-success`     | Success text                              |
 
 Do **not** use `text-foreground` for explicit styling — the body inherits the foreground color via `@layer base` in `globals.css`. Do **not** confuse `text-base` (font size) with a text color class.
 
 ### Backgrounds
 
-| Class            | Use for                        |
-| ---------------- | ------------------------------ |
-| `bg-background`  | Page background                |
-| `bg-card`        | Card/panel surfaces            |
-| `bg-muted`       | Secondary/subtle backgrounds   |
-| `bg-secondary`   | Secondary element backgrounds  |
-| `bg-accent`      | Accent/highlight backgrounds   |
-| `bg-destructive` | Destructive action backgrounds |
-| `bg-popover`     | Popover/tooltip backgrounds    |
+| Class        | Use for                        |
+| ------------ | ------------------------------ |
+| `bg-canvas`  | Page background                |
+| `bg-surface` | Card/panel surfaces            |
+| `bg-overlay` | Dialog/popover backgrounds     |
+| `bg-brand`   | Accent/highlight backgrounds   |
+| `bg-error`   | Destructive action backgrounds |
+| `bg-warning` | Warning backgrounds            |
+| `bg-success` | Success backgrounds            |
 
 ### Borders
 
-| Class              | Use for                           |
-| ------------------ | --------------------------------- |
-| `border-border`    | Default borders                   |
-| `border-border/70` | Subtle separators (header/footer) |
-| `border-input`     | Input field borders               |
+| Class                | Use for                     |
+| -------------------- | --------------------------- |
+| `border-line`        | Default borders             |
+| `border-line-subtle` | Dividers, softer separators |
 
 ### Button Variants (via `<Button>` component)
 
@@ -130,17 +134,31 @@ Do **not** use `text-foreground` for explicit styling — the body inherits the 
 ### Common Patterns
 
 - **Page titles**: Use semantic heading tags (`<h1>`, `<h2>`, etc.) — color is inherited from the body
-- **Descriptions**: `text-sm text-muted-foreground`
+- **Descriptions**: `text-sm text-fg-subtle`
 - **Cards**: Use the `<Card>` component — styling is built into the component
 - **Nav links**: Use the `<NavLink>` component (`components/ui/nav-link.tsx`) — muted text that brightens on hover
-- **Active nav**: `bg-primary/10 text-primary`
+- **Active nav**: `bg-brand/10 text-brand`
 - **Error text**: Use the `<ErrorText>` component (`components/ui/error-text.tsx`)
 - **Error/warning boxes**: Use the `<Alert>` component (`components/ui/alert.tsx`) — `variant="destructive"` (default) or `variant="warning"`
 - **Focus rings**: `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`
-- **Hover on rows**: `hover:bg-muted/50`
+- **Hover on rows**: `hover:bg-surface/50`
 
-### Legacy Tokens — DO NOT USE
+### Shadcn Aliases — Legacy, Still Supported
 
-The following classes exist in `theme.css` for backward compatibility but must not be used in new code:
+These classes work via the shadcn alias layer. Prefer the semantic equivalents above in new code.
 
-`text-fg`, `text-muted` (legacy), `text-subtle`, `text-accent-2`, `text-danger`, `text-warning`, `text-success`, `bg-bg`, `bg-bg-2`, `bg-panel`, `bg-accent-2`, `border-divider`
+| Legacy class             | Semantic equivalent |
+| ------------------------ | ------------------- |
+| `text-primary`           | `text-fg`           |
+| `text-muted-foreground`  | `text-fg-subtle`    |
+| `text-accent`            | `text-brand`        |
+| `text-accent-foreground` | `text-brand-fg`     |
+| `text-destructive`       | `text-error`        |
+| `bg-background`          | `bg-canvas`         |
+| `bg-card`                | `bg-surface`        |
+| `bg-muted`               | `bg-surface`        |
+| `bg-accent`              | `bg-brand`          |
+| `bg-destructive`         | `bg-error`          |
+| `bg-popover`             | `bg-overlay`        |
+| `border-border`          | `border-line`       |
+| `border-input`           | `border-line`       |

@@ -135,7 +135,7 @@ export function InlineEditableField({
           )}
         </span>
         {externalIsEditing === undefined && (
-          <Button onClick={handleEdit} size="sm" className="border-white">
+          <Button onClick={handleEdit} size="sm" className="border-line">
             Edit
           </Button>
         )}

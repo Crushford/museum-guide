@@ -47,7 +47,7 @@ function ResultsContainer({
   return (
     <div
       className={[
-        'divide-y divide-border border border-border rounded-md',
+        'divide-y divide-line border border-line rounded-md',
         scrollable ? 'max-h-96 overflow-y-auto' : '',
         className ?? '',
       ]
@@ -83,7 +83,7 @@ function MuseumResultRow({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full text-left py-3 px-4 hover:bg-muted/50 transition-colors disabled:opacity-50"
+      className="w-full text-left py-3 px-4 hover:bg-raised/50 transition-colors disabled:opacity-50"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
@@ -379,7 +379,7 @@ export default function SearchPage() {
   const isNearbyDisabled = isSearchingNearby || isSelecting !== null;
 
   return (
-    <div className="bg-background">
+    <div className="bg-canvas">
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         <header className="mb-8">
           <PageTitle>Find a Museum</PageTitle>

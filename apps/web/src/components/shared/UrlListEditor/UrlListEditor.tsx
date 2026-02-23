@@ -55,7 +55,7 @@ export function UrlListEditor({
         return (
           <div
             key={index}
-            className="flex items-center gap-2 p-2 bg-muted rounded-md border border-border"
+            className="flex items-center gap-2 p-2 bg-raised rounded-md border border-line"
           >
             <div className="flex-1 min-w-0">
               <span

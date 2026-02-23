@@ -179,8 +179,8 @@ export default function ApiCallsPage() {
               }}
               className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
                 serviceFilter === null
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  ? 'bg-brand/10 text-brand'
+                  : 'text-fg-subtle hover:text-fg hover:bg-raised'
               }`}
             >
               All
@@ -194,8 +194,8 @@ export default function ApiCallsPage() {
                 }}
                 className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
                   serviceFilter === svc
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    ? 'bg-brand/10 text-brand'
+                    : 'text-fg-subtle hover:text-fg hover:bg-raised'
                 }`}
               >
                 {svc}

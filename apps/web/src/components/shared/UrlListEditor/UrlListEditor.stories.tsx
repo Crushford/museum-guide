@@ -15,7 +15,7 @@ export default meta;
 type Story = StoryObj<typeof UrlListEditor>;
 
 export const EmptyListEditable: Story = {
-  render: (args) => {
+  render: function Render(args) {
     const [urls, setUrls] = useState<string[]>([]);
     return <UrlListEditor {...args} value={urls} onChange={setUrls} />;
   },
@@ -26,7 +26,7 @@ export const EmptyListEditable: Story = {
 };
 
 export const FilledListEditable: Story = {
-  render: (args) => {
+  render: function Render(args) {
     const [urls, setUrls] = useState<string[]>([
       'https://example.com/article1',
       'https://example.com/article2',
@@ -52,7 +52,7 @@ export const ReadOnlyList: Story = {
 };
 
 export const WithInvalidUrls: Story = {
-  render: (args) => {
+  render: function Render(args) {
     const [urls, setUrls] = useState<string[]>([
       'https://example.com/article1',
       'not-a-url',

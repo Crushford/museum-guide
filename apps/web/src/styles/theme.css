@@ -1,64 +1,136 @@
+/* ─── Layer 1: Semantic tokens ─── */
+/* Dark = default; applied whenever no explicit preference or data-theme is set */
+
 :root {
-  /* British Museum theme palette (namespaced to avoid collisions) */
-  /* Background layers */
-  --bm-bg: 220 14% 10%;
-  --bm-bg-2: 220 14% 13%;
-  --bm-panel: 220 14% 16%;
+  --fg: hsl(40 20% 92%);
+  --fg-subtle: hsl(40 10% 72%);
+  --fg-disabled: hsl(40 8% 60%);
+  --canvas: hsl(220 14% 10%);
+  --surface: hsl(220 14% 13%);
+  --overlay: hsl(220 14% 16%);
+  --raised: hsl(220 14% 13%);
+  --brand: hsl(36 45% 58%);
+  --brand-fg: hsl(40 20% 92%);
+  --line: hsl(220 10% 26%);
+  --line-subtle: hsl(220 10% 22%);
+  --error: hsl(0 65% 55%);
+  --error-fg: hsl(40 20% 92%);
+  --warning: hsl(45 85% 55%);
+  --success: hsl(140 45% 45%);
+  --ring: hsl(36 45% 58%);
+}
 
-  /* Text */
-  --bm-fg: 40 20% 92%;
-  --bm-muted: 40 10% 72%;
-  --bm-subtle: 40 8% 60%;
+/* Light override via browser preference */
+@media (prefers-color-scheme: light) {
+  :root {
+    --fg: hsl(220 15% 12%);
+    --fg-subtle: hsl(220 10% 38%);
+    --fg-disabled: hsl(220 8% 58%);
+    --canvas: hsl(0 0% 97%);
+    --surface: hsl(220 14% 93%);
+    --overlay: hsl(0 0% 100%);
+    --raised: hsl(220 14% 88%);
+    --brand: hsl(36 52% 44%);
+    --brand-fg: hsl(0 0% 100%);
+    --line: hsl(220 10% 82%);
+    --line-subtle: hsl(220 10% 90%);
+    --error: hsl(0 72% 42%);
+    --error-fg: hsl(0 0% 100%);
+    --warning: hsl(40 85% 40%);
+    --success: hsl(140 50% 35%);
+    --ring: hsl(36 52% 44%);
+  }
+}
 
-  /* Borders and dividers */
-  --bm-border: 220 10% 26%;
-  --bm-divider: 220 10% 22%;
+/* Manual overrides — set data-theme="dark|light" on <html> to override browser preference */
+[data-theme="dark"] {
+  --fg: hsl(40 20% 92%);
+  --fg-subtle: hsl(40 10% 72%);
+  --fg-disabled: hsl(40 8% 60%);
+  --canvas: hsl(220 14% 10%);
+  --surface: hsl(220 14% 13%);
+  --overlay: hsl(220 14% 16%);
+  --raised: hsl(220 14% 13%);
+  --brand: hsl(36 45% 58%);
+  --brand-fg: hsl(40 20% 92%);
+  --line: hsl(220 10% 26%);
+  --line-subtle: hsl(220 10% 22%);
+  --error: hsl(0 65% 55%);
+  --error-fg: hsl(40 20% 92%);
+  --warning: hsl(45 85% 55%);
+  --success: hsl(140 45% 45%);
+  --ring: hsl(36 45% 58%);
+}
 
-  /* Accent: museum-like restrained "bronze" */
-  --bm-accent: 36 45% 58%;
-  --bm-accent-2: 36 35% 48%;
-  --bm-accent-fg: 40 20% 92%; /* Readable text on accent background */
+[data-theme="light"] {
+  --fg: hsl(220 15% 12%);
+  --fg-subtle: hsl(220 10% 38%);
+  --fg-disabled: hsl(220 8% 58%);
+  --canvas: hsl(0 0% 97%);
+  --surface: hsl(220 14% 93%);
+  --overlay: hsl(0 0% 100%);
+  --raised: hsl(220 14% 88%);
+  --brand: hsl(36 52% 44%);
+  --brand-fg: hsl(0 0% 100%);
+  --line: hsl(220 10% 82%);
+  --line-subtle: hsl(220 10% 90%);
+  --error: hsl(0 72% 42%);
+  --error-fg: hsl(0 0% 100%);
+  --warning: hsl(40 85% 40%);
+  --success: hsl(140 50% 35%);
+  --ring: hsl(36 52% 44%);
+}
 
-  /* Status */
-  --bm-danger: 0 65% 55%;
-  --bm-warning: 45 85% 55%;
-  --bm-success: 140 45% 45%;
-
-  /* Effects */
-  --bm-shadow: 0 0% 0%;
-  --bm-ring: 36 45% 58%;
-
-  /* Radii and spacing */
+/* ─── Layer 2: Shadcn aliases (map to semantic tokens for backward compat) ─── */
+:root {
+  /* Radii */
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 18px;
 
-  /* shadcn/ui canonical tokens (dark-only theme) */
-  /* These are the single source of truth for component styling */
-  --background: hsl(var(--bm-bg));
-  --card: hsl(var(--bm-panel));
-  --card-foreground: hsl(var(--bm-fg));
-  --popover: hsl(var(--bm-panel));
-  --popover-foreground: hsl(var(--bm-fg));
-  --primary: hsl(var(--bm-fg));
-  --primary-foreground: hsl(var(--bm-accent-fg));
-  --secondary: hsl(var(--bm-bg-2));
-  --secondary-foreground: hsl(var(--bm-fg));
-  --muted: hsl(var(--bm-bg-2));
-  --muted-foreground: hsl(var(--bm-muted));
-  --accent: hsl(var(--bm-accent));
-  --accent-foreground: hsl(var(--bm-accent-fg));
-  --border: hsl(var(--bm-border));
-  --input: hsl(var(--bm-border));
-  --ring: hsl(var(--bm-ring));
-  --destructive: hsl(var(--bm-danger));
-  --destructive-foreground: hsl(var(--bm-fg));
+  /* Shadcn/ui canonical tokens — mapped to semantic layer */
+  --background: var(--canvas);
+  --foreground: var(--fg);
+  --card: var(--surface);
+  --card-foreground: var(--fg);
+  --popover: var(--overlay);
+  --popover-foreground: var(--fg);
+  --primary: var(--fg);
+  --primary-foreground: var(--brand-fg);
+  --secondary: var(--raised);
+  --secondary-foreground: var(--fg);
+  --muted: var(--raised);
+  --muted-foreground: var(--fg-subtle);
+  --accent: var(--brand);
+  --accent-foreground: var(--brand-fg);
+  --border: var(--line);
+  --input: var(--line);
+  --destructive: var(--error);
+  --destructive-foreground: var(--error-fg);
 }
 
+/* ─── Layer 3: Tailwind @theme (generates utility classes) ─── */
 @theme {
-  /* shadcn/ui tokens exposed to Tailwind v4 */
+  /* Semantic tokens — prefer these in new code */
+  --color-fg: var(--fg);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-disabled: var(--fg-disabled);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-overlay: var(--overlay);
+  --color-raised: var(--raised);
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
+  --color-line: var(--line);
+  --color-line-subtle: var(--line-subtle);
+  --color-error: var(--error);
+  --color-error-fg: var(--error-fg);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+
+  /* Shadcn aliases — legacy, still supported for existing code */
   --color-background: var(--background);
-  --color-foreground: var(--primary);
+  --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -77,97 +149,7 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
 
-  /* Legacy BM tokens (deprecated - use shadcn tokens above) */
-  --color-bg: hsl(var(--bm-bg));
-  --color-bg-2: hsl(var(--bm-bg-2));
-  --color-panel: hsl(var(--bm-panel));
-  --color-fg: hsl(var(--bm-fg));
-  --color-muted-legacy: hsl(var(--bm-muted));
-  --color-subtle: hsl(var(--bm-subtle));
-  --color-divider: hsl(var(--bm-divider));
-  --color-accent-2: hsl(var(--bm-accent-2));
-  --color-danger: hsl(var(--bm-danger));
-  --color-warning: hsl(var(--bm-warning));
-  --color-success: hsl(var(--bm-success));
-
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
-}
-
-/* Legacy BM utility classes (deprecated - use shadcn classes instead) */
-/* These are kept temporarily for backward compatibility during migration */
-@layer utilities {
-  /* Legacy BM utilities - DO NOT USE IN NEW CODE */
-  .bg-bg {
-    background-color: hsl(var(--bm-bg));
-  }
-
-  .bg-bg-2 {
-    background-color: hsl(var(--bm-bg-2));
-  }
-
-  .bg-panel {
-    background-color: hsl(var(--bm-panel));
-  }
-
-  .text-fg {
-    color: hsl(var(--bm-fg));
-  }
-
-  .text-muted {
-    color: hsl(var(--bm-muted));
-  }
-
-  .text-subtle {
-    color: hsl(var(--bm-subtle));
-  }
-
-  .border-divider {
-    border-color: hsl(var(--bm-divider));
-  }
-
-  .text-accent-2 {
-    color: hsl(var(--bm-accent-2));
-  }
-
-  .bg-accent-2 {
-    background-color: hsl(var(--bm-accent-2));
-  }
-
-  .text-danger {
-    color: hsl(var(--bm-danger));
-  }
-
-  .bg-danger\/20 {
-    background-color: hsl(var(--bm-danger) / 0.2);
-  }
-
-  .border-danger\/30 {
-    border-color: hsl(var(--bm-danger) / 0.3);
-  }
-
-  .text-warning {
-    color: hsl(var(--bm-warning));
-  }
-
-  .bg-warning\/20 {
-    background-color: hsl(var(--bm-warning) / 0.2);
-  }
-
-  .border-warning\/30 {
-    border-color: hsl(var(--bm-warning) / 0.3);
-  }
-
-  .text-success {
-    color: hsl(var(--bm-success));
-  }
-
-  .bg-success\/20 {
-    background-color: hsl(var(--bm-success) / 0.2);
-  }
-
-  .border-success\/30 {
-    border-color: hsl(var(--bm-success) / 0.3);
-  }
 }

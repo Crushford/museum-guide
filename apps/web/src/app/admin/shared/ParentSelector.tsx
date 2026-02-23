@@ -405,7 +405,7 @@ export function ParentSelector(props: ParentSelectorProps) {
                     : null;
                   setSelectedMuseumId(museumId);
                 }}
-                className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex h-10 flex-1 rounded-md border border-line bg-canvas px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <option value="">Select a museum</option>
                 {props.museums.map((m) => (
@@ -457,7 +457,7 @@ export function ParentSelector(props: ParentSelectorProps) {
                     : null;
                   setSelectedParentRoomId(parentRoomId);
                 }}
-                className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex h-10 flex-1 rounded-md border border-line bg-canvas px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <option value="">Select a parent room</option>
                 {props.parentRooms?.map((r) => (

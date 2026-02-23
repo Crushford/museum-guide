@@ -371,7 +371,7 @@ export function ArtifactQuestionsPanel({
                     </div>
 
                     {question.answerAudioUrl && (
-                      <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                      <div className="flex items-center gap-2 p-2 rounded-md bg-raised/50">
                         <Volume2 className="h-4 w-4 text-primary shrink-0" />
                         <audio
                           controls
@@ -494,7 +494,7 @@ export function ArtifactQuestionsPanel({
               <button
                 type="button"
                 className={`w-full rounded-md border p-2 text-left ${
-                  publishAnonymously ? 'border-primary' : 'border-border'
+                  publishAnonymously ? 'border-fg' : 'border-line'
                 }`}
                 onClick={() => setPublishAnonymously((prev) => !prev)}
               >

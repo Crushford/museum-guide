@@ -82,7 +82,7 @@ export function InlineEditableSelect({
           <select
             value={value ?? ''}
             onChange={(e) => handleChange(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex h-10 w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <option value="">{placeholder}</option>
             {options.map((option) => (
@@ -135,7 +135,7 @@ export function InlineEditableSelect({
             <span className="text-muted-foreground italic">Not set</span>
           )}
         </span>
-        <Button onClick={handleEdit} size="sm" className="border-white">
+        <Button onClick={handleEdit} size="sm" className="border-line">
           Edit
         </Button>
       </div>

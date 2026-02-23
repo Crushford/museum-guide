@@ -38,7 +38,7 @@ export function Tabs({ tabs, defaultTab, children }: TabsProps) {
       onValueChange={handleValueChange}
       className="space-y-4"
     >
-      <TabsList className="border-b border-border bg-transparent p-0 h-auto rounded-none">
+      <TabsList className="border-b border-line bg-transparent p-0 h-auto rounded-none">
         {tabs.map((tab) => (
           <TabsTrigger
             key={tab.id}

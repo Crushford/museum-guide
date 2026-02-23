@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Alert } from '@/components/ui/alert';
 import { ApiRequestError } from '@/lib/api-errors';
+import { useTheme } from '@/hooks/useTheme';
 
 type AccountUsageResponse = {
   user: {
@@ -43,6 +44,7 @@ function limitLabel(limit: number | null): string {
 export default function AccountPage() {
   const router = useRouter();
   const { user, loading: authLoading, signIn, signOut } = useAuth();
+  const { preference, setPreference } = useTheme();
   const authedApi = useAuthedApi();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +82,32 @@ export default function AccountPage() {
   return (
     <PageLayout title="Account" narrow>
       <div className="space-y-6">
+        <SectionCard title="Appearance">
+          <div className="flex gap-2">
+            <Button
+              variant={preference === 'system' ? 'default' : 'secondary'}
+              size="sm"
+              onClick={() => setPreference('system')}
+            >
+              System
+            </Button>
+            <Button
+              variant={preference === 'light' ? 'default' : 'secondary'}
+              size="sm"
+              onClick={() => setPreference('light')}
+            >
+              Light
+            </Button>
+            <Button
+              variant={preference === 'dark' ? 'default' : 'secondary'}
+              size="sm"
+              onClick={() => setPreference('dark')}
+            >
+              Dark
+            </Button>
+          </div>
+        </SectionCard>
+
         {!authLoading && !user && (
           <SectionCard
             title="Not signed in"
@@ -104,11 +132,11 @@ export default function AccountPage() {
           >
             <div className="space-y-4 text-sm">
               <div>
-                <p className="text-muted-foreground">Email</p>
+                <p className="text-fg-subtle">Email</p>
                 <p>{data?.user.email || user.email || 'Unknown'}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">UID</p>
+                <p className="text-fg-subtle">UID</p>
                 <p className="font-mono break-all">
                   {data?.user.uid || user.uid}
                 </p>
@@ -127,7 +155,7 @@ export default function AccountPage() {
                   <p className="font-medium">
                     Usage today ({data.usage.dateKey})
                   </p>
-                  <ul className="space-y-1 text-muted-foreground">
+                  <ul className="space-y-1 text-fg-subtle">
                     <li>
                       LLM requests: {data.usage.usage.llmCalls} /{' '}
                       {limitLabel(data.usage.limits.llmCalls)}
@@ -146,7 +174,7 @@ export default function AccountPage() {
                       {limitLabel(data.usage.limits.artifactCreates)}
                     </li>
                   </ul>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-fg-subtle">
                     Resets at {new Date(data.usage.resetAt).toLocaleString()}
                   </p>
                 </div>

@@ -115,7 +115,7 @@ export function InlineEditableUrlList({
             value.map((url, index) => (
               <div
                 key={index}
-                className="text-sm text-primary p-2 bg-muted rounded-md border border-border"
+                className="text-sm text-fg p-2 bg-raised rounded-md border border-line"
               >
                 {url}
               </div>
@@ -127,7 +127,7 @@ export function InlineEditableUrlList({
           )}
         </div>
         {externalIsEditing === undefined && (
-          <Button onClick={handleEdit} size="sm" className="border-white">
+          <Button onClick={handleEdit} size="sm" className="border-line">
             Edit
           </Button>
         )}

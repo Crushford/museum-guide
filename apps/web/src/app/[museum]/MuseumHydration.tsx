@@ -176,7 +176,7 @@ export function MuseumDetailsHydration({
       <div className="space-y-4">
         {/* Image */}
         {image && (
-          <div className="relative aspect-video w-full max-w-md overflow-hidden rounded-lg bg-muted">
+          <div className="relative aspect-video w-full max-w-md overflow-hidden rounded-lg bg-raised">
             <img
               src={image}
               alt={museum?.name || 'Museum'}
@@ -356,7 +356,7 @@ export function ArtifactsHydration({
           <Link
             key={artifact.id}
             href={`/${museumSlug}/artifacts/${artifact.slug}`}
-            className="group block p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-muted/50 transition-colors"
+            className="group block p-3 rounded-lg border border-line hover:border-fg/50 hover:bg-raised/50 transition-colors"
           >
             {artifact.wikimediaImageUrl && (
               <div className="aspect-square w-full mb-2 overflow-hidden rounded-md bg-muted">

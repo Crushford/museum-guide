@@ -23,7 +23,7 @@ export function PageLayout({
   narrow,
 }: PageLayoutProps) {
   return (
-    <div className="bg-background">
+    <div className="bg-canvas">
       <div
         className={cn('mx-auto px-6 py-8', narrow ? 'max-w-2xl' : 'max-w-6xl')}
       >

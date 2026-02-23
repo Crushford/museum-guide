@@ -51,7 +51,7 @@ export function EditableRow({
   };
 
   return (
-    <div className="flex gap-6 py-3 border-b border-border">
+    <div className="flex gap-6 py-3 border-b border-line">
       <div className="w-48 flex-shrink-0">
         <div className="flex items-center gap-2 mb-1">
           <label className="text-sm font-medium text-primary">{label}</label>

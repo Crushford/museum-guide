@@ -8,7 +8,7 @@ export function NavLink({
   return (
     <Link
       className={cn(
-        'text-muted-foreground transition-colors hover:text-foreground',
+        'text-fg-subtle transition-colors hover:text-fg',
         className
       )}
       {...props}
