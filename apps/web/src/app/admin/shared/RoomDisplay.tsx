@@ -78,7 +78,7 @@ export function RoomDisplay({
               setSelectedRoomId(e.target.value ? Number(e.target.value) : null);
             }}
             disabled={!currentMuseumId}
-            className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex h-10 flex-1 rounded-md border border-line bg-canvas px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <option value="">Select a room</option>
             {filteredRooms.map((r) => (

@@ -83,7 +83,9 @@ export function getDefaultOcrProvider(): OcrProviderName {
   return parseOcrProvider(process.env.SCAN_OCR_PROVIDER, DEFAULT_OCR_PROVIDER);
 }
 
-async function extractWithGoogleVision(imageBase64: string): Promise<OcrResult> {
+async function extractWithGoogleVision(
+  imageBase64: string
+): Promise<OcrResult> {
   const auth = new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/cloud-platform'],
   });
@@ -299,7 +301,9 @@ async function extractWithOcrSpace(imageBase64: string): Promise<OcrResult> {
       },
     });
     const payload = await response.text().catch(() => '');
-    throw new Error(`OCR.space request failed (${response.status}). ${payload}`);
+    throw new Error(
+      `OCR.space request failed (${response.status}). ${payload}`
+    );
   }
 
   const payload = (await response.json()) as OcrSpacePayload;

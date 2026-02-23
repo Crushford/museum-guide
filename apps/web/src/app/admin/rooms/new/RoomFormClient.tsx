@@ -92,7 +92,8 @@ export function RoomFormClient({
             : { parentRoomId: parentRoomId! }),
           name: name.trim(),
           knowledgeText: knowledgeText.trim() || null,
-          furtherReading: furtherReadingArray.length > 0 ? furtherReadingArray : [],
+          furtherReading:
+            furtherReadingArray.length > 0 ? furtherReadingArray : [],
         };
         const room = await authedApi.mutate<{ id: number }>('/rooms', {
           method: 'POST',
@@ -174,7 +175,7 @@ export function RoomFormClient({
                       e.target.value ? parseInt(e.target.value, 10) : undefined
                     )
                   }
-                  className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="mt-1 block w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="">Select a parent room</option>
                   {rooms.map((room) => (

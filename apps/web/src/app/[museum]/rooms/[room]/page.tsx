@@ -7,6 +7,7 @@ import { PageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { EntityDetailsForm } from '../../../../app/admin/shared/EntityDetailsForm';
 import { ChildEntityList } from '../../../../app/admin/shared/ChildEntityList';
+import { BodyText } from '@/components/ui/body-text';
 import { Button } from '@/components/ui/button';
 import { Room, ContentItem } from '@/lib/types';
 
@@ -107,7 +108,7 @@ export default async function RoomPage({
         {/* Room Brief Content */}
         {roomBrief && roomBrief.text.trim() && (
           <SectionCard title="Room in Brief">
-            <p className="text-primary leading-relaxed">{roomBrief.text}</p>
+            <BodyText>{roomBrief.text}</BodyText>
           </SectionCard>
         )}
 
@@ -153,9 +154,7 @@ export default async function RoomPage({
                 if (!followup.text.trim()) return null;
                 return (
                   <div key={followup.id}>
-                    <p className="text-primary leading-relaxed">
-                      {followup.text}
-                    </p>
+                    <BodyText>{followup.text}</BodyText>
                   </div>
                 );
               })}

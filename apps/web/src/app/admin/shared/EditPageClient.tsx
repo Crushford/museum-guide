@@ -168,7 +168,7 @@ export function EditPageClient(props: EditPageClientProps) {
           </div>
 
           {/* Parent Section (Museum or Parent Room) */}
-          <div className="border-t border-border pt-6 space-y-4">
+          <div className="border-t border-line pt-6 space-y-4">
             <h3 className="text-sm font-semibold text-primary">
               {props.entity.parentRoomId ? 'Parent Room' : 'Museum'}
             </h3>
@@ -187,7 +187,7 @@ export function EditPageClient(props: EditPageClientProps) {
 
           {/* Child Rooms */}
           {hasChildRooms && (
-            <div className="border-t border-border pt-6">
+            <div className="border-t border-line pt-6">
               <ChildEntityList
                 title="Child Rooms"
                 entities={props.childRooms.map((r) => ({
@@ -205,7 +205,7 @@ export function EditPageClient(props: EditPageClientProps) {
 
           {/* Artifacts - includes artifacts from child rooms if this is a parent room */}
           <div
-            className={`${hasChildRooms ? 'border-t border-border pt-6' : ''}`}
+            className={`${hasChildRooms ? 'border-t border-line pt-6' : ''}`}
           >
             <ChildEntityList
               title="Artifacts"

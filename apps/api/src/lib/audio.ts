@@ -33,7 +33,8 @@ function saveAudioFile(params: {
   fileName?: string;
   startTime: number;
 }): AudioGenerationResult {
-  const finalOutputDir = params.outputDir || resolve(__dirname, '../../public/audio');
+  const finalOutputDir =
+    params.outputDir || resolve(__dirname, '../../public/audio');
   const finalFileName = params.fileName || `audio-${Date.now()}.mp3`;
   const filePath = resolve(finalOutputDir, finalFileName);
   const duration = Date.now() - params.startTime;
@@ -54,10 +55,18 @@ export function parseTtsProvider(
   if (typeof value !== 'string') return fallback;
   const normalized = value.trim().toLowerCase();
   if (!normalized) return fallback;
-  if (normalized === 'google' || normalized === 'google-tts' || normalized === 'gcp') {
+  if (
+    normalized === 'google' ||
+    normalized === 'google-tts' ||
+    normalized === 'gcp'
+  ) {
     return 'google-tts';
   }
-  if (normalized === 'inworld' || normalized === 'inworld-ai' || normalized === 'inworld.ai') {
+  if (
+    normalized === 'inworld' ||
+    normalized === 'inworld-ai' ||
+    normalized === 'inworld.ai'
+  ) {
     return 'inworld';
   }
   return fallback;
@@ -275,7 +284,9 @@ async function generateAudioWithInworld(
       modelId,
       voiceId,
     });
-    throw new Error(payload.message || 'Inworld TTS did not return audioContent');
+    throw new Error(
+      payload.message || 'Inworld TTS did not return audioContent'
+    );
   }
 
   const audioBuffer = Buffer.from(payload.audioContent, 'base64');

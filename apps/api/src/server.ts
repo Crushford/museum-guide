@@ -3698,6 +3698,8 @@ app.get(
 
       let fullText = '';
       let modelName = '';
+      let inputTokens = 0;
+      let outputTokens = 0;
       const streamStart = Date.now();
 
       if (providerName === 'google') {
@@ -3721,14 +3723,16 @@ app.get(
 
         const finalResponse = await result.response;
         const usage = finalResponse.usageMetadata;
+        inputTokens = usage?.promptTokenCount ?? 0;
+        outputTokens = usage?.candidatesTokenCount ?? 0;
 
         recordApiCall({
           service: 'Gemini',
           endpoint: 'generateContentStream',
           durationMs: Date.now() - streamStart,
           status: 'success',
-          inputTokens: usage?.promptTokenCount ?? 0,
-          outputTokens: usage?.candidatesTokenCount ?? 0,
+          inputTokens,
+          outputTokens,
           model: modelName,
         });
       } else {
@@ -3761,17 +3765,29 @@ app.get(
         await stream.done();
         const finalResponse = await stream.finalResponse();
         const usage = finalResponse.usage;
+        inputTokens = usage?.input_tokens ?? 0;
+        outputTokens = usage?.output_tokens ?? 0;
 
         recordApiCall({
           service: 'OpenAI',
           endpoint: 'responses.stream',
           durationMs: Date.now() - streamStart,
           status: 'success',
-          inputTokens: usage?.input_tokens ?? 0,
-          outputTokens: usage?.output_tokens ?? 0,
+          inputTokens,
+          outputTokens,
           model: modelName,
         });
       }
+
+      await recordUsage({
+        provider: providerName,
+        model: modelName,
+        inputTokens,
+        outputTokens,
+        durationMs: Date.now() - streamStart,
+        apiCallId: null,
+        artifactId: artefactId,
+      });
 
       sendEvent('status', { step: 'saving', message: 'Saving content...' });
 
@@ -3783,6 +3799,10 @@ app.get(
           llmProvider: providerName,
           model: modelName,
           prompt: context.template,
+          isAdultContent: false,
+          sensitiveTopics: [],
+          subjectTags: [],
+          suggestedQuestions: [],
         },
       });
 
@@ -3818,7 +3838,10 @@ app.get(
         where: { id: content.id },
       });
 
-      sendEvent('complete', { content: finalContent, audioError: audioErrorMessage });
+      sendEvent('complete', {
+        content: finalContent,
+        audioError: audioErrorMessage,
+      });
       res.end();
     } catch (error) {
       sendEvent('error', {

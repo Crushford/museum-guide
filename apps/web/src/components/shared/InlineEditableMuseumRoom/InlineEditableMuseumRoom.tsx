@@ -170,7 +170,7 @@ export function InlineEditableMuseumRoom({
             <select
               value={museumValue ?? ''}
               onChange={(e) => handleMuseumChange(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="flex h-10 w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <option value="">{museumPlaceholder}</option>
               {museums.map((option) => (
@@ -186,7 +186,7 @@ export function InlineEditableMuseumRoom({
               value={roomValue ?? ''}
               onChange={(e) => handleRoomChange(e.target.value)}
               disabled={!museumValue}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-10 w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">{roomPlaceholder}</option>
               {filteredRooms.map((option) => (
@@ -303,7 +303,7 @@ export function InlineEditableMuseumRoom({
             )}
           </div>
         </div>
-        <Button onClick={handleEdit} size="sm" className="border-white mt-6">
+        <Button onClick={handleEdit} size="sm" className="border-line mt-6">
           Edit
         </Button>
       </div>

@@ -3,10 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { SectionCard } from '@/components/shared';
+import { PageLayout, SectionCard } from '@/components/shared';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { Button } from '@/components/ui/button';
-import { PageTitle } from '@/components/ui/page-title';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,8 +18,7 @@ export default function LoginPage() {
   }, [loading, router, user]);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-6 py-8">
-      <PageTitle>Login</PageTitle>
+    <PageLayout title="Login" narrow>
       <SectionCard
         title="Sign in"
         subtitle="Use your Google account to continue."
@@ -39,6 +37,6 @@ export default function LoginPage() {
           </div>
         </div>
       </SectionCard>
-    </main>
+    </PageLayout>
   );
 }

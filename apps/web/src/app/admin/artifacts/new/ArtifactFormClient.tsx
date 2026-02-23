@@ -8,6 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { UrlListEditor } from '../../../../components/shared';
 import { ArtifactCreateInput, ArtifactImportData, Room } from '@/lib/types';
 import { useAuthedApi } from '@/lib/useAuthedApi';
@@ -186,7 +194,10 @@ export function ArtifactFormClient({
         let roomId: number | null = null;
 
         // museumId is required for artifacts.
-        if (!artifactData.museumId || typeof artifactData.museumId !== 'number') {
+        if (
+          !artifactData.museumId ||
+          typeof artifactData.museumId !== 'number'
+        ) {
           throw new Error('museumId is required for artifacts');
         }
 
@@ -322,34 +333,30 @@ export function ArtifactFormClient({
             <div className="flex items-center gap-2">
               {!showAddNewRoom ? (
                 <>
-                  <select
-                    id="parentName"
-                    value={formData.parentName}
-                    onChange={(e) => {
-                      const selectedRoomName = e.target.value;
-                      handleFormChange('parentName', selectedRoomName);
-                      // Ensure museumId matches the selected room's museum
-                      if (selectedRoomName) {
-                        const selectedRoom = rooms.find(
-                          (r) => r.name === selectedRoomName
+                  <Select
+                    value={formData.parentName || undefined}
+                    onValueChange={(v) => {
+                      handleFormChange('parentName', v);
+                      const selectedRoom = rooms.find((r) => r.name === v);
+                      if (selectedRoom && selectedRoom.museumId) {
+                        handleFormChange(
+                          'museumId',
+                          selectedRoom.museumId.toString()
                         );
-                        if (selectedRoom && selectedRoom.museumId) {
-                          handleFormChange(
-                            'museumId',
-                            selectedRoom.museumId.toString()
-                          );
-                        }
                       }
                     }}
-                    className="flex h-10 w-64 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
-                    <option value="">Select a room</option>
-                    {rooms.map((room) => (
-                      <option key={room.id} value={room.name}>
-                        {room.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="parentName" className="w-64">
+                      <SelectValue placeholder="Select a room" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rooms.map((room) => (
+                        <SelectItem key={room.id} value={room.name}>
+                          {room.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button
                     type="button"
                     size="sm"
@@ -374,58 +381,66 @@ export function ArtifactFormClient({
                       className="w-64"
                     />
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="newRoomParentType" className="text-xs">
-                        Parent:
-                      </Label>
-                      <Button
-                        type="button"
-                        variant={
-                          formData.newRoomParentType === 'museum'
-                            ? 'default'
-                            : 'secondary'
-                        }
-                        size="sm"
-                        onClick={() => {
-                          handleFormChange('newRoomParentType', 'museum');
-                          handleFormChange('newRoomParentRoomId', '');
+                      <Label className="text-xs">Parent:</Label>
+                      <RadioGroup
+                        value={formData.newRoomParentType}
+                        onValueChange={(v) => {
+                          handleFormChange(
+                            'newRoomParentType',
+                            v as 'museum' | 'room'
+                          );
+                          if (v === 'museum')
+                            handleFormChange('newRoomParentRoomId', '');
                         }}
+                        className="flex items-center gap-4"
                       >
-                        Museum
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={
-                          formData.newRoomParentType === 'room'
-                            ? 'default'
-                            : 'secondary'
-                        }
-                        size="sm"
-                        onClick={() => {
-                          handleFormChange('newRoomParentType', 'room');
-                        }}
-                      >
-                        Room
-                      </Button>
+                        <div className="flex items-center gap-1.5">
+                          <RadioGroupItem
+                            value="museum"
+                            id="parentTypeMuseum"
+                          />
+                          <Label
+                            htmlFor="parentTypeMuseum"
+                            className="text-xs font-normal"
+                          >
+                            Museum
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <RadioGroupItem value="room" id="parentTypeRoom" />
+                          <Label
+                            htmlFor="parentTypeRoom"
+                            className="text-xs font-normal"
+                          >
+                            Room
+                          </Label>
+                        </div>
+                      </RadioGroup>
                     </div>
                     {formData.newRoomParentType === 'room' && (
-                      <select
-                        id="newRoomParentRoomId"
-                        value={formData.newRoomParentRoomId || ''}
-                        onChange={(e) =>
-                          handleFormChange(
-                            'newRoomParentRoomId',
-                            e.target.value
-                          )
+                      <Select
+                        value={formData.newRoomParentRoomId || undefined}
+                        onValueChange={(v) =>
+                          handleFormChange('newRoomParentRoomId', v)
                         }
-                        className="flex h-10 w-64 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
-                        <option value="">Select a parent room</option>
-                        {rooms.map((room) => (
-                          <option key={room.id} value={room.id.toString()}>
-                            {room.name}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger
+                          id="newRoomParentRoomId"
+                          className="w-64"
+                        >
+                          <SelectValue placeholder="Select a parent room" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {rooms.map((room) => (
+                            <SelectItem
+                              key={room.id}
+                              value={room.id.toString()}
+                            >
+                              {room.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     )}
                   </div>
                   <Button

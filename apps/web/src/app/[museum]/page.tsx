@@ -5,6 +5,7 @@ import type { MuseumResponse } from '@repo/types';
 import { PageLayout } from '../../components/shared';
 import { SectionCard } from '../../components/shared';
 import { ChildEntityList } from '../../app/admin/shared/ChildEntityList';
+import { BodyText } from '@/components/ui/body-text';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { MuseumDetailsHydration, ArtifactsHydration } from './MuseumHydration';
@@ -95,7 +96,7 @@ export default async function MuseumPage({
         {/* Intro Content (if exists from LLM generation) */}
         {intro && intro.text.trim() && (
           <SectionCard title="Introduction">
-            <p className="text-primary leading-relaxed">{intro.text}</p>
+            <BodyText>{intro.text}</BodyText>
           </SectionCard>
         )}
 
@@ -136,9 +137,7 @@ export default async function MuseumPage({
                 if (!followup.text.trim()) return null;
                 return (
                   <div key={followup.id}>
-                    <p className="text-primary leading-relaxed">
-                      {followup.text}
-                    </p>
+                    <BodyText>{followup.text}</BodyText>
                   </div>
                 );
               })}

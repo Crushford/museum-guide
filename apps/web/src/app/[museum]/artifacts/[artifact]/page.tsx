@@ -6,12 +6,12 @@ import type { MuseumResponse } from '@repo/types';
 import { PageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { Badge } from '@/components/ui/badge';
+import { BodyText } from '@/components/ui/body-text';
 import { Button } from '@/components/ui/button';
 import { Globe, ExternalLink } from 'lucide-react';
-import { ArtifactIntroduction } from './ArtifactIntroduction';
 import { WikipediaSummaryDisplay } from './WikipediaSummaryDisplay';
 import { IncorrectMatchNotice } from './IncorrectMatchNotice';
-import { ArtifactQuestionsPanel } from './ArtifactQuestionsPanel';
+import { ArtifactInteractionSection } from './ArtifactInteractionSection';
 import {
   Room,
   Artifact,
@@ -164,11 +164,7 @@ export default async function ArtifactPage({
               <Badge variant="destructive">Adult Content</Badge>
             )}
             {allSensitiveTopics.map((topic) => (
-              <Badge
-                key={topic}
-                variant="outline"
-                className="border-amber-500 text-amber-700"
-              >
+              <Badge key={topic} variant="warning">
                 {topic}
               </Badge>
             ))}
@@ -180,14 +176,13 @@ export default async function ArtifactPage({
           </div>
         )}
 
-        {/* Two-column layout for About and Introduction */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Artifact Details - Left */}
+          {/* Left: About */}
           <SectionCard title="About">
             <div className="space-y-4">
               {/* Image */}
               {artifactImageUrl && (
-                <div className="overflow-hidden rounded-lg bg-muted inline-block">
+                <div className="overflow-hidden rounded-lg bg-raised inline-block">
                   <img
                     src={artifactImageUrl}
                     alt={artifact.name}
@@ -211,9 +206,9 @@ export default async function ArtifactPage({
                   <h4 className="text-sm font-medium text-muted-foreground">
                     Knowledge
                   </h4>
-                  <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                  <BodyText muted wrap>
                     {artifact.knowledgeTextEn}
-                  </p>
+                  </BodyText>
                 </div>
               )}
 
@@ -223,9 +218,7 @@ export default async function ArtifactPage({
                   <h4 className="text-sm font-medium text-muted-foreground">
                     Plaque Information
                   </h4>
-                  <p className="text-primary leading-relaxed whitespace-pre-wrap">
-                    {artifact.rawPlaqueText}
-                  </p>
+                  <BodyText wrap>{artifact.rawPlaqueText}</BodyText>
                 </div>
               )}
 
@@ -247,22 +240,18 @@ export default async function ArtifactPage({
             </div>
           </SectionCard>
 
-          {/* Introduction Section - Right */}
-          <ArtifactIntroduction
+          {/* Right: Introduction + Questions */}
+          <ArtifactInteractionSection
             artifactId={artifact.id}
             initialContent={
               artifactMain && artifactMain.text.trim() ? artifactMain : null
             }
+            initialQuestions={questions}
+            initialSuggestedQuestions={suggestedQuestions}
           />
         </div>
 
-        <ArtifactQuestionsPanel
-          artifactId={artifact.id}
-          initialQuestions={questions}
-          suggestedQuestions={suggestedQuestions}
-        />
-
-        {/* Follow-up Content */}
+        {/* Learn More (full width) */}
         {followups.length > 0 && (
           <SectionCard title="Learn More">
             <div className="space-y-4">
@@ -270,9 +259,7 @@ export default async function ArtifactPage({
                 if (!followup.text.trim()) return null;
                 return (
                   <div key={followup.id}>
-                    <p className="text-primary leading-relaxed">
-                      {followup.text}
-                    </p>
+                    <BodyText>{followup.text}</BodyText>
                   </div>
                 );
               })}

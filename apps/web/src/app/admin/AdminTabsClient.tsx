@@ -13,6 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { generateIntroductionTemplate } from './_lib/templates';
 import type {
   MuseumResponse,
@@ -281,22 +288,24 @@ export function AdminTabsClient({
         {tab === 'rooms' && (
           <div className="flex items-center gap-4">
             <label className="text-sm font-medium text-primary">Museum:</label>
-            <select
-              value={selectedMuseumId || ''}
-              onChange={(e) =>
-                handleMuseumChange(
-                  e.target.value ? Number(e.target.value) : null
-                )
+            <Select
+              value={selectedMuseumId?.toString() ?? 'all'}
+              onValueChange={(v) =>
+                handleMuseumChange(v === 'all' ? null : Number(v))
               }
-              className="px-3 py-2 bg-muted border border-border rounded-md text-primary focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">All museums</option>
-              {museums.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All museums</SelectItem>
+                {museums.map((m) => (
+                  <SelectItem key={m.id} value={m.id.toString()}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
 
@@ -304,39 +313,45 @@ export function AdminTabsClient({
         {tab === 'artifacts' && (
           <div className="flex items-center gap-4">
             <label className="text-sm font-medium text-primary">Museum:</label>
-            <select
-              value={selectedMuseumId || ''}
-              onChange={(e) =>
-                handleMuseumChange(
-                  e.target.value ? Number(e.target.value) : null
-                )
+            <Select
+              value={selectedMuseumId?.toString() ?? 'all'}
+              onValueChange={(v) =>
+                handleMuseumChange(v === 'all' ? null : Number(v))
               }
-              className="px-3 py-2 bg-muted border border-border rounded-md text-primary focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">All museums</option>
-              {museums.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All museums</SelectItem>
+                {museums.map((m) => (
+                  <SelectItem key={m.id} value={m.id.toString()}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <label className="text-sm font-medium text-primary">Room:</label>
-            <select
-              value={selectedRoomId || ''}
-              onChange={(e) =>
-                handleRoomChange(e.target.value ? Number(e.target.value) : null)
+            <Select
+              value={selectedRoomId?.toString() ?? 'all'}
+              onValueChange={(v) =>
+                handleRoomChange(v === 'all' ? null : Number(v))
               }
               disabled={!selectedMuseumId}
-              className="px-3 py-2 bg-muted border border-border rounded-md text-primary focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="">All rooms</option>
-              {availableRooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All rooms</SelectItem>
+                {availableRooms.map((r) => (
+                  <SelectItem key={r.id} value={r.id.toString()}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
 

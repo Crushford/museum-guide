@@ -80,8 +80,8 @@ function UsageBar({
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="group flex items-center gap-1.5 cursor-default">
-          <span className="text-zinc-500 whitespace-nowrap">{label}:</span>
-          <div className="relative h-2.5 w-20 rounded-full bg-zinc-700 overflow-hidden">
+          <span className="text-fg-subtle whitespace-nowrap">{label}:</span>
+          <div className="relative h-2.5 w-20 rounded-full bg-raised overflow-hidden">
             <div
               className="absolute inset-y-0 left-0 rounded-full transition-all duration-200"
               style={{
@@ -96,7 +96,7 @@ function UsageBar({
               }}
             />
           </div>
-          <span className="text-zinc-400 whitespace-nowrap">
+          <span className="text-fg-subtle whitespace-nowrap">
             {formatTokens(remaining)} left
           </span>
         </div>
@@ -214,7 +214,7 @@ export function DevHeader() {
     return (
       <button
         onClick={handleShow}
-        className="fixed top-1 right-1 z-50 rounded px-1.5 py-0.5 text-[10px] font-mono bg-zinc-800 text-pink-400 border border-pink-500 hover:bg-zinc-700 transition-colors"
+        className="fixed top-1 right-1 z-50 rounded px-1.5 py-0.5 text-[10px] font-mono bg-surface text-brand border border-brand hover:bg-raised transition-colors"
       >
         DEV
       </button>
@@ -223,22 +223,21 @@ export function DevHeader() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="sticky top-0 z-50 flex h-10 items-center gap-4 bg-zinc-900 px-3 text-xs text-zinc-300 font-mono border-2 border-pink-500">
-        <span className="font-semibold text-amber-400">DEV</span>
+      <div className="sticky top-0 z-50 flex h-10 items-center gap-4 bg-canvas px-3 text-xs text-fg font-mono border-2 border-brand">
+        <span className="font-semibold text-brand">DEV</span>
 
-        <Link href="/" className="hover:text-white transition-colors">
+        <Link href="/" className="hover:text-fg transition-colors">
           Public
         </Link>
-        <Link href="/admin" className="hover:text-white transition-colors">
+        <Link href="/admin" className="hover:text-fg transition-colors">
           Admin
         </Link>
 
         <Link
           href="/admin/costs"
-          className="text-zinc-500 hover:text-zinc-200 transition-colors"
+          className="text-fg-subtle hover:text-fg transition-colors"
         >
-          API costs:{' '}
-          <span className="text-zinc-300">${totalEur.toFixed(4)}</span>
+          API costs: <span className="text-fg">${totalEur.toFixed(4)}</span>
         </Link>
 
         <Link
@@ -262,12 +261,10 @@ export function DevHeader() {
             <TooltipTrigger asChild>
               <Link
                 href="/admin/api-calls"
-                className="text-zinc-500 hover:text-zinc-200 transition-colors"
+                className="text-fg-subtle hover:text-fg transition-colors"
               >
                 API:{' '}
-                <span className="text-zinc-300">
-                  {apiCalls.totalCalls} calls
-                </span>
+                <span className="text-fg">{apiCalls.totalCalls} calls</span>
               </Link>
             </TooltipTrigger>
             <TooltipContent>
@@ -289,13 +286,13 @@ export function DevHeader() {
         )}
 
         <div className="ml-auto flex items-center gap-1">
-          <span className="text-zinc-500 mr-1">OCR</span>
+          <span className="text-fg-subtle mr-1">OCR</span>
           <button
             onClick={() => handleOcrToggle('ocr-space')}
             className={`rounded px-1.5 py-0.5 transition-colors ${
               ocrProvider === 'ocr-space'
-                ? 'bg-amber-500/20 text-amber-400'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'bg-brand/10 text-brand'
+                : 'text-fg-subtle hover:text-fg'
             }`}
           >
             OCR.space
@@ -304,20 +301,20 @@ export function DevHeader() {
             onClick={() => handleOcrToggle('google-vision')}
             className={`rounded px-1.5 py-0.5 transition-colors ${
               ocrProvider === 'google-vision'
-                ? 'bg-amber-500/20 text-amber-400'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'bg-brand/10 text-brand'
+                : 'text-fg-subtle hover:text-fg'
             }`}
           >
             Vision
           </button>
-          <span className="text-zinc-600 mx-1">|</span>
-          <span className="text-zinc-500 mr-1">TTS</span>
+          <span className="text-fg-disabled mx-1">|</span>
+          <span className="text-fg-subtle mr-1">TTS</span>
           <button
             onClick={() => handleTtsToggle('inworld')}
             className={`rounded px-1.5 py-0.5 transition-colors ${
               ttsProvider === 'inworld'
-                ? 'bg-amber-500/20 text-amber-400'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'bg-brand/10 text-brand'
+                : 'text-fg-subtle hover:text-fg'
             }`}
           >
             Inworld
@@ -326,20 +323,20 @@ export function DevHeader() {
             onClick={() => handleTtsToggle('google-tts')}
             className={`rounded px-1.5 py-0.5 transition-colors ${
               ttsProvider === 'google-tts'
-                ? 'bg-amber-500/20 text-amber-400'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'bg-brand/10 text-brand'
+                : 'text-fg-subtle hover:text-fg'
             }`}
           >
             Google
           </button>
-          <span className="text-zinc-600 mx-1">|</span>
-          <span className="text-zinc-500 mr-1">LLM</span>
+          <span className="text-fg-disabled mx-1">|</span>
+          <span className="text-fg-subtle mr-1">LLM</span>
           <button
             onClick={() => handleToggle('google')}
             className={`rounded px-1.5 py-0.5 transition-colors ${
               provider === 'google'
-                ? 'bg-amber-500/20 text-amber-400'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'bg-brand/10 text-brand'
+                : 'text-fg-subtle hover:text-fg'
             }`}
           >
             Google
@@ -348,8 +345,8 @@ export function DevHeader() {
             onClick={() => handleToggle('openai')}
             className={`rounded px-1.5 py-0.5 transition-colors ${
               provider === 'openai'
-                ? 'bg-amber-500/20 text-amber-400'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'bg-brand/10 text-brand'
+                : 'text-fg-subtle hover:text-fg'
             }`}
           >
             OpenAI
@@ -358,7 +355,7 @@ export function DevHeader() {
 
         <button
           onClick={handleHide}
-          className="text-zinc-500 hover:text-pink-400 transition-colors ml-1"
+          className="text-fg-subtle hover:text-brand transition-colors ml-1"
           title="Hide dev bar"
         >
           &times;

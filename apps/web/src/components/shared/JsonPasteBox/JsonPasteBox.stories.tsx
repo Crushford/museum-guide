@@ -15,7 +15,7 @@ export default meta;
 type Story = StoryObj<typeof JsonPasteBox>;
 
 export const ValidJson: Story = {
-  render: (args) => {
+  render: function Render(args) {
     const [value, setValue] = useState(
       JSON.stringify(
         {
@@ -36,7 +36,7 @@ export const ValidJson: Story = {
 };
 
 export const InvalidJson: Story = {
-  render: (args) => {
+  render: function Render(args) {
     const [value, setValue] = useState('{ name: "British Museum" }');
     return <JsonPasteBox {...args} value={value} onChange={setValue} />;
   },

@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { ThumbsDown, ThumbsUp, Volume2 } from 'lucide-react';
+import { BodyText } from '@/components/ui/body-text';
 import { Spinner } from '@/components/ui/spinner';
 import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { API_URL } from '@/lib/api';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
 import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
@@ -297,6 +299,7 @@ export function ArtifactQuestionsPanel({
               size="sm"
               onClick={() => setDraft(suggestion)}
               disabled={isAsking}
+              className="whitespace-normal break-words text-left h-auto py-2 max-w-full"
             >
               {suggestion}
             </Button>
@@ -350,9 +353,7 @@ export function ArtifactQuestionsPanel({
 
                 {question.answerText && (
                   <div className="space-y-2">
-                    <p className="text-primary leading-relaxed whitespace-pre-wrap">
-                      {question.answerText}
-                    </p>
+                    <BodyText wrap>{question.answerText}</BodyText>
                     <div className="flex flex-wrap gap-2">
                       {question.isAdultContent && (
                         <Badge variant="destructive">Adult Content</Badge>
@@ -370,7 +371,7 @@ export function ArtifactQuestionsPanel({
                     </div>
 
                     {question.answerAudioUrl && (
-                      <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                      <div className="flex items-center gap-2 p-2 rounded-md bg-raised/50">
                         <Volume2 className="h-4 w-4 text-primary shrink-0" />
                         <audio
                           controls
@@ -459,34 +460,29 @@ export function ArtifactQuestionsPanel({
                   We found a few typos. UK and US spelling are both accepted, so
                   only clear typos/capitalization were changed.
                 </p>
-                <button
-                  type="button"
-                  className={`w-full rounded-md border p-2 text-left ${
-                    selectedPublishQuestion === previewQuestion.corrected
-                      ? 'border-primary'
-                      : 'border-border'
-                  }`}
-                  onClick={() =>
-                    setSelectedPublishQuestion(previewQuestion.corrected)
-                  }
+                <ToggleGroup
+                  type="single"
+                  value={selectedPublishQuestion}
+                  onValueChange={(v) => {
+                    if (v) setSelectedPublishQuestion(v);
+                  }}
+                  className="flex-col items-stretch gap-2"
                 >
-                  <p className="text-xs text-muted-foreground">Suggested</p>
-                  <p>{previewQuestion.corrected}</p>
-                </button>
-                <button
-                  type="button"
-                  className={`w-full rounded-md border p-2 text-left ${
-                    selectedPublishQuestion === previewQuestion.original
-                      ? 'border-primary'
-                      : 'border-border'
-                  }`}
-                  onClick={() =>
-                    setSelectedPublishQuestion(previewQuestion.original)
-                  }
-                >
-                  <p className="text-xs text-muted-foreground">Original</p>
-                  <p>{previewQuestion.original}</p>
-                </button>
+                  <ToggleGroupItem
+                    value={previewQuestion.corrected}
+                    className="h-auto flex-col items-start gap-0.5 p-2 text-left whitespace-normal"
+                  >
+                    <p className="text-xs text-muted-foreground">Suggested</p>
+                    <p>{previewQuestion.corrected}</p>
+                  </ToggleGroupItem>
+                  <ToggleGroupItem
+                    value={previewQuestion.original}
+                    className="h-auto flex-col items-start gap-0.5 p-2 text-left whitespace-normal"
+                  >
+                    <p className="text-xs text-muted-foreground">Original</p>
+                    <p>{previewQuestion.original}</p>
+                  </ToggleGroupItem>
+                </ToggleGroup>
               </div>
             ) : (
               <div className="rounded-md border p-2">
@@ -498,7 +494,7 @@ export function ArtifactQuestionsPanel({
               <button
                 type="button"
                 className={`w-full rounded-md border p-2 text-left ${
-                  publishAnonymously ? 'border-primary' : 'border-border'
+                  publishAnonymously ? 'border-fg' : 'border-line'
                 }`}
                 onClick={() => setPublishAnonymously((prev) => !prev)}
               >

@@ -66,7 +66,7 @@ export function EntityList({
         <div className="space-y-2">
           {items.map((item) => {
             const content = (
-              <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-md hover:bg-secondary transition-colors">
+              <div className="flex items-center gap-3 p-3 bg-surface border border-line rounded-md hover:bg-raised transition-colors">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-primary font-medium">

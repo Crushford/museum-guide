@@ -12,7 +12,7 @@ type JsonPasteBoxProps = {
   placeholder?: string;
 };
 
-function parseJsonSafely(str: string): { data: any; isValid: boolean } {
+function parseJsonSafely(str: string): { data: unknown; isValid: boolean } {
   if (!str.trim()) {
     return { data: null, isValid: true };
   }
@@ -37,7 +37,7 @@ export function JsonPasteBox({
     setJsonString(value);
   }, [value]);
 
-  const handleDataChange = (newData: any) => {
+  const handleDataChange = (newData: unknown) => {
     const newJsonString = JSON.stringify(newData, null, 2);
     setJsonString(newJsonString);
     if (onChange) {
@@ -59,7 +59,7 @@ export function JsonPasteBox({
     <div className="space-y-2">
       <label className="block text-sm font-medium text-primary">{label}</label>
       {isValid && data !== null ? (
-        <div className="border border-border rounded-md overflow-hidden bg-muted">
+        <div className="border border-line rounded-md overflow-hidden bg-raised">
           <JsonEditor
             data={data}
             setData={handleDataChange}

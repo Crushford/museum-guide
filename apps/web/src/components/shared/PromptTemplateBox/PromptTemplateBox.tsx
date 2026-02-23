@@ -47,7 +47,7 @@ export function PromptTemplateBox({
           {copied ? 'Copied!' : copyLabel}
         </Button>
       </div>
-      <div className="bg-muted border border-border rounded-md p-4">
+      <div className="bg-raised border border-line rounded-md p-4">
         <pre className="text-sm text-primary font-mono whitespace-pre-wrap break-words">
           {displayContent}
         </pre>

@@ -161,7 +161,7 @@ function ContentGroupCell({
           Collapse
         </Button>
       </div>
-      <div className="space-y-3 pl-4 border-l-2 border-border">
+      <div className="space-y-3 pl-4 border-l-2 border-line">
         {items.map((item) => {
           const isGeneratingAudio =
             generatingAudioContentIds?.has(item.id) || false;
@@ -1125,7 +1125,7 @@ export function ContentTabsClient({
             <p className="text-sm text-muted-foreground">
               An error occurred while generating content:
             </p>
-            <div className="rounded-md bg-muted p-4">
+            <div className="rounded-md bg-raised p-4">
               <pre className="text-sm whitespace-pre-wrap break-words font-mono">
                 {errorMessage}
               </pre>
