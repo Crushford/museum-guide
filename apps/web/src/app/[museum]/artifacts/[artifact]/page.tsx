@@ -12,6 +12,7 @@ import { Globe, ExternalLink } from 'lucide-react';
 import { WikipediaSummaryDisplay } from './WikipediaSummaryDisplay';
 import { IncorrectMatchNotice } from './IncorrectMatchNotice';
 import { ArtifactInteractionSection } from './ArtifactInteractionSection';
+import { PlaqueSpoiler } from './PlaqueSpoiler';
 import {
   Room,
   Artifact,
@@ -214,12 +215,7 @@ export default async function ArtifactPage({
 
               {/* Plaque Information */}
               {artifact.rawPlaqueText && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">
-                    Plaque Information
-                  </h4>
-                  <BodyText wrap>{artifact.rawPlaqueText}</BodyText>
-                </div>
+                <PlaqueSpoiler text={artifact.rawPlaqueText} />
               )}
 
               {/* Wikipedia Link */}
