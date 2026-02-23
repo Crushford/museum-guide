@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { ThumbsDown, ThumbsUp, Volume2 } from 'lucide-react';
+import { BodyText } from '@/components/ui/body-text';
 import { Spinner } from '@/components/ui/spinner';
 import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
@@ -352,9 +353,7 @@ export function ArtifactQuestionsPanel({
 
                 {question.answerText && (
                   <div className="space-y-2">
-                    <p className="text-primary leading-relaxed whitespace-pre-wrap">
-                      {question.answerText}
-                    </p>
+                    <BodyText wrap>{question.answerText}</BodyText>
                     <div className="flex flex-wrap gap-2">
                       {question.isAdultContent && (
                         <Badge variant="destructive">Adult Content</Badge>

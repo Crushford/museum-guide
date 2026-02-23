@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 import { Breadcrumbs } from '../Breadcrumbs';
 
 type BreadcrumbItem = {
@@ -11,6 +12,7 @@ type PageLayoutProps = {
   breadcrumbs?: BreadcrumbItem[];
   actions?: ReactNode;
   children: ReactNode;
+  narrow?: boolean;
 };
 
 export function PageLayout({
@@ -18,10 +20,13 @@ export function PageLayout({
   breadcrumbs,
   actions,
   children,
+  narrow,
 }: PageLayoutProps) {
   return (
     <div className="bg-background">
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div
+        className={cn('mx-auto px-6 py-8', narrow ? 'max-w-2xl' : 'max-w-6xl')}
+      >
         <header className="mb-8">
           {breadcrumbs && breadcrumbs.length > 0 && (
             <div className="mb-4">

@@ -5,6 +5,7 @@ import { PageLayout } from '../../../../components/shared';
 import { EditPageClient } from '../../shared/EditPageClient';
 import { DeleteEntityButton } from '../../shared/DeleteEntityButton';
 import { SectionCard } from '../../../../components/shared';
+import { BodyText } from '@/components/ui/body-text';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
@@ -109,7 +110,7 @@ export default async function MuseumEditPage({
         {/* Generated Content */}
         {intro && intro.text.trim() && (
           <SectionCard title="Introduction">
-            <p className="text-primary leading-relaxed">{intro.text}</p>
+            <BodyText>{intro.text}</BodyText>
           </SectionCard>
         )}
 
@@ -120,9 +121,7 @@ export default async function MuseumEditPage({
                 if (!followup.text.trim()) return null;
                 return (
                   <div key={followup.id}>
-                    <p className="text-primary leading-relaxed">
-                      {followup.text}
-                    </p>
+                    <BodyText>{followup.text}</BodyText>
                   </div>
                 );
               })}

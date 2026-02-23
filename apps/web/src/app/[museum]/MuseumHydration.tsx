@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, ExternalLink, MapPin, Globe } from 'lucide-react';
+import { BodyText } from '@/components/ui/body-text';
 import { Spinner } from '@/components/ui/spinner';
 import { SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
@@ -191,9 +192,7 @@ export function MuseumDetailsHydration({
 
         {/* Wikipedia Summary */}
         {museum?.wikipediaSummary && (
-          <p className="text-primary leading-relaxed">
-            {museum.wikipediaSummary}
-          </p>
+          <BodyText>{museum.wikipediaSummary}</BodyText>
         )}
 
         {/* Links */}

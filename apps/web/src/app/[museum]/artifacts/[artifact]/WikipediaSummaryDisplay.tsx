@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { WikipediaSummary } from '@/lib/types';
+import { BodyText } from '@/components/ui/body-text';
 import { Button } from '@/components/ui/button';
 
 type WikipediaSummaryDisplayProps = Pick<
@@ -22,7 +23,7 @@ export function WikipediaSummaryDisplay({
 
   return (
     <div className="space-y-2">
-      <p className="text-muted-foreground leading-relaxed">{displayText}</p>
+      <BodyText muted>{displayText}</BodyText>
 
       {translated && originalExtract && (
         <p className="text-sm text-muted-foreground">

@@ -5,6 +5,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { ErrorText } from '@/components/ui/error-text';
 import { ExpandableText } from '@/components/ui/expandable-text';
+import { BodyText } from '@/components/ui/body-text';
+import { InfoBox } from '@/components/ui/info-box';
 import { SectionCard } from '@/components/shared';
 import { API_URL } from '@/lib/api';
 import { useIntroductionGeneration } from '@/hooks/useIntroductionGeneration';
@@ -44,18 +46,18 @@ export function ArtifactIntroduction({
           {error && <ErrorText>{error}</ErrorText>}
 
           {/* Status indicator */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+          <InfoBox>
             <Spinner size="md" className="text-primary shrink-0" />
             <div>
               <p className="text-primary font-medium">{statusMessage}</p>
             </div>
-          </div>
+          </InfoBox>
           {streamingText && (
             <div className="relative">
-              <p className="text-primary leading-relaxed whitespace-pre-wrap">
+              <BodyText wrap>
                 {streamingText}
                 <span className="inline-block w-2 h-5 bg-primary animate-pulse ml-1" />
-              </p>
+              </BodyText>
             </div>
           )}
         </div>
@@ -86,7 +88,7 @@ export function ArtifactIntroduction({
 
         {/* Audio Player */}
         {content.audioUrl && (
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+          <InfoBox>
             <Volume2 className="h-5 w-5 text-primary shrink-0" />
             <audio
               controls
@@ -95,10 +97,10 @@ export function ArtifactIntroduction({
             >
               Your browser does not support the audio element.
             </audio>
-          </div>
+          </InfoBox>
         )}
         {!content.audioUrl && (
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+          <InfoBox>
             <p className="text-sm text-muted-foreground">
               Audio is unavailable for this introduction.
             </p>
@@ -110,7 +112,7 @@ export function ArtifactIntroduction({
             >
               {isRetryingAudio ? 'Retrying audio...' : 'Retry audio'}
             </Button>
-          </div>
+          </InfoBox>
         )}
 
         {/* Introduction Text */}

@@ -6,6 +6,7 @@ import type { MuseumResponse } from '@repo/types';
 import { PageLayout } from '../../../../components/shared';
 import { SectionCard } from '../../../../components/shared';
 import { Badge } from '@/components/ui/badge';
+import { BodyText } from '@/components/ui/body-text';
 import { Button } from '@/components/ui/button';
 import { Globe, ExternalLink } from 'lucide-react';
 import { WikipediaSummaryDisplay } from './WikipediaSummaryDisplay';
@@ -163,11 +164,7 @@ export default async function ArtifactPage({
               <Badge variant="destructive">Adult Content</Badge>
             )}
             {allSensitiveTopics.map((topic) => (
-              <Badge
-                key={topic}
-                variant="outline"
-                className="border-amber-500 text-amber-700"
-              >
+              <Badge key={topic} variant="warning">
                 {topic}
               </Badge>
             ))}
@@ -209,9 +206,9 @@ export default async function ArtifactPage({
                   <h4 className="text-sm font-medium text-muted-foreground">
                     Knowledge
                   </h4>
-                  <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                  <BodyText muted wrap>
                     {artifact.knowledgeTextEn}
-                  </p>
+                  </BodyText>
                 </div>
               )}
 
@@ -221,9 +218,7 @@ export default async function ArtifactPage({
                   <h4 className="text-sm font-medium text-muted-foreground">
                     Plaque Information
                   </h4>
-                  <p className="text-primary leading-relaxed whitespace-pre-wrap">
-                    {artifact.rawPlaqueText}
-                  </p>
+                  <BodyText wrap>{artifact.rawPlaqueText}</BodyText>
                 </div>
               )}
 
@@ -264,9 +259,7 @@ export default async function ArtifactPage({
                 if (!followup.text.trim()) return null;
                 return (
                   <div key={followup.id}>
-                    <p className="text-primary leading-relaxed">
-                      {followup.text}
-                    </p>
+                    <BodyText>{followup.text}</BodyText>
                   </div>
                 );
               })}
