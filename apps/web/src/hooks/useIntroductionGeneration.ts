@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { API_URL } from '@/lib/api';
 import { emitApiError, extractErrorBody } from '@/lib/api-errors';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
 import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
 import { useAuthedApi } from '@/lib/useAuthedApi';
-import { useAuth } from '@/components/providers/AuthProvider';
 import type { ContentItem } from '@/lib/types';
 
 export type GenerationStep =
@@ -46,7 +45,6 @@ export function useIntroductionGeneration({
   onContentGenerated,
 }: UseIntroductionGenerationProps): UseIntroductionGenerationResult {
   const authedApi = useAuthedApi();
-  const { isAdmin, loading: authLoading } = useAuth();
   const [content, setContent] = useState<ContentItem | null>(initialContent);
   const [isRetryingAudio, setIsRetryingAudio] = useState(false);
   const [generationStep, setGenerationStep] = useState<GenerationStep>('idle');
@@ -234,15 +232,6 @@ export function useIntroductionGeneration({
     authedApi,
     onContentGenerated,
   ]);
-
-  const autoTriggered = useRef(false);
-  useEffect(() => {
-    if (authLoading || autoTriggered.current || initialContent) return;
-    if (isAdmin) {
-      autoTriggered.current = true;
-      void handleGenerateIntroduction();
-    }
-  }, [authLoading, isAdmin, initialContent, handleGenerateIntroduction]);
 
   const handleRetryAudio = useCallback(async () => {
     if (!content) return;

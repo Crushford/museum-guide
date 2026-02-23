@@ -3696,21 +3696,96 @@ app.get(
 
       await assertTextAllowedForLlm(context.template, 'introduction-stream');
 
-      const provider = createProvider(providerName);
-      const result = await provider.generate({
-        prompt: context.template,
-        systemInstruction: buildMuseumGuideSystemPrompt(),
-      });
+      let fullText = '';
+      let modelName = '';
+      let inputTokens = 0;
+      let outputTokens = 0;
+      const streamStart = Date.now();
 
-      sendEvent('chunk', { text: result.text });
+      if (providerName === 'google') {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          sendEvent('error', { error: 'GEMINI_API_KEY not configured' });
+          res.end();
+          return;
+        }
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        modelName = 'gemini-2.5-flash';
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContentStream(context.template);
+
+        for await (const chunk of result.stream) {
+          const chunkText = chunk.text();
+          fullText += chunkText;
+          sendEvent('chunk', { text: chunkText });
+        }
+
+        const finalResponse = await result.response;
+        const usage = finalResponse.usageMetadata;
+        inputTokens = usage?.promptTokenCount ?? 0;
+        outputTokens = usage?.candidatesTokenCount ?? 0;
+
+        recordApiCall({
+          service: 'Gemini',
+          endpoint: 'generateContentStream',
+          durationMs: Date.now() - streamStart,
+          status: 'success',
+          inputTokens,
+          outputTokens,
+          model: modelName,
+        });
+      } else {
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+          sendEvent('error', { error: 'OPENAI_API_KEY not configured' });
+          res.end();
+          return;
+        }
+
+        const client = new OpenAI({ apiKey });
+        modelName = process.env.OPENAI_MODEL_INTRODUCTION || 'gpt-5-nano';
+
+        const stream = client.responses.stream({
+          model: modelName,
+          input: [{ role: 'user', content: context.template }],
+          max_output_tokens: Number(
+            process.env.OPENAI_MAX_OUTPUT_TOKENS || 1000
+          ),
+          reasoning: { effort: 'minimal' },
+        });
+
+        stream.on('response.output_text.delta', (event) => {
+          const delta = typeof event?.delta === 'string' ? event.delta : '';
+          if (!delta) return;
+          fullText += delta;
+          sendEvent('chunk', { text: delta });
+        });
+
+        await stream.done();
+        const finalResponse = await stream.finalResponse();
+        const usage = finalResponse.usage;
+        inputTokens = usage?.input_tokens ?? 0;
+        outputTokens = usage?.output_tokens ?? 0;
+
+        recordApiCall({
+          service: 'OpenAI',
+          endpoint: 'responses.stream',
+          durationMs: Date.now() - streamStart,
+          status: 'success',
+          inputTokens,
+          outputTokens,
+          model: modelName,
+        });
+      }
 
       await recordUsage({
-        provider: result.provider,
-        model: result.model,
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        durationMs: result.durationMs,
-        apiCallId: result.apiCallId ?? null,
+        provider: providerName,
+        model: modelName,
+        inputTokens,
+        outputTokens,
+        durationMs: Date.now() - streamStart,
+        apiCallId: null,
         artifactId: artefactId,
       });
 
@@ -3718,16 +3793,16 @@ app.get(
 
       const content = await prisma.content.create({
         data: {
-          text: result.text,
+          text: fullText,
           type: 'introduction',
           artifactId: artefactId,
-          llmProvider: result.provider,
-          model: result.model,
+          llmProvider: providerName,
+          model: modelName,
           prompt: context.template,
-          isAdultContent: result.isAdultContent ?? false,
-          sensitiveTopics: result.sensitiveTopics ?? [],
-          subjectTags: result.subjectTags ?? [],
-          suggestedQuestions: result.suggestedQuestions ?? [],
+          isAdultContent: false,
+          sensitiveTopics: [],
+          subjectTags: [],
+          suggestedQuestions: [],
         },
       });
 
@@ -3739,7 +3814,7 @@ app.get(
       let audioUrl: string | null = null;
       let audioErrorMessage: string | null = null;
       try {
-        audioUrl = await generateAudioForContent(content.id, result.text, {
+        audioUrl = await generateAudioForContent(content.id, fullText, {
           outputDir: audioDir,
           provider: ttsProvider,
         });
