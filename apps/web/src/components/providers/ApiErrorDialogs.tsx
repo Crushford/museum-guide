@@ -19,6 +19,8 @@ const FEEDBACK_URL =
   process.env.NEXT_PUBLIC_FEEDBACK_URL ||
   process.env.NEXT_PUBLIC_WAITLIST_URL ||
   'https://forms.gle/';
+const WAITLIST_URL =
+  process.env.NEXT_PUBLIC_WAITLIST_URL || 'https://forms.gle/U1PqnrG22YzV2sXu8';
 const LINKEDIN_URL = 'https://www.linkedin.com/in/rushfordj/';
 
 export function ApiErrorDialogs() {
@@ -178,10 +180,14 @@ export function ApiErrorDialogs() {
           <DialogHeader>
             <DialogTitle>Sign in required</DialogTitle>
             <DialogDescription>
-              Welcome, and thanks for checking out Museum Guide. To create new
-              museums and artifacts, you need to be signed in.
+              Thanks for visiting Museum Guide. To use Museum Guide, you must
+              sign in first.
             </DialogDescription>
           </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This app is in the testing phase right now, but you can join the
+            waitlist and I will invite more people as capacity opens up.
+          </p>
           <DialogFooter>
             <Button
               variant="secondary"
@@ -190,6 +196,11 @@ export function ApiErrorDialogs() {
               Close
             </Button>
             <Button onClick={() => void signIn()}>Sign in with Google</Button>
+            <Button variant="link" asChild>
+              <a href={WAITLIST_URL} target="_blank" rel="noreferrer">
+                Join waitlist
+              </a>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
