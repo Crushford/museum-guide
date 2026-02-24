@@ -32,6 +32,8 @@ import type {
 
 const NEARBY_RADIUS_STEPS_KM = [1, 5, 25] as const;
 const MIN_SEARCH_LENGTH = 2;
+const AUTH_STATUS_PENDING_MESSAGE =
+  'Checking sign-in status. Please try again in a moment.';
 
 interface LocalMuseum {
   id: number;
@@ -171,7 +173,7 @@ export default function SearchPage() {
 
   const canRunSearchAction = useCallback(() => {
     if (authLoading) {
-      setSearchError('Checking sign-in status. Please try again in a moment.');
+      setSearchError(AUTH_STATUS_PENDING_MESSAGE);
       return false;
     }
 
@@ -197,6 +199,13 @@ export default function SearchPage() {
     }
     loadLocalMuseums();
   }, []);
+
+  // Clear the temporary auth-loading message once auth state resolves.
+  useEffect(() => {
+    if (!authLoading && searchError === AUTH_STATUS_PENDING_MESSAGE) {
+      setSearchError(null);
+    }
+  }, [authLoading, searchError]);
 
   // Filter local museums based on search query (client-side)
   const filteredLocalMuseums = useMemo(() => {
@@ -406,8 +415,10 @@ export default function SearchPage() {
   const isSearchDisabled =
     isSearching ||
     isSelecting !== null ||
+    authLoading ||
     searchQuery.trim().length < MIN_SEARCH_LENGTH;
-  const isNearbyDisabled = isSearchingNearby || isSelecting !== null;
+  const isNearbyDisabled =
+    isSearchingNearby || isSelecting !== null || authLoading;
 
   return (
     <div className="bg-canvas">

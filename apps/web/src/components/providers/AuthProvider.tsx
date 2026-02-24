@@ -58,6 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               await firebaseSignOut(auth);
               setUser(null);
               setIsAdmin(false);
+              return;
+            }
+
+            if (authStatusResponse.status === 401) {
+              // Local Firebase session exists, but the API rejected the token.
+              // Clear the stale session so the UI returns to a consistent signed-out state.
+              await firebaseSignOut(auth);
+              setUser(null);
+              setIsAdmin(false);
             }
           }
         } else {
