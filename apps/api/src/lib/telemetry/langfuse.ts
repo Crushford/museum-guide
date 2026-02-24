@@ -1,11 +1,12 @@
 import { Langfuse } from 'langfuse';
+import { env } from '../../config/env';
 
 let langfuseInstance: Langfuse | null = null;
 
 export function initLangfuse(): void {
-  if (process.env.LANGFUSE_ENABLED !== 'true') return;
+  if (!env.LANGFUSE_ENABLED) return;
 
-  if (!process.env.LANGFUSE_PUBLIC_KEY || !process.env.LANGFUSE_SECRET_KEY) {
+  if (!env.LANGFUSE_PUBLIC_KEY || !env.LANGFUSE_SECRET_KEY) {
     console.warn(
       '[Langfuse] Enabled but missing LANGFUSE_PUBLIC_KEY or LANGFUSE_SECRET_KEY. Disabling.'
     );
@@ -14,9 +15,9 @@ export function initLangfuse(): void {
 
   try {
     langfuseInstance = new Langfuse({
-      publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-      secretKey: process.env.LANGFUSE_SECRET_KEY,
-      baseUrl: process.env.LANGFUSE_BASE_URL || 'https://cloud.langfuse.com',
+      publicKey: env.LANGFUSE_PUBLIC_KEY,
+      secretKey: env.LANGFUSE_SECRET_KEY,
+      baseUrl: env.LANGFUSE_BASE_URL || 'https://cloud.langfuse.com',
     });
     console.log('[Langfuse] Initialized');
   } catch (err) {

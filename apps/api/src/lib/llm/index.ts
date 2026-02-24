@@ -1,6 +1,7 @@
 import { GoogleLlmProvider } from './google';
 import { OpenAILlmProvider } from './openai';
 import type { LlmProvider } from './types';
+import { env } from '../../config/env';
 
 export type {
   LlmProvider,
@@ -11,12 +12,12 @@ export type {
 export function createProvider(name: 'google' | 'openai'): LlmProvider {
   switch (name) {
     case 'google': {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = env.GEMINI_API_KEY;
       if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
       return new GoogleLlmProvider(apiKey);
     }
     case 'openai': {
-      const apiKey = process.env.OPENAI_API_KEY;
+      const apiKey = env.OPENAI_API_KEY;
       if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
       return new OpenAILlmProvider(apiKey);
     }

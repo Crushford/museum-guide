@@ -1,5 +1,6 @@
 import { prisma } from '@repo/db';
 import type { SpendRow } from '@repo/types';
+import { env } from '../../config/env';
 
 // Cost per 1M tokens in EUR (conservative estimates)
 const COST_TABLE: Record<string, { input: number; output: number }> = {
@@ -126,11 +127,14 @@ export async function checkSpendLimit(provider: string): Promise<{
   currentSpendEur: number;
   limitEur: number | null;
 }> {
-  const envKey = `${provider.toUpperCase()}_MAX_EUR_PER_MONTH`;
-  const limitStr = process.env[envKey];
-  const limitEur = limitStr ? parseFloat(limitStr) : null;
+  const limitEur =
+    provider === 'openai'
+      ? env.OPENAI_MAX_EUR_PER_MONTH
+      : provider === 'google'
+        ? env.GOOGLE_MAX_EUR_PER_MONTH
+        : null;
 
-  if (limitEur === null || isNaN(limitEur)) {
+  if (limitEur === null) {
     return { allowed: true, currentSpendEur: 0, limitEur: null };
   }
 
@@ -187,11 +191,14 @@ export async function checkDailySpendLimit(provider: string): Promise<{
   currentSpendEur: number;
   limitEur: number | null;
 }> {
-  const envKey = `${provider.toUpperCase()}_MAX_EUR_PER_DAY`;
-  const limitStr = process.env[envKey];
-  const limitEur = limitStr ? parseFloat(limitStr) : null;
+  const limitEur =
+    provider === 'openai'
+      ? env.OPENAI_MAX_EUR_PER_DAY
+      : provider === 'google'
+        ? env.GOOGLE_MAX_EUR_PER_DAY
+        : null;
 
-  if (limitEur === null || isNaN(limitEur)) {
+  if (limitEur === null) {
     return { allowed: true, currentSpendEur: 0, limitEur: null };
   }
 

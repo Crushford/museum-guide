@@ -2,6 +2,7 @@ import { GoogleAuth } from 'google-auth-library';
 import type { OcrProviderName, OcrResult } from '@repo/types';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { env } from '../../config/env';
 import { recordApiCall } from '../telemetry/api-call-tracker';
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -32,7 +33,7 @@ export function decodeBase64Image(imageBase64: string): DecodedImage {
 }
 
 function resolveQuotaProjectFromAdc(): string | null {
-  const envQuota = process.env.GOOGLE_CLOUD_QUOTA_PROJECT?.trim();
+  const envQuota = env.GOOGLE_CLOUD_QUOTA_PROJECT?.trim();
   if (envQuota) return envQuota;
 
   const cloudSdkConfigDir =
@@ -80,7 +81,7 @@ export function parseOcrProvider(
 }
 
 export function getDefaultOcrProvider(): OcrProviderName {
-  return parseOcrProvider(process.env.SCAN_OCR_PROVIDER, DEFAULT_OCR_PROVIDER);
+  return parseOcrProvider(env.SCAN_OCR_PROVIDER, DEFAULT_OCR_PROVIDER);
 }
 
 async function extractWithGoogleVision(
@@ -100,7 +101,7 @@ async function extractWithGoogleVision(
   const base64Content = buffer.toString('base64');
   const endpoint = 'https://vision.googleapis.com/v1/images:annotate';
   const quotaProject = resolveQuotaProjectFromAdc();
-  const usdToEurRate = Number(process.env.USD_TO_EUR_RATE || '0.92');
+  const usdToEurRate = env.USD_TO_EUR_RATE;
   const visionCostEur = Number.isFinite(usdToEurRate)
     ? VISION_OCR_COST_USD * usdToEurRate
     : undefined;
@@ -252,15 +253,15 @@ function normalizeOcrSpaceErrorMessage(
 }
 
 async function extractWithOcrSpace(imageBase64: string): Promise<OcrResult> {
-  const apiKey = process.env.OCR_SPACE_API_KEY?.trim();
+  const apiKey = env.OCR_SPACE_API_KEY?.trim();
   if (!apiKey) throw new Error('OCR_SPACE_API_KEY not configured');
 
   const endpoint = 'https://api.ocr.space/parse/image';
   const { buffer, mimeType } = decodeBase64Image(imageBase64);
   const start = Date.now();
 
-  const language = process.env.OCR_SPACE_LANGUAGE?.trim() || 'eng';
-  const engine = process.env.OCR_SPACE_ENGINE?.trim() || '2';
+  const language = env.OCR_SPACE_LANGUAGE?.trim() || 'eng';
+  const engine = env.OCR_SPACE_ENGINE?.trim() || '2';
   const base64Content = `data:${mimeType};base64,${buffer.toString('base64')}`;
   const form = new URLSearchParams();
   form.set('base64Image', base64Content);
@@ -269,8 +270,8 @@ async function extractWithOcrSpace(imageBase64: string): Promise<OcrResult> {
   form.set('OCREngine', engine);
   form.set('scale', 'true');
 
-  const usdToEurRate = Number(process.env.USD_TO_EUR_RATE || '0.92');
-  const ocrSpaceCostUsd = Number(process.env.OCR_SPACE_OCR_COST_USD || '0');
+  const usdToEurRate = env.USD_TO_EUR_RATE;
+  const ocrSpaceCostUsd = env.OCR_SPACE_OCR_COST_USD;
   const ocrSpaceCostEur =
     Number.isFinite(usdToEurRate) && Number.isFinite(ocrSpaceCostUsd)
       ? ocrSpaceCostUsd * usdToEurRate

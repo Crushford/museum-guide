@@ -1,4 +1,4 @@
-import dotenv from 'dotenv';
+import { env, parseCsvEnv } from './config/env';
 import { resolve } from 'path';
 import { createHash } from 'crypto';
 import express from 'express';
@@ -91,33 +91,25 @@ import {
 } from './lib/usage-limits';
 import { GLOBAL_DAILY_LIMITS } from './lib/usage-limit-constants';
 import { logger } from './lib/logger';
-import { parseWithSchema } from './lib/http/validation';
-
-// Load environment variables - check multiple locations
-dotenv.config({ path: resolve(__dirname, '../../../.env') });
-dotenv.config({ path: resolve(__dirname, '../.env') });
-dotenv.config({ path: resolve(__dirname, '../../web/.env.local') });
+import {
+  parseOptionalNumberFilter,
+  parseOptionalString,
+  parseRequiredNumber,
+  parseWithSchema,
+} from './lib/http/validation';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const ENABLE_DB_QUERY_BILLING_LOGS = process.env.DB_QUERY_BILLING_LOGS !== '0';
-const TRUST_PROXY_HOPS = Number(process.env.TRUST_PROXY_HOPS ?? 0);
-
-function parseCsvEnv(value: string | undefined): string[] {
-  if (!value) return [];
-  return value
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
+const PORT = env.PORT;
+const ENABLE_DB_QUERY_BILLING_LOGS = env.DB_QUERY_BILLING_LOGS;
+const TRUST_PROXY_HOPS = env.TRUST_PROXY_HOPS;
 
 const allowedCorsOrigins = new Set([
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'https://museumguide.io',
   'https://www.museumguide.io',
-  ...parseCsvEnv(process.env.FRONTEND_URL),
-  ...parseCsvEnv(process.env.FRONTEND_URLS),
+  ...parseCsvEnv(env.FRONTEND_URL),
+  ...parseCsvEnv(env.FRONTEND_URLS),
 ]);
 
 if (Number.isFinite(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
@@ -239,6 +231,418 @@ const questionAskBodySchema = z.preprocess(
         approvedQuestionText,
       };
     })
+);
+
+const questionsListQuerySchema = z
+  .object({
+    limit: z.preprocess((value) => {
+      if (value === undefined || value === null) return 20;
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? 20 : parsed;
+    }, z.number()),
+    sort: z.enum(['top', 'new']).catch('top'),
+  })
+  .transform((value) => ({
+    limit: Math.min(Math.max(value.limit || 20, 1), 100),
+    sort: value.sort,
+  }));
+
+const questionVoteBodySchema = z
+  .object({ vote: z.enum(['up', 'down']) })
+  .transform((value) => value);
+
+const questionListenBodySchema = z
+  .preprocess(
+    (value) => (value && typeof value === 'object' ? value : {}),
+    z.object({
+      durationSeconds: z.unknown().optional(),
+      completed: z.unknown().optional(),
+      sessionId: z.unknown().optional(),
+      source: z.unknown().optional(),
+    })
+  )
+  .transform((value) => {
+    const durationSecondsRaw = Number(value.durationSeconds ?? 0);
+    const durationSeconds =
+      Number.isFinite(durationSecondsRaw) && durationSecondsRaw > 0
+        ? durationSecondsRaw
+        : 0;
+
+    return {
+      durationSeconds,
+      completed: value.completed === true,
+      sessionId: typeof value.sessionId === 'string' ? value.sessionId : null,
+      source: typeof value.source === 'string' ? value.source : null,
+    };
+  });
+
+const wikipediaSummaryQuerySchema = z.object({
+  url: z
+    .string({ error: 'URL is required' })
+    .min(1, { error: 'URL is required' }),
+});
+
+const adminApiCallsQuerySchema = z
+  .preprocess(
+    (value) => (value && typeof value === 'object' ? value : {}),
+    z.object({
+      service: z.unknown().optional(),
+      page: z.preprocess((raw) => {
+        if (raw === undefined || raw === null) return 1;
+        const parsed = Number(raw);
+        return Number.isNaN(parsed) ? 1 : parsed;
+      }, z.number()),
+      pageSize: z.preprocess((raw) => {
+        if (raw === undefined || raw === null) return 50;
+        const parsed = Number(raw);
+        return Number.isNaN(parsed) ? 50 : parsed;
+      }, z.number()),
+    })
+  )
+  .transform((value) => ({
+    service: typeof value.service === 'string' ? value.service : undefined,
+    page: Math.max(1, value.page || 1),
+    pageSize: Math.min(100, Math.max(1, value.pageSize || 50)),
+  }));
+
+const generateIntroductionBodySchema = z
+  .preprocess(
+    (value) => (value && typeof value === 'object' ? value : {}),
+    z.object({
+      provider: z.enum(['google', 'openai']),
+      ttsProvider: z.unknown().optional(),
+    })
+  )
+  .transform((value) => value);
+
+const ttsProviderBodySchema = z
+  .preprocess(
+    (value) => (value && typeof value === 'object' ? value : {}),
+    z.object({
+      ttsProvider: z.unknown().optional(),
+    })
+  )
+  .transform((value) => value);
+
+const scanOcrBodySchema = z
+  .preprocess(
+    (value) => (value && typeof value === 'object' ? value : {}),
+    z.object({
+      imageBase64: z
+        .string({ error: 'imageBase64 is required' })
+        .min(1, { error: 'imageBase64 is required' }),
+      provider: z.unknown().optional(),
+    })
+  )
+  .transform((value) => value);
+
+const scanRawTextBodySchema = z
+  .preprocess(
+    (value) => (value && typeof value === 'object' ? value : {}),
+    z
+      .object({
+        rawText: z.string({ error: 'rawText is required' }),
+      })
+      .superRefine((value, ctx) => {
+        if (!value.rawText.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['rawText'],
+            message: 'rawText is required',
+          });
+        }
+      })
+  )
+  .transform((value) => ({
+    rawText: value.rawText,
+    trimmedRawText: value.rawText.trim(),
+  }));
+
+const scanDuplicatesDraftBodySchema = z
+  .preprocess(
+    (value) => (value && typeof value === 'object' ? value : {}),
+    z.object({
+      draft: z.record(z.string(), z.unknown()),
+    })
+  )
+  .transform((value) => value);
+
+const searchQuerySchema = z.object({
+  q: z
+    .string({ error: 'Search query must be at least 2 characters' })
+    .trim()
+    .min(2, { error: 'Search query must be at least 2 characters' }),
+});
+
+const checkDuplicatesBodySchema = z.preprocess(
+  (value) => (value && typeof value === 'object' ? value : {}),
+  z
+    .object({
+      name: z
+        .string({ error: 'name is required' })
+        .min(1, { error: 'name is required' }),
+      knowledgeText: z.unknown().optional(),
+      furtherReading: z.unknown().optional(),
+    })
+    .transform((value) => ({
+      name: value.name,
+      knowledgeText:
+        typeof value.knowledgeText === 'string' ? value.knowledgeText : '',
+      furtherReading: Array.isArray(value.furtherReading)
+        ? value.furtherReading.filter(
+            (entry): entry is string => typeof entry === 'string'
+          )
+        : [],
+    }))
+);
+
+const createMuseumBodySchema = z.preprocess(
+  (value) => (value && typeof value === 'object' ? value : {}),
+  z
+    .object({
+      name: z
+        .string({ error: 'Name is required' })
+        .min(1, { error: 'Name is required' }),
+      knowledgeText: z.unknown().optional(),
+      furtherReading: z.unknown().optional(),
+    })
+    .transform((value) => ({
+      name: value.name,
+      knowledgeText:
+        typeof value.knowledgeText === 'string' && value.knowledgeText
+          ? value.knowledgeText
+          : null,
+      furtherReading: Array.isArray(value.furtherReading)
+        ? value.furtherReading.filter(
+            (entry): entry is string => typeof entry === 'string'
+          )
+        : [],
+    }))
+);
+
+const createRoomBodySchema = z.preprocess(
+  (value) => (value && typeof value === 'object' ? value : {}),
+  z
+    .object({
+      name: z.unknown().optional(),
+      museumId: z.unknown().optional(),
+      parentRoomId: z.unknown().optional(),
+      knowledgeText: z.unknown().optional(),
+      furtherReading: z.unknown().optional(),
+    })
+    .superRefine((value, ctx) => {
+      if (typeof value.name !== 'string' || value.name.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['name'],
+          message: 'name is required',
+        });
+      }
+
+      const museumId =
+        value.museumId === undefined ||
+        value.museumId === null ||
+        value.museumId === ''
+          ? NaN
+          : Number(value.museumId);
+      if (!Number.isFinite(museumId) || !value.museumId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['museumId'],
+          message: 'museumId is required',
+        });
+      }
+    })
+    .transform((value) => {
+      const museumId = Number(value.museumId);
+      const parentRoomIdRaw = Number(value.parentRoomId);
+
+      return {
+        name: value.name as string,
+        museumId,
+        parentRoomId:
+          value.parentRoomId === null
+            ? null
+            : Number.isFinite(parentRoomIdRaw)
+              ? parentRoomIdRaw
+              : undefined,
+        knowledgeText:
+          typeof value.knowledgeText === 'string'
+            ? value.knowledgeText
+            : undefined,
+        furtherReading: Array.isArray(value.furtherReading)
+          ? value.furtherReading.filter(
+              (entry): entry is string => typeof entry === 'string'
+            )
+          : undefined,
+      };
+    })
+);
+
+const updateRoomBodySchema = z.preprocess(
+  (value) => (value && typeof value === 'object' ? value : {}),
+  z.object({
+    name: z.string().optional(),
+    museumId: z.union([z.coerce.number(), z.null()]).optional(),
+    parentRoomId: z.union([z.coerce.number(), z.null()]).optional(),
+    knowledgeText: z.union([z.string(), z.null()]).optional(),
+    furtherReading: z.array(z.string()).optional(),
+  })
+);
+
+const artifactCreateBodySchema = z.preprocess(
+  (value) => (value && typeof value === 'object' ? value : {}),
+  z
+    .object({
+      name: z.unknown().optional(),
+      displayTitle: z.unknown().optional(),
+      roomId: z.unknown().optional(),
+      museumId: z.unknown().optional(),
+      knowledgeText: z.unknown().optional(),
+      furtherReading: z.unknown().optional(),
+      localTitle: z.unknown().optional(),
+      localTitleLanguage: z.unknown().optional(),
+      englishTitle: z.unknown().optional(),
+      rawPlaqueText: z.unknown().optional(),
+      knowledgeTextEn: z.unknown().optional(),
+    })
+    .superRefine((value, ctx) => {
+      const fallbackName =
+        (typeof value.displayTitle === 'string' && value.displayTitle.trim()) ||
+        (typeof value.name === 'string' && value.name.trim());
+
+      if (!fallbackName) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'name or displayTitle is required',
+        });
+      }
+
+      const museumId =
+        value.museumId === undefined ||
+        value.museumId === null ||
+        value.museumId === ''
+          ? NaN
+          : Number(value.museumId);
+      if (!Number.isFinite(museumId) || !value.museumId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['museumId'],
+          message: 'museumId is required',
+        });
+      }
+    })
+    .transform((value) => {
+      const fallbackName =
+        (typeof value.displayTitle === 'string' && value.displayTitle.trim()) ||
+        (typeof value.name === 'string' && value.name.trim()) ||
+        '';
+
+      const roomIdNum = Number(value.roomId);
+      const museumIdNum = Number(value.museumId);
+
+      return {
+        fallbackName,
+        name: typeof value.name === 'string' ? value.name : undefined,
+        displayTitle:
+          typeof value.displayTitle === 'string'
+            ? value.displayTitle
+            : undefined,
+        roomId: Number.isFinite(roomIdNum) ? roomIdNum : undefined,
+        museumId: museumIdNum,
+        knowledgeText:
+          typeof value.knowledgeText === 'string'
+            ? value.knowledgeText
+            : undefined,
+        furtherReading: Array.isArray(value.furtherReading)
+          ? value.furtherReading.filter(
+              (entry): entry is string => typeof entry === 'string'
+            )
+          : [],
+        localTitle:
+          typeof value.localTitle === 'string' ? value.localTitle : undefined,
+        localTitleLanguage:
+          typeof value.localTitleLanguage === 'string'
+            ? value.localTitleLanguage
+            : undefined,
+        englishTitle:
+          typeof value.englishTitle === 'string'
+            ? value.englishTitle
+            : undefined,
+        rawPlaqueText:
+          typeof value.rawPlaqueText === 'string'
+            ? value.rawPlaqueText
+            : undefined,
+        knowledgeTextEn:
+          typeof value.knowledgeTextEn === 'string'
+            ? value.knowledgeTextEn
+            : undefined,
+      };
+    })
+);
+
+const contentCreateBodySchema = z.preprocess(
+  (value) => (value && typeof value === 'object' ? value : {}),
+  z
+    .object({
+      text: z.unknown().optional(),
+      type: z.unknown().optional(),
+      museumId: z.unknown().optional(),
+      roomId: z.unknown().optional(),
+      artifactId: z.unknown().optional(),
+      llmProvider: z.unknown().optional(),
+      model: z.unknown().optional(),
+      prompt: z.unknown().optional(),
+    })
+    .superRefine((value, ctx) => {
+      if (typeof value.text !== 'string' || !value.text) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['text'],
+          message: 'text is required',
+        });
+      }
+
+      const parentCount =
+        Number(Boolean(value.museumId)) +
+        Number(Boolean(value.roomId)) +
+        Number(Boolean(value.artifactId));
+      if (parentCount !== 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'Exactly one of museumId, roomId, or artifactId must be provided',
+        });
+      }
+    })
+    .transform((value) => {
+      const museumId = Number(value.museumId);
+      const roomId = Number(value.roomId);
+      const artifactId = Number(value.artifactId);
+
+      return {
+        text: value.text as string,
+        type: typeof value.type === 'string' ? value.type : undefined,
+        museumId: Number.isFinite(museumId) ? museumId : undefined,
+        roomId: Number.isFinite(roomId) ? roomId : undefined,
+        artifactId: Number.isFinite(artifactId) ? artifactId : undefined,
+        llmProvider:
+          typeof value.llmProvider === 'string' ? value.llmProvider : undefined,
+        model: typeof value.model === 'string' ? value.model : undefined,
+        prompt: typeof value.prompt === 'string' ? value.prompt : undefined,
+      };
+    })
+);
+
+const scanCreateBodySchema = z.preprocess(
+  (value) => (value && typeof value === 'object' ? value : {}),
+  z.object({
+    imageBase64: z.unknown().optional(),
+    rawText: z.unknown().optional(),
+    draft: z.record(z.string(), z.unknown()).optional(),
+    ocr: z.record(z.string(), z.unknown()).optional(),
+    enrichment: z.record(z.string(), z.unknown()).optional(),
+  })
 );
 
 // Enable CORS for all routes
@@ -505,11 +909,11 @@ app.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const { name, knowledgeText, furtherReading } = req.body;
-
-      if (!name || typeof name !== 'string') {
-        return res.status(400).json({ error: 'name is required' });
-      }
+      const { name, knowledgeText, furtherReading } = parseWithSchema(
+        checkDuplicatesBodySchema,
+        req.body,
+        'name is required'
+      );
 
       // Fetch all existing artifacts
       const existingArtifacts = await prisma.artifact.findMany({
@@ -664,6 +1068,9 @@ app.post(
         totalChecked: existingArtifacts.length,
       });
     } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to check duplicates';
       res.status(500).json({ error: errorMessage });
@@ -678,15 +1085,7 @@ app.post(
 // GET /api/museums/search - Search both database and Wikidata for museums
 app.get('/api/museums/search', async (req, res) => {
   try {
-    const query = req.query.q as string;
-
-    if (!query || query.trim().length < 2) {
-      return res.status(400).json({
-        error: 'Search query must be at least 2 characters',
-      });
-    }
-
-    const searchTerm = query.trim();
+    const { q: searchTerm } = parseWithSchema(searchQuerySchema, req.query);
 
     // Search database first (case-insensitive)
     const localMuseums = await prisma.museum.findMany({
@@ -741,6 +1140,9 @@ app.get('/api/museums/search', async (req, res) => {
       wikidata: filteredWikidataResults,
     });
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to search museums';
     res.status(500).json({ error: errorMessage });
@@ -750,15 +1152,7 @@ app.get('/api/museums/search', async (req, res) => {
 // GET /api/museums/search/wikidata - Search Wikidata only (for explicit search button)
 app.get('/api/museums/search/wikidata', async (req, res) => {
   try {
-    const query = req.query.q as string;
-
-    if (!query || query.trim().length < 2) {
-      return res.status(400).json({
-        error: 'Search query must be at least 2 characters',
-      });
-    }
-
-    const searchTerm = query.trim();
+    const { q: searchTerm } = parseWithSchema(searchQuerySchema, req.query);
 
     // Search Wikidata only
     const wikidataResults = await searchWikidata(searchTerm, 100);
@@ -781,6 +1175,9 @@ app.get('/api/museums/search/wikidata', async (req, res) => {
       results: filteredResults,
     });
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to search Wikidata';
     res.status(500).json({ error: errorMessage });
@@ -790,15 +1187,7 @@ app.get('/api/museums/search/wikidata', async (req, res) => {
 // GET /api/museums/search/location - Search for museums by location/city name
 app.get('/api/museums/search/location', async (req, res) => {
   try {
-    const query = req.query.q as string;
-
-    if (!query || query.trim().length < 2) {
-      return res.status(400).json({
-        error: 'Search query must be at least 2 characters',
-      });
-    }
-
-    const searchTerm = query.trim();
+    const { q: searchTerm } = parseWithSchema(searchQuerySchema, req.query);
 
     // Find matching locations
     const locations = await searchWikidataLocations(searchTerm, 3);
@@ -837,6 +1226,9 @@ app.get('/api/museums/search/location', async (req, res) => {
       museums,
     });
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error
         ? error.message
@@ -1498,7 +1890,7 @@ app.post(
 // GET /museums - List all museums
 app.get('/museums', async (req, res) => {
   try {
-    const citySlug = req.query.citySlug as string | undefined;
+    const citySlug = parseOptionalString(req.query.citySlug);
 
     let museums: MuseumResponse[];
     if (citySlug) {
@@ -1526,10 +1918,7 @@ app.get('/museums', async (req, res) => {
 // GET /museums/:id - Get a single museum by ID
 app.get('/museums/:id', async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid museum ID' });
-    }
+    const id = parseRequiredNumber(req.params.id, 'Invalid museum ID');
 
     const museum = await prisma.museum.findUnique({
       where: { id },
@@ -1541,6 +1930,9 @@ app.get('/museums/:id', async (req, res) => {
 
     res.json(museum);
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch museum';
     res.status(500).json({ error: errorMessage });
@@ -1573,9 +1965,7 @@ app.get('/museums/by-slug/:slug', async (req, res) => {
 // GET /admin/rooms - List all rooms with museum info
 app.get('/admin/rooms', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const museumId = req.query.museumId
-      ? Number(req.query.museumId)
-      : undefined;
+    const museumId = parseOptionalNumberFilter(req.query.museumId);
 
     const where: any = {};
 
@@ -1609,10 +1999,8 @@ app.get('/admin/rooms', requireAuth, requireAdmin, async (req, res) => {
 // GET /admin/artifacts - List all artifacts with room and museum info
 app.get('/admin/artifacts', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const museumId = req.query.museumId
-      ? Number(req.query.museumId)
-      : undefined;
-    const roomId = req.query.roomId ? Number(req.query.roomId) : undefined;
+    const museumId = parseOptionalNumberFilter(req.query.museumId);
+    const roomId = parseOptionalNumberFilter(req.query.roomId);
 
     const where: any = {};
 
@@ -1778,10 +2166,11 @@ app.post('/museums', requireAuth, requireAdmin, async (req, res) => {
     return;
   }
 
-  const { name, knowledgeText, furtherReading } = req.body;
-  if (!name) {
-    return res.status(400).json({ error: 'Name is required' });
-  }
+  const { name, knowledgeText, furtherReading } = parseWithSchema(
+    createMuseumBodySchema,
+    req.body,
+    'Name is required'
+  );
   const museum = await prisma.museum.create({
     data: {
       name,
@@ -1801,10 +2190,7 @@ app.post('/museums', requireAuth, requireAdmin, async (req, res) => {
 // DELETE /museums/:id - Delete a museum
 app.delete('/museums/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid museum ID' });
-    }
+    const id = parseRequiredNumber(req.params.id, 'Invalid museum ID');
 
     // Check if museum exists
     const museum = await prisma.museum.findUnique({
@@ -1822,6 +2208,9 @@ app.delete('/museums/:id', requireAuth, requireAdmin, async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to delete museum';
     res.status(500).json({ error: errorMessage });
@@ -1831,10 +2220,7 @@ app.delete('/museums/:id', requireAuth, requireAdmin, async (req, res) => {
 // DELETE /rooms/:id - Delete a room
 app.delete('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid room ID' });
-    }
+    const id = parseRequiredNumber(req.params.id, 'Invalid room ID');
 
     // Check if room exists
     const room = await prisma.room.findUnique({
@@ -1852,6 +2238,9 @@ app.delete('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
 
     res.status(204).send(); // No Content
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to delete room';
     res.status(500).json({ error: errorMessage });
@@ -1861,10 +2250,7 @@ app.delete('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
 // DELETE /artifacts/:id - Delete an artifact
 app.delete('/artifacts/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid artifact ID' });
-    }
+    const id = parseRequiredNumber(req.params.id, 'Invalid artifact ID');
 
     // Check if artifact exists
     const artifact = await prisma.artifact.findUnique({
@@ -1882,6 +2268,9 @@ app.delete('/artifacts/:id', requireAuth, requireAdmin, async (req, res) => {
 
     res.status(204).send(); // No Content
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to delete artifact';
     res.status(500).json({ error: errorMessage });
@@ -1890,15 +2279,7 @@ app.delete('/artifacts/:id', requireAuth, requireAdmin, async (req, res) => {
 
 app.post('/rooms', requireAuth, requireAdmin, async (req, res) => {
   const { name, museumId, parentRoomId, knowledgeText, furtherReading } =
-    req.body;
-
-  if (!name) {
-    return res.status(400).json({ error: 'name is required' });
-  }
-
-  if (!museumId) {
-    return res.status(400).json({ error: 'museumId is required' });
-  }
+    parseWithSchema(createRoomBodySchema, req.body);
 
   const roomData: {
     name: string;
@@ -1931,11 +2312,7 @@ app.post('/rooms', requireAuth, requireAdmin, async (req, res) => {
 });
 
 app.get('/museums/:museumId/rooms', async (req, res) => {
-  const museumId = Number(req.params.museumId);
-
-  if (Number.isNaN(museumId)) {
-    return res.status(400).json({ error: 'Invalid museumId' });
-  }
+  const museumId = parseRequiredNumber(req.params.museumId, 'Invalid museumId');
 
   const rooms = await prisma.room.findMany({
     where: {
@@ -1959,11 +2336,10 @@ app.get('/museums/:museumId/rooms', async (req, res) => {
 // GET /museums/:museumId/artifacts - Get all artifacts from all rooms in a museum (including child rooms) with slug
 app.get('/museums/:museumId/artifacts', async (req, res) => {
   try {
-    const museumId = Number(req.params.museumId);
-
-    if (Number.isNaN(museumId)) {
-      return res.status(400).json({ error: 'Invalid museumId' });
-    }
+    const museumId = parseRequiredNumber(
+      req.params.museumId,
+      'Invalid museumId'
+    );
 
     // Get all rooms directly attached to the museum
     const topLevelRooms = await prisma.room.findMany({
@@ -2033,6 +2409,9 @@ app.get('/museums/:museumId/artifacts', async (req, res) => {
       }))
     );
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifacts';
     res.status(500).json({ error: errorMessage });
@@ -2042,11 +2421,10 @@ app.get('/museums/:museumId/artifacts', async (req, res) => {
 // GET /museums/:museumId/artifacts-recursive - Get all artifacts in a museum
 app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
   try {
-    const museumId = Number(req.params.museumId);
-
-    if (Number.isNaN(museumId)) {
-      return res.status(400).json({ error: 'Invalid museumId' });
-    }
+    const museumId = parseRequiredNumber(
+      req.params.museumId,
+      'Invalid museumId'
+    );
 
     const artifacts = await prisma.artifact.findMany({
       where: { museumId },
@@ -2071,6 +2449,9 @@ app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
       }))
     );
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error
         ? error.message
@@ -2082,10 +2463,7 @@ app.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
 // GET /rooms/:id - Get a single room by ID
 app.get('/rooms/:id', async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid room ID' });
-    }
+    const id = parseRequiredNumber(req.params.id, 'Invalid room ID');
 
     const room = await prisma.room.findUnique({
       where: { id },
@@ -2105,6 +2483,9 @@ app.get('/rooms/:id', async (req, res) => {
 
     res.json(room);
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch room';
     res.status(500).json({ error: errorMessage });
@@ -2115,7 +2496,7 @@ app.get('/rooms/:id', async (req, res) => {
 app.get('/rooms/by-slug/:slug', async (req, res) => {
   try {
     const slug = req.params.slug;
-    const museumSlug = req.query.museumSlug as string | undefined;
+    const museumSlug = parseOptionalString(req.query.museumSlug);
 
     const where: any = { slug };
     if (museumSlug) {
@@ -2137,11 +2518,7 @@ app.get('/rooms/by-slug/:slug', async (req, res) => {
 });
 
 app.get('/rooms/:roomId/artifacts', async (req, res) => {
-  const roomId = Number(req.params.roomId);
-
-  if (Number.isNaN(roomId)) {
-    return res.status(400).json({ error: 'Invalid roomId' });
-  }
+  const roomId = parseRequiredNumber(req.params.roomId, 'Invalid roomId');
 
   const artifacts = await prisma.artifact.findMany({
     where: {
@@ -2169,10 +2546,7 @@ app.get('/rooms/:roomId/artifacts', async (req, res) => {
 // GET /rooms/:id/children - Get child rooms for a parent room
 app.get('/rooms/:id/children', async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid room ID' });
-    }
+    const id = parseRequiredNumber(req.params.id, 'Invalid room ID');
 
     const childRooms = await prisma.room.findMany({
       where: {
@@ -2192,6 +2566,9 @@ app.get('/rooms/:id/children', async (req, res) => {
 
     res.json(childRooms);
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch child rooms';
     res.status(500).json({ error: errorMessage });
@@ -2201,13 +2578,14 @@ app.get('/rooms/:id/children', async (req, res) => {
 // PATCH /rooms/:id - Update a room
 app.patch('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid room ID' });
-    }
+    const id = parseRequiredNumber(req.params.id, 'Invalid room ID');
 
     const { name, museumId, parentRoomId, knowledgeText, furtherReading } =
-      req.body;
+      parseWithSchema(
+        updateRoomBodySchema,
+        req.body,
+        'Invalid room update payload'
+      );
 
     // Validate that only one parent type is set
     if (museumId !== undefined && parentRoomId !== undefined) {
@@ -2265,6 +2643,9 @@ app.patch('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
 
     res.json(room);
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to update room';
     res.status(500).json({ error: errorMessage });
@@ -2274,10 +2655,7 @@ app.patch('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
 // GET /rooms/:id/artifacts-recursive - Get all artifacts from room and all child rooms
 app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid room ID' });
-    }
+    const id = parseRequiredNumber(req.params.id, 'Invalid room ID');
 
     // Get all child room IDs recursively
     const getAllChildRoomIds = async (parentId: number): Promise<number[]> => {
@@ -2326,6 +2704,9 @@ app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
       }))
     );
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error
         ? error.message
@@ -2337,12 +2718,6 @@ app.get('/rooms/:id/artifacts-recursive', async (req, res) => {
 // ============================================================================
 // PLAQUE SCAN PIPELINE ENDPOINTS
 // ============================================================================
-
-function parseMuseumId(value: string): number | null {
-  const museumId = Number(value);
-  if (Number.isNaN(museumId)) return null;
-  return museumId;
-}
 
 app.post(
   '/museums/:museumId/scan/ocr',
@@ -2370,20 +2745,19 @@ app.post(
         return;
       }
 
-      const museumId = parseMuseumId(req.params.museumId);
-      const imageBase64 =
-        typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
+      const museumId = parseRequiredNumber(
+        req.params.museumId,
+        'Invalid museumId'
+      );
+      const { imageBase64, provider } = parseWithSchema(
+        scanOcrBodySchema,
+        req.body
+      );
 
       if (!museumId) {
         return res.status(400).json({ error: 'Invalid museumId' });
       }
-      if (!imageBase64) {
-        return res.status(400).json({ error: 'imageBase64 is required' });
-      }
-      const ocrProvider = parseOcrProvider(
-        req.body?.provider,
-        getDefaultOcrProvider()
-      );
+      const ocrProvider = parseOcrProvider(provider, getDefaultOcrProvider());
 
       const museum = await prisma.museum.findUnique({
         where: { id: museumId },
@@ -2406,6 +2780,9 @@ app.post(
         ocr,
       });
     } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to read plaque text';
       res.status(500).json({ error: errorMessage });
@@ -2419,20 +2796,22 @@ app.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const museumId = parseMuseumId(req.params.museumId);
-      const rawText =
-        typeof req.body?.rawText === 'string' ? req.body.rawText : '';
+      const museumId = parseRequiredNumber(
+        req.params.museumId,
+        'Invalid museumId'
+      );
+      const { rawText } = parseWithSchema(scanRawTextBodySchema, req.body);
 
       if (!museumId) {
         return res.status(400).json({ error: 'Invalid museumId' });
-      }
-      if (!rawText.trim()) {
-        return res.status(400).json({ error: 'rawText is required' });
       }
 
       const duplicates = await searchDuplicatesFromRawText(museumId, rawText);
       res.json(duplicates);
     } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to search duplicates';
       res.status(500).json({ error: errorMessage });
@@ -2446,15 +2825,14 @@ app.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const museumId = parseMuseumId(req.params.museumId);
-      const rawText =
-        typeof req.body?.rawText === 'string' ? req.body.rawText : '';
+      const museumId = parseRequiredNumber(
+        req.params.museumId,
+        'Invalid museumId'
+      );
+      const { rawText } = parseWithSchema(scanRawTextBodySchema, req.body);
 
       if (!museumId) {
         return res.status(400).json({ error: 'Invalid museumId' });
-      }
-      if (!rawText.trim()) {
-        return res.status(400).json({ error: 'rawText is required' });
       }
 
       const museum = await prisma.museum.findUnique({
@@ -2468,6 +2846,9 @@ app.post(
       const draft = await extractArtifactDraft(rawText, museum.name);
       res.json({ draft });
     } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -2483,14 +2864,18 @@ app.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const museumId = parseMuseumId(req.params.museumId);
-      const draft = req.body?.draft;
+      const museumId = parseRequiredNumber(
+        req.params.museumId,
+        'Invalid museumId'
+      );
+      const { draft } = parseWithSchema(
+        scanDuplicatesDraftBodySchema,
+        req.body,
+        'draft is required'
+      );
 
       if (!museumId) {
         return res.status(400).json({ error: 'Invalid museumId' });
-      }
-      if (!draft || typeof draft !== 'object') {
-        return res.status(400).json({ error: 'draft is required' });
       }
 
       const duplicates = await searchDuplicatesFromDraft(museumId, {
@@ -2511,6 +2896,9 @@ app.post(
       });
       res.json(duplicates);
     } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to search duplicates';
       res.status(500).json({ error: errorMessage });
@@ -2546,22 +2934,25 @@ app.post(
         return;
       }
 
-      const museumId = parseMuseumId(req.params.museumId);
-      const imageBase64 =
-        typeof req.body?.imageBase64 === 'string' ? req.body.imageBase64 : '';
-      const rawText =
-        typeof req.body?.rawText === 'string' ? req.body.rawText : '';
-      const draft = req.body?.draft;
-      const ocr = req.body?.ocr;
-      const enrichment = req.body?.enrichment ?? null;
+      const museumId = parseRequiredNumber(
+        req.params.museumId,
+        'Invalid museumId'
+      );
+      const { imageBase64, rawText, draft, ocr, enrichment } = parseWithSchema(
+        scanCreateBodySchema,
+        req.body
+      );
 
       if (!museumId) {
         return res.status(400).json({ error: 'Invalid museumId' });
       }
-      if (!imageBase64 || !rawText.trim() || !draft || !ocr) {
+      const imageBase64Value =
+        typeof imageBase64 === 'string' ? imageBase64 : '';
+      const rawTextValue = typeof rawText === 'string' ? rawText : '';
+      if (!imageBase64Value || !rawTextValue.trim() || !draft || !ocr) {
         const missing: string[] = [];
-        if (!imageBase64) missing.push('imageBase64');
-        if (!rawText.trim()) missing.push('rawText');
+        if (!imageBase64Value) missing.push('imageBase64');
+        if (!rawTextValue.trim()) missing.push('rawText');
         if (!draft) missing.push('draft');
         if (!ocr) missing.push('ocr');
         return res.status(400).json({
@@ -2571,10 +2962,10 @@ app.post(
 
       const created = await createArtifactAndAssets({
         museumId,
-        imageBase64,
-        plaqueText: rawText,
+        imageBase64: imageBase64Value,
+        plaqueText: rawTextValue,
         ocr: {
-          rawText,
+          rawText: rawTextValue,
           languageHints: Array.isArray(ocr.languageHints)
             ? ocr.languageHints
             : [],
@@ -2595,7 +2986,9 @@ app.post(
           englishTitle:
             typeof draft.englishTitle === 'string'
               ? draft.englishTitle
-              : draft.localTitle || 'Untitled artefact',
+              : typeof draft.localTitle === 'string'
+                ? draft.localTitle
+                : 'Untitled artefact',
           knowledgeText:
             typeof draft.knowledgeText === 'string'
               ? draft.knowledgeText
@@ -2627,6 +3020,9 @@ app.post(
 
       res.json(created);
     } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to create artifact';
       res.status(500).json({ error: errorMessage });
@@ -2654,8 +3050,7 @@ app.post('/artifacts', requireAuth, requireAdmin, async (req, res) => {
   }
 
   const {
-    name,
-    displayTitle,
+    fallbackName,
     roomId,
     museumId,
     knowledgeText,
@@ -2665,19 +3060,7 @@ app.post('/artifacts', requireAuth, requireAdmin, async (req, res) => {
     englishTitle,
     rawPlaqueText,
     knowledgeTextEn,
-  } = req.body;
-
-  const fallbackName =
-    (typeof displayTitle === 'string' && displayTitle.trim()) ||
-    (typeof name === 'string' && name.trim());
-
-  if (!fallbackName) {
-    return res.status(400).json({ error: 'name or displayTitle is required' });
-  }
-
-  if (!museumId) {
-    return res.status(400).json({ error: 'museumId is required' });
-  }
+  } = parseWithSchema(artifactCreateBodySchema, req.body);
 
   // Validate museum exists
   const museum = await prisma.museum.findUnique({ where: { id: museumId } });
@@ -2761,10 +3144,7 @@ app.get('/artifacts', async (_req, res) => {
 // GET /artifacts/:id - Get a single artifact by ID
 app.get('/artifacts/:id', async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (Number.isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid artifact ID' });
-    }
+    const id = parseRequiredNumber(req.params.id, 'Invalid artifact ID');
 
     const artifact = await prisma.artifact.findUnique({
       where: { id },
@@ -2792,6 +3172,9 @@ app.get('/artifacts/:id', async (req, res) => {
       name: artifact.displayTitle,
     });
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to fetch artifact';
     res.status(500).json({ error: errorMessage });
@@ -2802,7 +3185,7 @@ app.get('/artifacts/:id', async (req, res) => {
 app.get('/artifacts/by-slug/:slug', async (req, res) => {
   try {
     const slug = req.params.slug;
-    const museumSlug = req.query.museumSlug as string | undefined;
+    const museumSlug = parseOptionalString(req.query.museumSlug);
 
     const where: any = { slug };
     if (museumSlug) {
@@ -2836,20 +3219,7 @@ app.post('/content', requireAuth, requireAdmin, async (req, res) => {
     llmProvider,
     model,
     prompt,
-  } = req.body;
-
-  if (!text) {
-    return res.status(400).json({ error: 'text is required' });
-  }
-
-  const parentCount =
-    Number(!!museumId) + Number(!!roomId) + Number(!!artifactId);
-
-  if (parentCount !== 1) {
-    return res.status(400).json({
-      error: 'Exactly one of museumId, roomId, or artifactId must be provided',
-    });
-  }
+  } = parseWithSchema(contentCreateBodySchema, req.body);
 
   const content = await prisma.content.create({
     data: {
@@ -2868,11 +3238,7 @@ app.post('/content', requireAuth, requireAdmin, async (req, res) => {
 });
 
 app.get('/museums/:museumId/content', async (req, res) => {
-  const museumId = Number(req.params.museumId);
-
-  if (Number.isNaN(museumId)) {
-    return res.status(400).json({ error: 'Invalid museumId' });
-  }
+  const museumId = parseRequiredNumber(req.params.museumId, 'Invalid museumId');
 
   const content = await prisma.content.findMany({
     where: { museumId: museumId },
@@ -2883,11 +3249,7 @@ app.get('/museums/:museumId/content', async (req, res) => {
 });
 
 app.get('/rooms/:roomId/content', async (req, res) => {
-  const roomId = Number(req.params.roomId);
-
-  if (Number.isNaN(roomId)) {
-    return res.status(400).json({ error: 'Invalid roomId' });
-  }
+  const roomId = parseRequiredNumber(req.params.roomId, 'Invalid roomId');
 
   const content = await prisma.content.findMany({
     where: { roomId: roomId },
@@ -2898,11 +3260,10 @@ app.get('/rooms/:roomId/content', async (req, res) => {
 });
 
 app.get('/artifacts/:artifactId/content', async (req, res) => {
-  const artifactId = Number(req.params.artifactId);
-
-  if (Number.isNaN(artifactId)) {
-    return res.status(400).json({ error: 'Invalid artifactId' });
-  }
+  const artifactId = parseRequiredNumber(
+    req.params.artifactId,
+    'Invalid artifactId'
+  );
 
   const content = await prisma.content.findMany({
     where: { artifactId: artifactId },
@@ -2913,13 +3274,11 @@ app.get('/artifacts/:artifactId/content', async (req, res) => {
 });
 
 app.get('/artifacts/:artifactId/questions', async (req, res) => {
-  const artifactId = Number(req.params.artifactId);
-  if (Number.isNaN(artifactId)) {
-    return res.status(400).json({ error: 'Invalid artifactId' });
-  }
-
-  const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
-  const sort = req.query.sort === 'new' ? 'new' : 'top';
+  const artifactId = parseRequiredNumber(
+    req.params.artifactId,
+    'Invalid artifactId'
+  );
+  const { limit, sort } = parseWithSchema(questionsListQuerySchema, req.query);
 
   const questions = await prisma.artifactQuestion.findMany({
     where: {
@@ -3278,15 +3637,15 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
 });
 
 app.post('/artifact-questions/:questionId/vote', async (req, res) => {
-  const questionId = Number(req.params.questionId);
-  if (Number.isNaN(questionId)) {
-    return res.status(400).json({ error: 'Invalid questionId' });
-  }
-
-  const vote = req.body?.vote;
-  if (vote !== 'up' && vote !== 'down') {
-    return res.status(400).json({ error: 'vote must be "up" or "down"' });
-  }
+  const questionId = parseRequiredNumber(
+    req.params.questionId,
+    'Invalid questionId'
+  );
+  const { vote } = parseWithSchema(
+    questionVoteBodySchema,
+    req.body,
+    'vote must be "up" or "down"'
+  );
 
   const username = req.actor?.uid ?? PROTOTYPE_USERNAME;
   const value = vote === 'up' ? 1 : -1;
@@ -3330,10 +3689,10 @@ app.post('/artifact-questions/:questionId/vote', async (req, res) => {
 });
 
 app.post('/artifact-questions/:questionId/use', async (req, res) => {
-  const questionId = Number(req.params.questionId);
-  if (Number.isNaN(questionId)) {
-    return res.status(400).json({ error: 'Invalid questionId' });
-  }
+  const questionId = parseRequiredNumber(
+    req.params.questionId,
+    'Invalid questionId'
+  );
 
   const question = await prisma.artifactQuestion.update({
     where: { id: questionId },
@@ -3349,21 +3708,14 @@ app.post('/artifact-questions/:questionId/use', async (req, res) => {
 });
 
 app.post('/artifact-questions/:questionId/listen', async (req, res) => {
-  const questionId = Number(req.params.questionId);
-  if (Number.isNaN(questionId)) {
-    return res.status(400).json({ error: 'Invalid questionId' });
-  }
-
-  const durationSecondsRaw = Number(req.body?.durationSeconds ?? 0);
-  const durationSeconds =
-    Number.isFinite(durationSecondsRaw) && durationSecondsRaw > 0
-      ? durationSecondsRaw
-      : 0;
-
-  const completed = req.body?.completed === true;
-  const sessionId =
-    typeof req.body?.sessionId === 'string' ? req.body.sessionId : null;
-  const source = typeof req.body?.source === 'string' ? req.body.source : null;
+  const questionId = parseRequiredNumber(
+    req.params.questionId,
+    'Invalid questionId'
+  );
+  const { durationSeconds, completed, sessionId, source } = parseWithSchema(
+    questionListenBodySchema,
+    req.body
+  );
 
   await prisma.artifactQuestionListenEvent.create({
     data: {
@@ -3748,10 +4100,10 @@ app.post(
         return;
       }
 
-      const artefactId = Number(req.params.artefactId);
-      if (Number.isNaN(artefactId)) {
-        return res.status(400).json({ error: 'Invalid artefactId' });
-      }
+      const artefactId = parseRequiredNumber(
+        req.params.artefactId,
+        'Invalid artefactId'
+      );
 
       const context = await fetchArtifactContext(artefactId);
       if (!context) {
@@ -3759,8 +4111,12 @@ app.post(
       }
 
       const providerName = parseProvider(req.query.provider, 'google');
+      const { ttsProvider: ttsProviderInput } = parseWithSchema(
+        ttsProviderBodySchema,
+        req.body
+      );
       const ttsProvider = parseTtsProvider(
-        req.body?.ttsProvider,
+        ttsProviderInput,
         getDefaultTtsProvider()
       );
       const provider = createProvider(providerName);
@@ -3808,6 +4164,9 @@ app.post(
 
       res.json(updatedContent);
     } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
       let errorMessage = 'Failed to generate content';
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -3850,10 +4209,10 @@ app.get(
       return;
     }
 
-    const artefactId = Number(req.params.artefactId);
-    if (Number.isNaN(artefactId)) {
-      return res.status(400).json({ error: 'Invalid artefactId' });
-    }
+    const artefactId = parseRequiredNumber(
+      req.params.artefactId,
+      'Invalid artefactId'
+    );
 
     const context = await fetchArtifactContext(artefactId);
     if (!context) {
@@ -3901,7 +4260,7 @@ app.get(
       const streamStart = Date.now();
 
       if (providerName === 'google') {
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = env.GEMINI_API_KEY;
         if (!apiKey) {
           sendEvent('error', { error: 'GEMINI_API_KEY not configured' });
           res.end();
@@ -3934,7 +4293,7 @@ app.get(
           model: modelName,
         });
       } else {
-        const apiKey = process.env.OPENAI_API_KEY;
+        const apiKey = env.OPENAI_API_KEY;
         if (!apiKey) {
           sendEvent('error', { error: 'OPENAI_API_KEY not configured' });
           res.end();
@@ -3942,14 +4301,12 @@ app.get(
         }
 
         const client = new OpenAI({ apiKey });
-        modelName = process.env.OPENAI_MODEL_INTRODUCTION || 'gpt-5-nano';
+        modelName = env.OPENAI_MODEL_INTRODUCTION || 'gpt-5-nano';
 
         const stream = client.responses.stream({
           model: modelName,
           input: [{ role: 'user', content: context.template }],
-          max_output_tokens: Number(
-            process.env.OPENAI_MAX_OUTPUT_TOKENS || 1000
-          ),
+          max_output_tokens: env.OPENAI_MAX_OUTPUT_TOKENS,
           reasoning: { effort: 'minimal' },
         });
 
@@ -4064,11 +4421,11 @@ app.get('/wikipedia/summary', async (req, res) => {
       return;
     }
 
-    const url = req.query.url as string;
-
-    if (!url) {
-      return res.status(400).json({ error: 'URL is required' });
-    }
+    const { url } = parseWithSchema(
+      wikipediaSummaryQuerySchema,
+      req.query,
+      'URL is required'
+    );
 
     // Use the version that prefers English and translates if needed
     const summary = await fetchWikipediaSummaryWithTranslation(url);
@@ -4079,6 +4436,9 @@ app.get('/wikipedia/summary', async (req, res) => {
 
     res.json(summary);
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to fetch summary',
     });
@@ -4092,10 +4452,10 @@ app.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const artefactId = Number(req.params.artefactId);
-      if (Number.isNaN(artefactId)) {
-        return res.status(400).json({ error: 'Invalid artefactId' });
-      }
+      const artefactId = parseRequiredNumber(
+        req.params.artefactId,
+        'Invalid artefactId'
+      );
 
       const content = await prisma.content.findFirst({
         where: { artifactId: artefactId },
@@ -4114,12 +4474,13 @@ app.post(
           .json({ error: 'Content has no text to generate audio from' });
       }
 
+      const { ttsProvider: ttsProviderInput } = parseWithSchema(
+        ttsProviderBodySchema,
+        req.body
+      );
       const audioUrl = await generateAudioForContent(content.id, content.text, {
         outputDir: audioDir,
-        provider: parseTtsProvider(
-          req.body?.ttsProvider,
-          getDefaultTtsProvider()
-        ),
+        provider: parseTtsProvider(ttsProviderInput, getDefaultTtsProvider()),
       });
 
       const updatedContent = await prisma.content.update({
@@ -4129,6 +4490,9 @@ app.post(
 
       res.json(updatedContent);
     } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
       let errorMessage = 'Failed to generate audio';
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -4145,10 +4509,10 @@ app.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const contentId = Number(req.params.contentId);
-      if (Number.isNaN(contentId)) {
-        return res.status(400).json({ error: 'Invalid contentId' });
-      }
+      const contentId = parseRequiredNumber(
+        req.params.contentId,
+        'Invalid contentId'
+      );
 
       const content = await prisma.content.findUnique({
         where: { id: contentId },
@@ -4164,12 +4528,13 @@ app.post(
           .json({ error: 'Content has no text to generate audio from' });
       }
 
+      const { ttsProvider: ttsProviderInput } = parseWithSchema(
+        ttsProviderBodySchema,
+        req.body
+      );
       const audioUrl = await generateAudioForContent(content.id, content.text, {
         outputDir: audioDir,
-        provider: parseTtsProvider(
-          req.body?.ttsProvider,
-          getDefaultTtsProvider()
-        ),
+        provider: parseTtsProvider(ttsProviderInput, getDefaultTtsProvider()),
       });
 
       const updatedContent = await prisma.content.update({
@@ -4179,6 +4544,9 @@ app.post(
 
       res.json(updatedContent);
     } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
       let errorMessage = 'Failed to generate audio';
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -4217,19 +4585,18 @@ app.post(
         return;
       }
 
-      const artifactId = Number(req.params.artifactId);
-      if (Number.isNaN(artifactId)) {
-        return res.status(400).json({ error: 'Invalid artifactId' });
-      }
-
-      const providerName = req.body?.provider;
-      if (providerName !== 'google' && providerName !== 'openai') {
-        return res
-          .status(400)
-          .json({ error: 'provider must be "google" or "openai"' });
-      }
+      const artifactId = parseRequiredNumber(
+        req.params.artifactId,
+        'Invalid artifactId'
+      );
+      const { provider: providerName, ttsProvider: ttsProviderInput } =
+        parseWithSchema(
+          generateIntroductionBodySchema,
+          req.body,
+          'provider must be "google" or "openai"'
+        );
       const ttsProvider = parseTtsProvider(
-        req.body?.ttsProvider,
+        ttsProviderInput,
         getDefaultTtsProvider()
       );
 
@@ -4241,6 +4608,9 @@ app.post(
       );
       res.json(result);
     } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
       if (error instanceof SpendLimitError) {
         return res.status(429).json({
           error: error.message,
@@ -4401,11 +4771,9 @@ app.get(
 // GET /admin/api-calls - Paginated recent API calls
 app.get('/admin/api-calls', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const service = req.query.service as string | undefined;
-    const page = Math.max(1, Number(req.query.page) || 1);
-    const pageSize = Math.min(
-      100,
-      Math.max(1, Number(req.query.pageSize) || 50)
+    const { service, page, pageSize } = parseWithSchema(
+      adminApiCallsQuerySchema,
+      req.query
     );
     const skip = (page - 1) * pageSize;
 
@@ -4426,6 +4794,9 @@ app.get('/admin/api-calls', requireAuth, requireAdmin, async (req, res) => {
 
     res.json({ rows, total, page, pageSize });
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     res.status(500).json({ error: 'Failed to fetch API calls' });
   }
 });

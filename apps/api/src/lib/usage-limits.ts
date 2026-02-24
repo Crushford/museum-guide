@@ -1,13 +1,14 @@
 import type { Response } from 'express';
 import { prisma } from '@repo/db';
 import type { Actor } from '../middleware/auth';
+import { env } from '../config/env';
 import {
   GLOBAL_DAILY_LIMITS,
   USER_DAILY_LIMITS,
 } from './usage-limit-constants';
 const db = prisma as any;
 let didWarnMissingUsageSchema = false;
-const DEBUG_USAGE_LIMITS = process.env.DEBUG_USAGE_LIMITS === '1';
+const DEBUG_USAGE_LIMITS = env.DEBUG_USAGE_LIMITS;
 
 export type BlockedCode =
   | 'LIMIT_GLOBAL_DAILY'
@@ -59,14 +60,6 @@ const USER_KEYS: UserLimitKey[] = [
   'museumCreates',
   'artifactCreates',
 ];
-
-function parsePositiveInt(envName: string): number | null {
-  const raw = process.env[envName];
-  if (!raw) return null;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.floor(parsed);
-}
 
 function getGlobalCaps(): LimitCaps {
   return {
@@ -420,7 +413,7 @@ export async function enforceUsageLimits(options: {
 }
 
 function parseAllowlist(): Set<string> {
-  const raw = process.env.SIGNUP_ALLOWLIST || '';
+  const raw = env.SIGNUP_ALLOWLIST || '';
   const values = raw
     .split(',')
     .map((value) => value.trim().toLowerCase())
@@ -465,13 +458,13 @@ export async function enforceSignupPolicy(options: {
   actor: Actor;
   res: Response;
 }): Promise<boolean> {
-  const modeRaw = (process.env.SIGNUP_MODE || 'open').trim().toLowerCase();
+  const modeRaw = (env.SIGNUP_MODE || 'open').trim().toLowerCase();
   const mode =
     modeRaw === 'allowlist' || modeRaw === 'cap' || modeRaw === 'hybrid'
       ? modeRaw
       : 'open';
   const allowlist = parseAllowlist();
-  const signupCap = parsePositiveInt('SIGNUP_CAP');
+  const signupCap = env.SIGNUP_CAP;
 
   if (!usageSchemaAvailable()) {
     warnMissingUsageSchema('enforceSignupPolicy:client-check');

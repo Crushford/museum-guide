@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { recordApiCall } from '../telemetry/api-call-tracker';
+import { env } from '../../config/env';
 
 const OPENAI_MODERATION_MODEL = 'omni-moderation-latest';
 const OPENAI_MODERATIONS_ENDPOINT = 'moderations.create';
@@ -23,7 +24,7 @@ const DEFAULT_BLOCKED_CATEGORIES = [
 ];
 
 function getBlockedCategories(): Set<string> {
-  const configured = process.env.OPENAI_MODERATION_BLOCK_CATEGORIES;
+  const configured = env.OPENAI_MODERATION_BLOCK_CATEGORIES;
   if (!configured || configured.trim().length === 0) {
     return new Set(DEFAULT_BLOCKED_CATEGORIES);
   }
@@ -74,9 +75,9 @@ export async function moderateTextForLlm(
   text: string,
   purpose: string
 ): Promise<{ blocked: boolean; categories: string[]; source: string }> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
-    if (process.env.OPENAI_MODERATION_ALLOW_UNAVAILABLE === '1') {
+    if (env.OPENAI_MODERATION_ALLOW_UNAVAILABLE) {
       return { blocked: false, categories: [], source: 'unavailable' };
     }
     throw new Error('OPENAI_API_KEY missing for moderation checks');
@@ -130,9 +131,9 @@ export async function moderateTextForLlm(
   }
 
   const fallbackModel =
-    process.env.OPENAI_MODEL_MODERATION_FALLBACK ||
-    process.env.OPENAI_MODEL_QA ||
-    process.env.OPENAI_MODEL_INTRODUCTION ||
+    env.OPENAI_MODEL_MODERATION_FALLBACK ||
+    env.OPENAI_MODEL_QA ||
+    env.OPENAI_MODEL_INTRODUCTION ||
     'gpt-5-nano';
   const fallbackStart = Date.now();
 
@@ -221,7 +222,7 @@ export async function moderateTextForLlm(
       },
     });
 
-    if (process.env.OPENAI_MODERATION_ALLOW_UNAVAILABLE === '1') {
+    if (env.OPENAI_MODERATION_ALLOW_UNAVAILABLE) {
       return { blocked: false, categories: [], source: 'unavailable' };
     }
     throw new Error(
