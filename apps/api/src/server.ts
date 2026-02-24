@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import OpenAI from 'openai';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
@@ -152,6 +153,39 @@ app.use(
       callback(new Error(`CORS origin not allowed: ${origin}`));
     },
     credentials: true,
+  })
+);
+
+// Compress JSON/text responses, but skip preflights, streaming endpoints,
+// and already-compressed/static media routes.
+app.use(
+  compression({
+    filter: (req, res) => {
+      if (req.method === 'OPTIONS') {
+        return false;
+      }
+
+      const path = req.path || '';
+      if (
+        path === '/audio' ||
+        path.startsWith('/audio/') ||
+        path === '/uploads' ||
+        path.startsWith('/uploads/')
+      ) {
+        return false;
+      }
+
+      if (path.endsWith('/stream')) {
+        return false;
+      }
+
+      const accept = req.headers.accept;
+      if (typeof accept === 'string' && accept.includes('text/event-stream')) {
+        return false;
+      }
+
+      return compression.filter(req, res);
+    },
   })
 );
 
