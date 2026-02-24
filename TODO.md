@@ -76,6 +76,7 @@
 
 ## Q&A and Community Features
 
+- [ ] **Username on first sign-up**: When a user signs up for the first time, prompt them to choose a public-facing display name. This name is shown alongside questions they ask (currently the raw Firebase UID is shown, e.g. `hcOVeirownZmcogRN0T6VjvpurV2`). Store it on the user record and use it in place of `askedByUsername` on `ArtifactQuestion`.
 - [ ] Add admin moderation tooling for blocked/hidden artifact questions.
 - [ ] Add anonymization job to move `ArtifactQuestion.status` to `ANONYMIZED` and scrub usernames.
 - [ ] Add stronger semantic dedupe (embeddings) for "similar question" grouping.
