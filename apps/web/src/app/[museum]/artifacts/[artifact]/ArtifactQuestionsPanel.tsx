@@ -298,13 +298,16 @@ export function ArtifactQuestionsPanel({
       <div className="space-y-4">
         <div className="rounded-md border border-line bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 overflow-hidden">
           {!draft && suggestedQuestions.length > 0 && (
-            <div className="px-3 pt-2 pb-1 flex flex-col gap-1">
+            <div className="px-3 pt-2.5 pb-2 flex flex-col gap-1">
+              <p className="text-xs font-medium text-fg-subtle mb-1">
+                Ideas for questions
+              </p>
               {suggestedQuestions.slice(0, 5).map((suggestion: string) => (
                 <button
                   key={suggestion}
                   onClick={() => setDraft(suggestion)}
                   disabled={isAsking}
-                  className="text-sm text-left px-2 py-1.5 rounded border border-line text-fg-subtle hover:text-fg transition-colors disabled:opacity-50 w-full"
+                  className="bg-surface text-sm text-left px-2 py-1.5 rounded-lg border border-line text-fg-subtle hover:text-fg hover:bg-surface/50 transition-colors disabled:opacity-50 w-full"
                 >
                   {suggestion}
                 </button>
@@ -315,7 +318,7 @@ export function ArtifactQuestionsPanel({
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             maxLength={280}
-            placeholder="Ask a question."
+            placeholder="Write your own question here"
             className="min-h-[96px] border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none resize-none"
           />
         </div>
