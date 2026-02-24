@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
-export function RouteScrollReset() {
+function RouteScrollResetInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const locationKey = `${pathname ?? ''}?${searchParams.toString()}`;
@@ -45,4 +45,12 @@ export function RouteScrollReset() {
   }, [locationKey, pathname]);
 
   return null;
+}
+
+export function RouteScrollReset() {
+  return (
+    <Suspense fallback={null}>
+      <RouteScrollResetInner />
+    </Suspense>
+  );
 }
