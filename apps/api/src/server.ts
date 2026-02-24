@@ -4278,4 +4278,8 @@ app.get('/admin/api-calls', requireAuth, requireAdmin, async (req, res) => {
 
 initLangfuse();
 
-app.listen(PORT, () => {});
+if (require.main === module) {
+  app.listen(PORT, () => {});
+}
+
+export { app };
