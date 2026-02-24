@@ -143,6 +143,31 @@ Do **not** use `text-foreground` for explicit styling — the body inherits the 
 - **Focus rings**: `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`
 - **Hover on rows**: `hover:bg-surface/50`
 
+### Mobile-First UI Patterns (Important)
+
+Public browsing flows (`Search` -> `Museum` -> `Room` -> `Artifact`) are used primarily on mobile. Treat horizontal overflow as a UX bug, not a cosmetic issue.
+
+- **Use `<PageLayout>` and `<SectionCard>` for page/card shells**: These components already stack headers and action areas on mobile. Prefer them over custom page wrappers.
+- **Use `<ActionRow>` (`apps/web/src/components/shared/ActionRow.tsx`) for action groups** instead of ad hoc `flex items-center justify-between` rows:
+  - `mobileLayout="stack"` for primary action bars (buttons stack on mobile, row on larger screens)
+  - `mobileLayout="wrap"` for chips / small toggle buttons / compact controls
+  - `mobileLayout="grid-2"` for paired actions like `Search` / `Near Me`
+  - When actions should fill mobile width, set child buttons to `className="w-full sm:w-auto"`
+- **Use `<ContentImage>` (`apps/web/src/components/shared/ContentImage.tsx`) for remote/detail images** (artifact/museum content images):
+  - Prevents overflow by enforcing `max-w-full`
+  - Uses sane mobile-safe height constraints (`max-h-[60vh]` by default)
+  - Prefer this over hand-written `<img>` wrappers in content/detail cards unless you explicitly need a fixed aspect crop
+- **Use `<InfoBox>` for text + controls / media rows**: It now stacks on mobile and becomes a row on `sm+`. Do not assume horizontal space for audio controls or secondary buttons.
+- **Avoid raw `justify-between` rows when one side contains unbounded text** (titles, IDs, usernames, translated text). Use stacked mobile layouts (`flex-col`, `min-w-0`, `break-words`) and only switch to row layout at `sm+`.
+- **Avoid fixing overflow by hiding it** (e.g. global `overflow-x-hidden`). Fix the layout so content wraps/stacks correctly.
+- **Be careful with `autoFocus` on mobile** (especially search inputs): it can open the keyboard on page load and hide layout issues.
+
+### Navigation / Scroll Behavior
+
+- The app layout mounts a shared route scroll manager (`RouteScrollReset`) to scroll to top on forward client-side navigation while preserving browser scroll restoration for back/forward.
+- Do **not** add page-level unconditional `window.scrollTo(0, 0)` handlers unless there is a route-specific exception.
+- Prefer Next.js navigation with normal scroll behavior (`<Link>` default / `router.push(..., { scroll: true })`) for forward navigation in browsing flows.
+
 ### Shadcn Aliases — Legacy, Still Supported
 
 These classes work via the shadcn alias layer. Prefer the semantic equivalents above in new code.

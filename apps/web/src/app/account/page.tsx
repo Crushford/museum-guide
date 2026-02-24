@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { PageLayout, SectionCard } from '@/components/shared';
+import { ActionRow, PageLayout, SectionCard } from '@/components/shared';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 import { Button } from '@/components/ui/button';
@@ -83,7 +83,7 @@ export default function AccountPage() {
     <PageLayout title="Account" narrow>
       <div className="space-y-6">
         <SectionCard title="Appearance">
-          <div className="flex flex-wrap gap-2">
+          <ActionRow mobileLayout="wrap">
             <Button
               variant={preference === 'system' ? 'default' : 'secondary'}
               size="sm"
@@ -105,7 +105,7 @@ export default function AccountPage() {
             >
               Dark
             </Button>
-          </div>
+          </ActionRow>
         </SectionCard>
 
         {!authLoading && !user && (
@@ -182,7 +182,7 @@ export default function AccountPage() {
                 </div>
               )}
 
-              <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap">
+              <ActionRow mobileLayout="stack" className="pt-2">
                 <Button
                   variant="secondary"
                   onClick={() => void loadUsage()}
@@ -205,7 +205,7 @@ export default function AccountPage() {
                 >
                   <Link href="/">Back to homepage</Link>
                 </Button>
-              </div>
+              </ActionRow>
             </div>
           </SectionCard>
         )}

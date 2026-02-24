@@ -3,8 +3,11 @@ import type { Metadata } from 'next';
 import { api, API_URL } from '../../../../lib/api';
 import { notFound } from 'next/navigation';
 import type { MuseumResponse } from '@repo/types';
-import { PageLayout } from '../../../../components/shared';
-import { SectionCard } from '../../../../components/shared';
+import {
+  ContentImage,
+  PageLayout,
+  SectionCard,
+} from '../../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { BodyText } from '@/components/ui/body-text';
 import { Button } from '@/components/ui/button';
@@ -183,14 +186,7 @@ export default async function ArtifactPage({
           <SectionCard title="About">
             <div className="space-y-4">
               {artifactImageUrl && (
-                <div className="flex w-full justify-center overflow-hidden rounded-lg bg-raised">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={artifactImageUrl}
-                    alt={artifact.name}
-                    className="block h-auto w-auto max-h-[60vh] max-w-full object-contain"
-                  />
-                </div>
+                <ContentImage src={artifactImageUrl} alt={artifact.name} />
               )}
               {/* Wikipedia Summary */}
               {wikipediaSummary?.extract && (

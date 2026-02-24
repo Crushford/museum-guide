@@ -8,7 +8,7 @@ export function InfoBox({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 p-3 rounded-lg bg-raised/50',
+        'flex flex-col items-start gap-3 rounded-lg bg-raised/50 p-3 sm:flex-row sm:items-center',
         className
       )}
       {...props}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { SectionCard } from '@/components/shared';
+import { ActionRow, SectionCard } from '@/components/shared';
 import { Input } from '@/components/ui/input';
 import { Alert } from '@/components/ui/alert';
 import { PageTitle } from '@/components/ui/page-title';
@@ -403,7 +403,11 @@ export default function SearchPage() {
                   autoFocus
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+              <ActionRow
+                mobileLayout="grid-2"
+                desktopWrap={false}
+                className="sm:shrink-0"
+              >
                 <Button
                   onClick={handleSearch}
                   disabled={isSearchDisabled}
@@ -424,7 +428,7 @@ export default function SearchPage() {
                   )}
                   <span>Near Me</span>
                 </Button>
-              </div>
+              </ActionRow>
             </div>
             {nearbyStatus && <MutedText>{nearbyStatus}</MutedText>}
 
