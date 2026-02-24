@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { z } from 'zod';
 
 // Load environment variables from the same locations used previously.
-dotenv.config({ path: resolve(__dirname, '../../../.env') });
-dotenv.config({ path: resolve(__dirname, '../.env') });
-dotenv.config({ path: resolve(__dirname, '../../web/.env.local') });
+dotenv.config({ path: resolve(__dirname, '../../../../.env') });
+dotenv.config({ path: resolve(__dirname, '../../.env') });
+dotenv.config({ path: resolve(__dirname, '../../../web/.env.local') });
 
 const logLevels = [
   'fatal',
