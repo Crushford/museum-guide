@@ -227,6 +227,36 @@ app.get('/account/usage', requireAuth, async (req, res) => {
   });
 });
 
+app.get('/account/questions', requireAuth, async (req, res) => {
+  if (!req.actor) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const questions = await prisma.artifactQuestion.findMany({
+    where: { askedByUsername: req.actor.uid },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    include: {
+      artifact: { select: { slug: true, displayTitle: true } },
+      museum: { select: { slug: true, name: true } },
+    },
+  });
+
+  res.json(
+    questions.map((q) => ({
+      id: q.id,
+      questionText: q.questionText,
+      answerText: q.answerText,
+      status: q.status,
+      upvotes: q.upvotes,
+      askCount: q.askCount,
+      createdAt: q.createdAt,
+      artifact: { slug: q.artifact.slug, name: q.artifact.displayTitle },
+      museum: { slug: q.museum.slug, name: q.museum.name },
+    }))
+  );
+});
+
 // ============================================================================
 // MUSEUM, ROOM, AND ARTIFACT ENDPOINTS
 // ============================================================================
@@ -2931,7 +2961,7 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
           questionText: publishQuestion,
           normalizedQuestion,
           questionHash,
-          askedByUsername: PROTOTYPE_USERNAME,
+          askedByUsername: req.actor?.uid ?? PROTOTYPE_USERNAME,
           status: 'HIDDEN',
           moderationBlocked: true,
           moderationCategories: moderation.categories,
@@ -3001,7 +3031,7 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
         normalizedQuestion,
         questionHash,
         questionLanguage: null,
-        askedByUsername: PROTOTYPE_USERNAME,
+        askedByUsername: req.actor?.uid ?? PROTOTYPE_USERNAME,
         status: publishAnonymously ? 'ANONYMIZED' : 'ACTIVE',
         similarToQuestionId:
           mostSimilar && mostSimilar.similarity >= SIMILARITY_THRESHOLD

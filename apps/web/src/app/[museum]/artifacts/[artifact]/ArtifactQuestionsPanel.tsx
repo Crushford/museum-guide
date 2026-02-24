@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { API_URL } from '@/lib/api';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
 import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
 import { ArtifactQuestion, AskResponse } from '@/lib/types';
@@ -53,6 +54,7 @@ export function ArtifactQuestionsPanel({
   const [publishAnonymously, setPublishAnonymously] = useState(false);
   const [modalAnsweredQuestion, setModalAnsweredQuestion] =
     useState<ArtifactQuestion | null>(null);
+  const { user, getIdToken } = useAuth();
   const preferredProvider = usePreferredLLMProvider();
   const preferredTtsProvider = usePreferredTTSProvider();
   const sessionIdRef = useRef(
@@ -75,6 +77,15 @@ export function ArtifactQuestionsPanel({
     [questions]
   );
 
+  async function askHeaders(): Promise<Record<string, string>> {
+    const base: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (user) {
+      const token = await getIdToken();
+      base['Authorization'] = `Bearer ${token}`;
+    }
+    return base;
+  }
+
   async function submitQuestion(forceCreate: boolean) {
     if (!selectedPublishQuestion.trim()) return;
 
@@ -86,7 +97,7 @@ export function ArtifactQuestionsPanel({
         `${API_URL}/artifacts/${artifactId}/questions/ask?provider=${preferredProvider}&ttsProvider=${preferredTtsProvider}`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await askHeaders(),
           body: JSON.stringify({
             question: selectedPublishQuestion.trim(),
             approvedQuestionText: selectedPublishQuestion.trim(),
@@ -136,7 +147,7 @@ export function ArtifactQuestionsPanel({
         `${API_URL}/artifacts/${artifactId}/questions/ask?provider=${preferredProvider}&ttsProvider=${preferredTtsProvider}`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await askHeaders(),
           body: JSON.stringify({
             question: draft.trim(),
             previewOnly: true,
@@ -415,10 +426,10 @@ export function ArtifactQuestionsPanel({
 
           <div className="space-y-3">
             {isPreviewing ? (
-              <div className="flex items-center gap-2 rounded-md border p-3">
-                <Spinner />
+              <div className="flex flex-col items-center gap-3 py-4">
+                <Spinner size="md" />
                 <p className="text-sm text-muted-foreground">
-                  Preparing your question for publishing...
+                  Checking your question…
                 </p>
               </div>
             ) : modalAnsweredQuestion ? (
