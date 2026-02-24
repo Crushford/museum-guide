@@ -298,7 +298,7 @@ export function ArtifactQuestionsPanel({
         <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => void previewQuestionForPublish()}
-            disabled={isAsking || isPreviewing}
+            disabled={isAsking || isPreviewing || !draft.trim()}
           >
             {(isAsking || isPreviewing) && <Spinner className="mr-2" />}
             Ask Question
