@@ -3,8 +3,11 @@ import type { Metadata } from 'next';
 import { api, API_URL } from '../../../../lib/api';
 import { notFound } from 'next/navigation';
 import type { MuseumResponse } from '@repo/types';
-import { PageLayout } from '../../../../components/shared';
-import { SectionCard } from '../../../../components/shared';
+import {
+  ContentImage,
+  PageLayout,
+  SectionCard,
+} from '../../../../components/shared';
 import { Badge } from '@/components/ui/badge';
 import { BodyText } from '@/components/ui/body-text';
 import { Button } from '@/components/ui/button';
@@ -12,6 +15,7 @@ import { Globe, ExternalLink } from 'lucide-react';
 import { WikipediaSummaryDisplay } from './WikipediaSummaryDisplay';
 import { IncorrectMatchNotice } from './IncorrectMatchNotice';
 import { ArtifactInteractionSection } from './ArtifactInteractionSection';
+import { PlaqueSpoiler } from './PlaqueSpoiler';
 import {
   Room,
   Artifact,
@@ -134,6 +138,7 @@ export default async function ArtifactPage({
       actions={
         <Button asChild variant="secondary" size="sm">
           <Link
+            scroll
             href={
               artifactRoom
                 ? `/${museumSlug}/rooms/${artifactRoom.slug}`
@@ -180,17 +185,9 @@ export default async function ArtifactPage({
           {/* Left: About */}
           <SectionCard title="About">
             <div className="space-y-4">
-              {/* Image */}
               {artifactImageUrl && (
-                <div className="overflow-hidden rounded-lg bg-raised inline-block">
-                  <img
-                    src={artifactImageUrl}
-                    alt={artifact.name}
-                    className="max-w-sm max-h-96 object-contain"
-                  />
-                </div>
+                <ContentImage src={artifactImageUrl} alt={artifact.name} />
               )}
-
               {/* Wikipedia Summary */}
               {wikipediaSummary?.extract && (
                 <WikipediaSummaryDisplay
@@ -200,7 +197,6 @@ export default async function ArtifactPage({
                   originalExtract={wikipediaSummary.originalExtract}
                 />
               )}
-
               {!wikipediaSummary?.extract && artifact.knowledgeTextEn && (
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium text-muted-foreground">
@@ -211,17 +207,10 @@ export default async function ArtifactPage({
                   </BodyText>
                 </div>
               )}
-
               {/* Plaque Information */}
               {artifact.rawPlaqueText && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">
-                    Plaque Information
-                  </h4>
-                  <BodyText wrap>{artifact.rawPlaqueText}</BodyText>
-                </div>
+                <PlaqueSpoiler text={artifact.rawPlaqueText} />
               )}
-
               {/* Wikipedia Link */}
               {artifact.wikipediaUrl && (
                 <div className="pt-2">

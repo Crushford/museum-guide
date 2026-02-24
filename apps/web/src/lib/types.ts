@@ -78,6 +78,7 @@ type ArtifactQuestionBase = JsonDate<
 export type ArtifactQuestion = Omit<ArtifactQuestionBase, 'askedByUsername'> & {
   askedByUsername: string | null;
   listenCount: number;
+  currentUserVote?: number;
 };
 
 export type SimilarArtifactQuestionMatch = {

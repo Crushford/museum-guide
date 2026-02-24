@@ -4,7 +4,8 @@ import Link from 'next/link';
 import Script from 'next/script';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { DevHeader } from '../components/shared/DevHeader';
-import { AuthStatus } from '../components/shared/AuthStatus';
+import { HamburgerMenu } from '../components/shared/HamburgerMenu';
+import { RouteScrollReset } from '../components/shared/RouteScrollReset';
 import { NavLink } from '../components/ui/nav-link';
 import { AuthProvider } from '../components/providers/AuthProvider';
 import { ApiErrorDialogs } from '../components/providers/ApiErrorDialogs';
@@ -48,9 +49,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} flex min-h-screen flex-col bg-canvas antialiased`}
       >
         <AuthProvider>
+          <RouteScrollReset />
           <ApiErrorDialogs />
           {process.env.NODE_ENV === 'development' && <DevHeader />}
-          <header className="mx-auto flex w-full max-w-6xl items-center gap-2.5 px-6 py-3">
+          <header className="mx-auto flex w-full max-w-6xl items-center gap-2.5 px-4 py-3 sm:px-6">
             <Link
               href="/"
               className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
@@ -64,13 +66,13 @@ export default function RootLayout({
               />
               <span className="font-semibold">Museum Guide</span>
             </Link>
-            <div className="ml-auto">
-              <AuthStatus />
+            <div className="ml-auto shrink-0">
+              <HamburgerMenu />
             </div>
           </header>
           <div className="flex-1">{children}</div>
           <footer className="border-t border-line-subtle bg-canvas">
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <p className="text-sm text-fg-subtle">Museum Guide</p>
               <nav className="flex items-center gap-6 text-sm">
                 <NavLink href="/about">About Us</NavLink>

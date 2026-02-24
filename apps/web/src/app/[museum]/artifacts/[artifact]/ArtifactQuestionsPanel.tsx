@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { ThumbsDown, ThumbsUp, Volume2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Volume2 } from 'lucide-react';
 import { BodyText } from '@/components/ui/body-text';
 import { Spinner } from '@/components/ui/spinner';
 import { SectionCard } from '@/components/shared';
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { API_URL } from '@/lib/api';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
 import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
 import { ArtifactQuestion, AskResponse } from '@/lib/types';
@@ -43,6 +44,15 @@ export function ArtifactQuestionsPanel({
   const [modalError, setModalError] = useState<string | null>(null);
   const [similarPrompt, setSimilarPrompt] = useState<AskResponse | null>(null);
   const [pendingVoteId, setPendingVoteId] = useState<number | null>(null);
+  const [userVotes, setUserVotes] = useState<Record<number, number>>(() =>
+    Object.fromEntries(
+      initialQuestions
+        .filter(
+          (q) => q.currentUserVote !== undefined && q.currentUserVote !== 0
+        )
+        .map((q) => [q.id, q.currentUserVote!])
+    )
+  );
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [previewQuestion, setPreviewQuestion] = useState<{
     original: string;
@@ -53,6 +63,7 @@ export function ArtifactQuestionsPanel({
   const [publishAnonymously, setPublishAnonymously] = useState(false);
   const [modalAnsweredQuestion, setModalAnsweredQuestion] =
     useState<ArtifactQuestion | null>(null);
+  const { user, getIdToken } = useAuth();
   const preferredProvider = usePreferredLLMProvider();
   const preferredTtsProvider = usePreferredTTSProvider();
   const sessionIdRef = useRef(
@@ -75,6 +86,15 @@ export function ArtifactQuestionsPanel({
     [questions]
   );
 
+  async function askHeaders(): Promise<Record<string, string>> {
+    const base: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (user) {
+      const token = await getIdToken();
+      base['Authorization'] = `Bearer ${token}`;
+    }
+    return base;
+  }
+
   async function submitQuestion(forceCreate: boolean) {
     if (!selectedPublishQuestion.trim()) return;
 
@@ -86,7 +106,7 @@ export function ArtifactQuestionsPanel({
         `${API_URL}/artifacts/${artifactId}/questions/ask?provider=${preferredProvider}&ttsProvider=${preferredTtsProvider}`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await askHeaders(),
           body: JSON.stringify({
             question: selectedPublishQuestion.trim(),
             approvedQuestionText: selectedPublishQuestion.trim(),
@@ -108,6 +128,7 @@ export function ArtifactQuestionsPanel({
       if (data.question) {
         setQuestions((prev) => [data.question!, ...prev]);
         setModalAnsweredQuestion(data.question);
+        setUserVotes((prev) => ({ ...prev, [data.question!.id]: 1 }));
       }
       setDraft('');
       setSimilarPrompt(null);
@@ -136,7 +157,7 @@ export function ArtifactQuestionsPanel({
         `${API_URL}/artifacts/${artifactId}/questions/ask?provider=${preferredProvider}&ttsProvider=${preferredTtsProvider}`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await askHeaders(),
           body: JSON.stringify({
             question: draft.trim(),
             previewOnly: true,
@@ -195,6 +216,7 @@ export function ArtifactQuestionsPanel({
       const payload = (await response.json()) as {
         upvotes: number;
         downvotes: number;
+        currentUserVote?: number;
         error?: string;
       };
       if (!response.ok) {
@@ -208,6 +230,12 @@ export function ArtifactQuestionsPanel({
             : q
         )
       );
+      if (payload.currentUserVote !== undefined) {
+        setUserVotes((prev) => ({
+          ...prev,
+          [questionId]: payload.currentUserVote!,
+        }));
+      }
     } catch (voteError) {
       setError(voteError instanceof Error ? voteError.message : 'Vote failed');
     } finally {
@@ -268,42 +296,42 @@ export function ArtifactQuestionsPanel({
   return (
     <SectionCard title="Ask About This Artifact">
       <div className="space-y-4">
-        <div className="space-y-2">
+        <div className="rounded-md border border-line bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 overflow-hidden">
+          {!draft && suggestedQuestions.length > 0 && (
+            <div className="px-3 pt-2.5 pb-2 flex flex-col gap-1">
+              <p className="text-xs font-medium text-fg-subtle mb-1">
+                Ideas for questions
+              </p>
+              {suggestedQuestions.slice(0, 5).map((suggestion: string) => (
+                <button
+                  key={suggestion}
+                  onClick={() => setDraft(suggestion)}
+                  disabled={isAsking}
+                  className="bg-surface text-sm text-left px-2 py-1.5 rounded-lg border border-line text-fg-subtle hover:text-fg hover:bg-surface/50 transition-colors disabled:opacity-50 w-full"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
           <Textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             maxLength={280}
-            placeholder="Ask a question (1-2 sentences, like a great Reddit title)."
-            className="min-h-[96px]"
+            placeholder="Write your own question here"
+            className="min-h-[96px] border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none resize-none"
           />
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Keep it concise: max 280 characters.
-            </p>
-            <p className="text-xs text-muted-foreground">{draft.length}/280</p>
-          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex items-center justify-between">
           <Button
             onClick={() => void previewQuestionForPublish()}
-            disabled={isAsking || isPreviewing}
+            disabled={isAsking || isPreviewing || !draft.trim()}
           >
             {(isAsking || isPreviewing) && <Spinner className="mr-2" />}
             Ask Question
           </Button>
-          {suggestedQuestions.slice(0, 5).map((suggestion: string) => (
-            <Button
-              key={suggestion}
-              variant="secondary"
-              size="sm"
-              onClick={() => setDraft(suggestion)}
-              disabled={isAsking}
-              className="whitespace-normal break-words text-left h-auto py-2 max-w-full"
-            >
-              {suggestion}
-            </Button>
-          ))}
+          <p className="text-xs text-fg-subtle">{draft.length}/280</p>
         </div>
 
         {error && <ErrorText>{error}</ErrorText>}
@@ -319,35 +347,44 @@ export function ArtifactQuestionsPanel({
                 key={question.id}
                 className="rounded-md border p-4 space-y-3"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <p className="font-medium text-primary">
+                <div className="flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-4">
+                  <div className="min-w-0 space-y-1">
+                    <p className="font-medium text-primary break-words">
                       {question.questionText}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground break-all">
                       asked by {question.askedByUsername ?? 'anonymous'} |{' '}
                       {question.listenCount} listens
                     </p>
                   </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button
-                      variant="secondary"
-                      size="sm"
+                  <div className="flex items-center gap-0.5 self-start shrink-0 rounded-md border border-line overflow-hidden">
+                    <button
                       onClick={() => vote(question.id, 'up')}
                       disabled={pendingVoteId === question.id}
+                      className={`p-1.5 transition-colors hover:bg-surface disabled:opacity-50 ${userVotes[question.id] === 1 ? 'text-brand' : 'text-fg-subtle'}`}
+                      aria-label="Upvote"
                     >
-                      <ThumbsUp className="h-3 w-3 mr-1" />
-                      {question.upvotes}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
+                      <ChevronUp className="h-4 w-4" />
+                    </button>
+                    <span
+                      className={`min-w-[2ch] text-center text-xs font-semibold tabular-nums ${
+                        (userVotes[question.id] ?? 0) === 1
+                          ? 'text-brand'
+                          : (userVotes[question.id] ?? 0) === -1
+                            ? 'text-error'
+                            : 'text-fg-subtle'
+                      }`}
+                    >
+                      {question.upvotes - question.downvotes}
+                    </span>
+                    <button
                       onClick={() => vote(question.id, 'down')}
                       disabled={pendingVoteId === question.id}
+                      className={`p-1.5 transition-colors hover:bg-surface disabled:opacity-50 ${userVotes[question.id] === -1 ? 'text-error' : 'text-fg-subtle'}`}
+                      aria-label="Downvote"
                     >
-                      <ThumbsDown className="h-3 w-3 mr-1" />
-                      {question.downvotes}
-                    </Button>
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
 
@@ -415,10 +452,10 @@ export function ArtifactQuestionsPanel({
 
           <div className="space-y-3">
             {isPreviewing ? (
-              <div className="flex items-center gap-2 rounded-md border p-3">
-                <Spinner />
+              <div className="flex flex-col items-center gap-3 py-4">
+                <Spinner size="md" />
                 <p className="text-sm text-muted-foreground">
-                  Preparing your question for publishing...
+                  Checking your question…
                 </p>
               </div>
             ) : modalAnsweredQuestion ? (
