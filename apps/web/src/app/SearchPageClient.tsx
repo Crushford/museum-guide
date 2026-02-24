@@ -397,6 +397,10 @@ export default function SearchPage() {
   }, [canRunSearchAction]);
 
   const showLocalResults = filteredLocalMuseums.length > 0;
+  const showRecentlyViewedMuseums =
+    !isLoadingLocal &&
+    allLocalMuseums.length > 0 &&
+    searchQuery.trim().length < MIN_SEARCH_LENGTH;
   const showWikidataResults =
     hasSearched && !isSearchingWikidata && wikidataResults.length > 0;
   const showLocationResults =
@@ -468,6 +472,27 @@ export default function SearchPage() {
             {selectError && <Alert>{selectError}</Alert>}
           </div>
         </SectionCard>
+
+        {showRecentlyViewedMuseums && (
+          <SectionCard
+            title="Recently Viewed Museums"
+            subtitle={`${allLocalMuseums.length} museum${allLocalMuseums.length !== 1 ? 's' : ''} already in the database`}
+          >
+            <ResultsContainer scrollable={allLocalMuseums.length > 8}>
+              {allLocalMuseums.map((museum) => (
+                <MuseumResultRow
+                  key={museum.id}
+                  label={museum.name}
+                  onClick={() => handleSelectLocal(museum)}
+                  disabled={isSelecting !== null}
+                  isSelecting={false}
+                  icon={Database}
+                  iconClassName="h-4 w-4 text-accent flex-shrink-0"
+                />
+              ))}
+            </ResultsContainer>
+          </SectionCard>
+        )}
 
         {/* Local Results (instant autocomplete) */}
         {showLocalResults && (
