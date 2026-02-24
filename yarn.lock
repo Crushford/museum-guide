@@ -4962,6 +4962,7 @@ __metadata:
     express: "npm:^5.2.1"
     express-rate-limit: "npm:^8.2.1"
     firebase-admin: "npm:^13.6.1"
+    helmet: "npm:^8.1.0"
     langfuse: "npm:^3.38.6"
     nodemon: "npm:^3.1.11"
     openai: "npm:^6.18.0"
@@ -7802,6 +7803,13 @@ __metadata:
   dependencies:
     function-bind: "npm:^1.1.2"
   checksum: 10c0/3769d434703b8ac66b209a4cca0737519925bbdb61dd887f93a16372b14694c63ff4e797686d87c90f08168e81082248b9b028bad60d4da9e0d1148766f56eb9
+  languageName: node
+  linkType: hard
+
+"helmet@npm:^8.1.0":
+  version: 8.1.0
+  resolution: "helmet@npm:8.1.0"
+  checksum: 10c0/94d3a7ebc88dbda1421635bdf33f00724adb5252269e93c5ab296ec0db11336d01265659ad3739ab1a1e881fb23a686ff7e788aac6a5fb929285134f157df763
   languageName: node
   linkType: hard
 

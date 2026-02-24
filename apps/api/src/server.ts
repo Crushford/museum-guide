@@ -3,6 +3,7 @@ import { resolve } from 'path';
 import { createHash } from 'crypto';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import OpenAI from 'openai';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
@@ -101,6 +102,14 @@ if (Number.isFinite(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
 }
 
 app.use(httpLogger);
+
+// Security headers. Allow cross-origin resource usage so the web app
+// (different origin in local dev/prod) can continue loading /audio and /uploads.
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 function shouldLogDbQuery(query: string): boolean {
   const normalized = query.toLowerCase();
