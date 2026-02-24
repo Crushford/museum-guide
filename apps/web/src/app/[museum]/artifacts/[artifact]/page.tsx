@@ -181,17 +181,16 @@ export default async function ArtifactPage({
           {/* Left: About */}
           <SectionCard title="About">
             <div className="space-y-4">
-              {/* Image */}
               {artifactImageUrl && (
-                <div className="overflow-hidden rounded-lg bg-raised inline-block">
+                <div className="overflow-hidden rounded-lg bg-raised w-fit max-w-full">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={artifactImageUrl}
                     alt={artifact.name}
-                    className="max-w-sm max-h-96 object-contain"
+                    className="block h-auto w-auto max-w-full sm:max-w-sm max-h-96 object-contain"
                   />
                 </div>
               )}
-
               {/* Wikipedia Summary */}
               {wikipediaSummary?.extract && (
                 <WikipediaSummaryDisplay
@@ -201,7 +200,6 @@ export default async function ArtifactPage({
                   originalExtract={wikipediaSummary.originalExtract}
                 />
               )}
-
               {!wikipediaSummary?.extract && artifact.knowledgeTextEn && (
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium text-muted-foreground">
@@ -212,12 +210,10 @@ export default async function ArtifactPage({
                   </BodyText>
                 </div>
               )}
-
               {/* Plaque Information */}
               {artifact.rawPlaqueText && (
                 <PlaqueSpoiler text={artifact.rawPlaqueText} />
               )}
-
               {/* Wikipedia Link */}
               {artifact.wikipediaUrl && (
                 <div className="pt-2">

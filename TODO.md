@@ -119,6 +119,10 @@
 - [ ] Improve museum search relevance with fuzzy matching/synonyms (e.g., "Naples Archaeological Museum" -> "Naples National Archaeological Museum") and better ranking.
 - [ ] Add "Did you mean...?" suggestions and typo-tolerant fallback when no strong search match is found.
 
+## Images
+
+- [ ] Replace `<img>` on artifact page with proper `<Image>` from next/image. Needs real intrinsic dimensions (fetch from Wikimedia Commons API server-side) and `remotePatterns` added to `next.config.ts`. See `apps/web/src/app/[museum]/artifacts/[artifact]/page.tsx`.
+
 ## Bugs
 
 - [ ] Investigate why this artifact page is in German: http://localhost:3000/british-museum/artifacts/bildnis-leendert-van-der-cooghen-mit-groem-hut

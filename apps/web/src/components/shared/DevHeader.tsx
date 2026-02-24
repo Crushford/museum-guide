@@ -223,7 +223,7 @@ export function DevHeader() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="sticky top-0 z-50 flex h-10 items-center gap-4 bg-canvas px-3 text-xs text-fg font-mono border-2 border-brand">
+      <div className="sticky top-0 z-50 flex h-10 items-center gap-4 bg-canvas px-3 text-xs text-fg font-mono border-2 border-brand overflow-x-auto">
         <span className="font-semibold text-brand">DEV</span>
 
         <Link href="/" className="hover:text-fg transition-colors">
