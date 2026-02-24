@@ -135,6 +135,7 @@ export default async function ArtifactPage({
       actions={
         <Button asChild variant="secondary" size="sm">
           <Link
+            scroll
             href={
               artifactRoom
                 ? `/${museumSlug}/rooms/${artifactRoom.slug}`
@@ -182,12 +183,12 @@ export default async function ArtifactPage({
           <SectionCard title="About">
             <div className="space-y-4">
               {artifactImageUrl && (
-                <div className="overflow-hidden rounded-lg bg-raised w-fit max-w-full">
+                <div className="flex w-full justify-center overflow-hidden rounded-lg bg-raised">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={artifactImageUrl}
                     alt={artifact.name}
-                    className="block h-auto w-auto max-w-full sm:max-w-sm max-h-96 object-contain"
+                    className="block h-auto w-auto max-h-[60vh] max-w-full object-contain"
                   />
                 </div>
               )}

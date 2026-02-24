@@ -23,16 +23,24 @@ export function SectionCard({
   return (
     <Card>
       {(title || subtitle || actions) && (
-        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
-          <div>
+        <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             {title && (
-              <CardTitle className="text-xl tracking-tight">{title}</CardTitle>
+              <CardTitle className="text-xl tracking-tight break-words">
+                {title}
+              </CardTitle>
             )}
             {subtitle && (
-              <CardDescription className="mt-1">{subtitle}</CardDescription>
+              <CardDescription className="mt-1 break-words">
+                {subtitle}
+              </CardDescription>
             )}
           </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {actions && (
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              {actions}
+            </div>
+          )}
         </CardHeader>
       )}
       <CardContent>{children}</CardContent>

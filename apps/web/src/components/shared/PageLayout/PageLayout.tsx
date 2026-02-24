@@ -25,18 +25,25 @@ export function PageLayout({
   return (
     <div className="bg-canvas">
       <div
-        className={cn('mx-auto px-6 py-8', narrow ? 'max-w-2xl' : 'max-w-6xl')}
+        className={cn(
+          'mx-auto px-4 py-6 sm:px-6 sm:py-8',
+          narrow ? 'max-w-2xl' : 'max-w-6xl'
+        )}
       >
-        <header className="mb-8">
+        <header className="mb-6 sm:mb-8">
           {breadcrumbs && breadcrumbs.length > 0 && (
             <div className="mb-4">
               <Breadcrumbs items={breadcrumbs} />
             </div>
           )}
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-primary">{title}</h1>
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-2xl font-bold text-primary break-words sm:text-3xl">
+              {title}
+            </h1>
             {actions && (
-              <div className="flex items-center gap-2">{actions}</div>
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                {actions}
+              </div>
             )}
           </div>
         </header>

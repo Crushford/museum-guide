@@ -246,7 +246,7 @@ export default function SearchPage() {
 
   const handleSelectLocal = useCallback(
     (museum: LocalMuseum) => {
-      router.push(`/${museum.slug}`);
+      router.push(`/${museum.slug}`, { scroll: true });
     },
     [router]
   );
@@ -267,7 +267,7 @@ export default function SearchPage() {
         );
 
         console.log('Museum selected:', response);
-        router.push(`/${response.museum.slug}`);
+        router.push(`/${response.museum.slug}`, { scroll: true });
       } catch (error) {
         console.error('Select error:', error);
         if (
@@ -389,8 +389,8 @@ export default function SearchPage() {
           subtitle="Start by finding the museum you would like to tour, you can sarch for the name (must be exact) the location or near you"
         >
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative w-full sm:flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
@@ -403,22 +403,28 @@ export default function SearchPage() {
                   autoFocus
                 />
               </div>
-              <Button onClick={handleSearch} disabled={isSearchDisabled}>
-                {isSearching ? <Spinner /> : <Globe className="h-4 w-4" />}
-                <span className="ml-2">Search</span>
-              </Button>
-              <Button
-                onClick={handleSearchNearby}
-                disabled={isNearbyDisabled}
-                className="min-w-28"
-              >
-                {isSearchingNearby ? (
-                  <Spinner />
-                ) : (
-                  <LocateFixed className="h-4 w-4" />
-                )}
-                <span className="ml-2">Near Me</span>
-              </Button>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                <Button
+                  onClick={handleSearch}
+                  disabled={isSearchDisabled}
+                  className="w-full justify-center"
+                >
+                  {isSearching ? <Spinner /> : <Globe className="h-4 w-4" />}
+                  <span>Search</span>
+                </Button>
+                <Button
+                  onClick={handleSearchNearby}
+                  disabled={isNearbyDisabled}
+                  className="w-full min-w-0 justify-center sm:min-w-28"
+                >
+                  {isSearchingNearby ? (
+                    <Spinner />
+                  ) : (
+                    <LocateFixed className="h-4 w-4" />
+                  )}
+                  <span>Near Me</span>
+                </Button>
+              </div>
             </div>
             {nearbyStatus && <MutedText>{nearbyStatus}</MutedText>}
 

@@ -1,4 +1,5 @@
 export * from './PageLayout';
+export * from './RouteScrollReset';
 export * from './Breadcrumbs';
 export * from './HasUnsavedChanges';
 export * from './EditableRow';
