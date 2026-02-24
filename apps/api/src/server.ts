@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import createHttpError from 'http-errors';
 import OpenAI from 'openai';
+import { z } from 'zod';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
 import type {
@@ -90,6 +91,7 @@ import {
 } from './lib/usage-limits';
 import { GLOBAL_DAILY_LIMITS } from './lib/usage-limit-constants';
 import { logger } from './lib/logger';
+import { parseWithSchema } from './lib/http/validation';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -138,6 +140,106 @@ function shouldLogDbQuery(query: string): boolean {
   if (normalized.includes('_prisma_migrations')) return false;
   return true;
 }
+
+const INVALID_NEARBY_COORDS_MESSAGE =
+  'Invalid coordinates. Expected lat in [-90, 90] and lng in [-180, 180].';
+
+const nearbySearchQuerySchema = z
+  .object({
+    lat: z.coerce.number(),
+    lng: z.coerce.number(),
+    radiusKm: z.preprocess((value) => {
+      if (value === undefined || value === null) return 5;
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? 5 : parsed;
+    }, z.number()),
+    limit: z.preprocess((value) => {
+      if (value === undefined || value === null) return 20;
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? 20 : parsed;
+    }, z.number()),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      !Number.isFinite(value.lat) ||
+      !Number.isFinite(value.lng) ||
+      value.lat < -90 ||
+      value.lat > 90 ||
+      value.lng < -180 ||
+      value.lng > 180
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: INVALID_NEARBY_COORDS_MESSAGE,
+      });
+    }
+  })
+  .transform((value) => ({
+    lat: value.lat,
+    lng: value.lng,
+    radiusKm: Math.min(Math.max(value.radiusKm || 5, 1), 100),
+    limit: Math.min(Math.max(value.limit || 20, 1), 100),
+  }));
+
+const questionAskParamsSchema = z.object({
+  artifactId: z.coerce.number(),
+});
+
+const questionAskBodySchema = z.preprocess(
+  (value) => (value && typeof value === 'object' ? value : {}),
+  z
+    .object({
+      question: z.unknown(),
+      forceCreate: z.unknown().optional(),
+      previewOnly: z.unknown().optional(),
+      publishAnonymously: z.unknown().optional(),
+      approvedQuestionText: z.unknown().optional(),
+    })
+    .superRefine((value, ctx) => {
+      if (typeof value.question !== 'string') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['question'],
+          message: 'question is required',
+        });
+        return;
+      }
+
+      const questionText = value.question.trim();
+      if (questionText.length < 8) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['question'],
+          message: 'Question is too short (minimum 8 characters).',
+        });
+        return;
+      }
+      if (questionText.length > 280) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['question'],
+          message: 'Question is too long (maximum 280 characters).',
+        });
+      }
+    })
+    .transform((value) => {
+      let approvedQuestionText: string | null = null;
+      if (typeof value.approvedQuestionText === 'string') {
+        const trimmed = value.approvedQuestionText.trim();
+        if (trimmed.length > 0) {
+          approvedQuestionText = trimmed;
+        }
+      }
+
+      return {
+        questionText: (value.question as string).trim(),
+        forceCreate: value.forceCreate === true,
+        previewOnly: value.previewOnly === true,
+        publishAnonymously: value.publishAnonymously === true,
+        approvedQuestionText,
+      };
+    })
+);
 
 // Enable CORS for all routes
 app.use(
@@ -760,27 +862,11 @@ app.get('/api/museums/search/nearby', async (req, res) => {
   };
 
   try {
-    const lat = Number(req.query.lat);
-    const lng = Number(req.query.lng);
-    const radiusKmRaw = Number(req.query.radiusKm ?? 5);
-    const limitRaw = Number(req.query.limit ?? 20);
-
-    if (
-      Number.isNaN(lat) ||
-      Number.isNaN(lng) ||
-      lat < -90 ||
-      lat > 90 ||
-      lng < -180 ||
-      lng > 180
-    ) {
-      return res.status(400).json({
-        error:
-          'Invalid coordinates. Expected lat in [-90, 90] and lng in [-180, 180].',
-      });
-    }
-
-    const radiusKm = Math.min(Math.max(radiusKmRaw || 5, 1), 100);
-    const limit = Math.min(Math.max(limitRaw || 20, 1), 100);
+    const { lat, lng, radiusKm, limit } = parseWithSchema(
+      nearbySearchQuerySchema,
+      req.query,
+      INVALID_NEARBY_COORDS_MESSAGE
+    );
     console.log(
       `[Nearby Search] Start lat=${lat} lng=${lng} radiusKm=${radiusKm} limit=${limit}`
     );
@@ -864,6 +950,9 @@ app.get('/api/museums/search/nearby', async (req, res) => {
     });
     markStage('response-sent');
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     console.error('[Nearby Search] Failed:', error);
     markStage('error');
     const errorMessage =
@@ -2894,7 +2983,11 @@ app.get('/artifacts/:artifactId/questions', async (req, res) => {
 
 app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
   try {
-    const artifactId = Number(req.params.artifactId);
+    const { artifactId } = parseWithSchema(
+      questionAskParamsSchema,
+      req.params,
+      'Invalid artifactId'
+    );
     if (Number.isNaN(artifactId)) {
       return res.status(400).json({ error: 'Invalid artifactId' });
     }
@@ -2909,40 +3002,19 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
       return;
     }
 
-    const questionRaw = req.body?.question;
-    const forceCreate = req.body?.forceCreate === true;
-    const previewOnly = req.body?.previewOnly === true;
-    const publishAnonymously = req.body?.publishAnonymously === true;
-    const approvedQuestionTextRaw = req.body?.approvedQuestionText;
-    if (typeof questionRaw !== 'string') {
-      return res.status(400).json({ error: 'question is required' });
-    }
-
-    const questionText = questionRaw.trim();
-    if (questionText.length < 8) {
-      return res
-        .status(400)
-        .json({ error: 'Question is too short (minimum 8 characters).' });
-    }
-    if (questionText.length > 280) {
-      return res
-        .status(400)
-        .json({ error: 'Question is too long (maximum 280 characters).' });
-    }
+    const {
+      questionText,
+      forceCreate,
+      previewOnly,
+      publishAnonymously,
+      approvedQuestionText,
+    } = parseWithSchema(questionAskBodySchema, req.body);
 
     const providerName = parseProvider(req.query.provider, 'google');
     const ttsProvider = parseTtsProvider(
       req.query.ttsProvider,
       getDefaultTtsProvider()
     );
-    let approvedQuestionText: string | null = null;
-    if (typeof approvedQuestionTextRaw === 'string') {
-      const trimmed = approvedQuestionTextRaw.trim();
-      if (trimmed.length > 0) {
-        approvedQuestionText = trimmed;
-      }
-    }
-
     const correctedQuestion =
       approvedQuestionText ??
       (await suggestQuestionCorrection(questionText, providerName));
@@ -3195,6 +3267,9 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
       },
     });
   } catch (error) {
+    if (createHttpError.isHttpError(error)) {
+      throw error;
+    }
     res.status(500).json({
       error:
         error instanceof Error ? error.message : 'Failed to answer question',
