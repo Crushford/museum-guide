@@ -97,6 +97,23 @@ const PORT = process.env.PORT || 3001;
 const ENABLE_DB_QUERY_BILLING_LOGS = process.env.DB_QUERY_BILLING_LOGS !== '0';
 const TRUST_PROXY_HOPS = Number(process.env.TRUST_PROXY_HOPS ?? 0);
 
+function parseCsvEnv(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+const allowedCorsOrigins = new Set([
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://museumguide.io',
+  'https://www.museumguide.io',
+  ...parseCsvEnv(process.env.FRONTEND_URL),
+  ...parseCsvEnv(process.env.FRONTEND_URLS),
+]);
+
 if (Number.isFinite(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
   app.set('trust proxy', TRUST_PROXY_HOPS);
 }
@@ -121,7 +138,19 @@ function shouldLogDbQuery(query: string): boolean {
 // Enable CORS for all routes
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedCorsOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
     credentials: true,
   })
 );
