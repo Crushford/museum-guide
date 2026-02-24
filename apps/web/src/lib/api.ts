@@ -5,7 +5,59 @@ import {
   extractErrorBody,
 } from '@/lib/api-errors';
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+const LOCAL_API_URL = 'http://localhost:3001';
+const PRODUCTION_API_URL = 'https://api.museumguide.io';
+
+function isLocalApiUrl(value: string | undefined): boolean {
+  if (!value) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
+function deriveApiUrlFromBrowser(): string {
+  const { protocol, hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return LOCAL_API_URL;
+  }
+
+  if (hostname === 'museumguide.io' || hostname === 'www.museumguide.io') {
+    return PRODUCTION_API_URL;
+  }
+
+  const baseHost = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+  return `${protocol}//api.${baseHost}`;
+}
+
+function resolveApiUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const runningInProduction = process.env.NODE_ENV === 'production';
+
+  if (typeof window !== 'undefined') {
+    // If a production build accidentally bakes in localhost, derive from the
+    // current browser host so the deployed site still talks to the deployed API.
+    if (runningInProduction && isLocalApiUrl(configured)) {
+      return deriveApiUrlFromBrowser();
+    }
+
+    if (configured) {
+      return configured;
+    }
+
+    return deriveApiUrlFromBrowser();
+  }
+
+  if (configured && !(runningInProduction && isLocalApiUrl(configured))) {
+    return configured;
+  }
+
+  return runningInProduction ? PRODUCTION_API_URL : LOCAL_API_URL;
+}
+
+export const API_URL = resolveApiUrl();
 
 export const JSON_HEADERS = {
   'Content-Type': 'application/json',

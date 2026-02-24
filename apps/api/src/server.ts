@@ -3,6 +3,7 @@ import { resolve } from 'path';
 import { createHash } from 'crypto';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import OpenAI from 'openai';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
@@ -76,6 +77,7 @@ import {
   requireAuth,
   requireAdmin,
 } from './middleware/auth';
+import { httpLogger } from './middleware/http-logger';
 import {
   enforceUsageLimits,
   enforceSignupPolicy,
@@ -83,6 +85,7 @@ import {
   enforcePlaqueScanLimit,
 } from './lib/usage-limits';
 import { GLOBAL_DAILY_LIMITS } from './lib/usage-limit-constants';
+import { logger } from './lib/logger';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -94,9 +97,36 @@ const PORT = process.env.PORT || 3001;
 const ENABLE_DB_QUERY_BILLING_LOGS = process.env.DB_QUERY_BILLING_LOGS !== '0';
 const TRUST_PROXY_HOPS = Number(process.env.TRUST_PROXY_HOPS ?? 0);
 
+function parseCsvEnv(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+const allowedCorsOrigins = new Set([
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://museumguide.io',
+  'https://www.museumguide.io',
+  ...parseCsvEnv(process.env.FRONTEND_URL),
+  ...parseCsvEnv(process.env.FRONTEND_URLS),
+]);
+
 if (Number.isFinite(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
   app.set('trust proxy', TRUST_PROXY_HOPS);
 }
+
+app.use(httpLogger);
+
+// Security headers. Allow cross-origin resource usage so the web app
+// (different origin in local dev/prod) can continue loading /audio and /uploads.
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 function shouldLogDbQuery(query: string): boolean {
   const normalized = query.toLowerCase();
@@ -108,7 +138,19 @@ function shouldLogDbQuery(query: string): boolean {
 // Enable CORS for all routes
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedCorsOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
     credentials: true,
   })
 );
@@ -4278,4 +4320,10 @@ app.get('/admin/api-calls', requireAuth, requireAdmin, async (req, res) => {
 
 initLangfuse();
 
-app.listen(PORT, () => {});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    logger.info({ port: Number(PORT) }, 'API server listening');
+  });
+}
+
+export { app };

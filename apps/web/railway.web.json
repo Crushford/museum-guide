@@ -12,7 +12,7 @@
     ]
   },
   "deploy": {
-    "startCommand": "yarn workspace web start",
+    "startCommand": "PORT=${PORT:-8080} yarn workspace web start",
     "healthcheckPath": "/",
     "healthcheckTimeout": 120,
     "sleepApplication": true,
