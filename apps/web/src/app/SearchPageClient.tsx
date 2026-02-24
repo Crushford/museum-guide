@@ -20,7 +20,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
 import { APP_NAME } from '@/lib/constants';
 import { useAuthedApi } from '@/lib/useAuthedApi';
-import { ApiRequestError } from '@/lib/api-errors';
+import { ApiRequestError, emitApiError } from '@/lib/api-errors';
+import { useAuth } from '@/components/providers/AuthProvider';
 import type {
   WikidataSearchResult,
   WikidataSearchResponse,
@@ -131,6 +132,7 @@ function SearchLoadingCard({
 
 export default function SearchPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const authedApi = useAuthedApi();
   const [searchQuery, setSearchQuery] = useState('');
   const [allLocalMuseums, setAllLocalMuseums] = useState<LocalMuseum[]>([]);
@@ -159,6 +161,27 @@ export default function SearchPage() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [selectError, setSelectError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+
+  const promptSignInRequired = useCallback(() => {
+    emitApiError({
+      code: 'AUTH_REQUIRED',
+      message: 'Sign in required for this action.',
+    });
+  }, []);
+
+  const canRunSearchAction = useCallback(() => {
+    if (authLoading) {
+      setSearchError('Checking sign-in status. Please try again in a moment.');
+      return false;
+    }
+
+    if (user) {
+      return true;
+    }
+
+    promptSignInRequired();
+    return false;
+  }, [authLoading, user, promptSignInRequired]);
 
   // Load all local museums on mount
   useEffect(() => {
@@ -203,6 +226,10 @@ export default function SearchPage() {
       return;
     }
 
+    if (!canRunSearchAction()) {
+      return;
+    }
+
     const term = searchQuery.trim();
     setSearchError(null);
     setHasSearched(true);
@@ -242,7 +269,7 @@ export default function SearchPage() {
       .finally(() => setIsSearchingLocation(false));
 
     await Promise.allSettled([wikidataPromise, locationPromise]);
-  }, [searchQuery, allLocalMuseums]);
+  }, [searchQuery, allLocalMuseums, canRunSearchAction]);
 
   const handleSelectLocal = useCallback(
     (museum: LocalMuseum) => {
@@ -299,6 +326,10 @@ export default function SearchPage() {
   };
 
   const handleSearchNearby = useCallback(async () => {
+    if (!canRunSearchAction()) {
+      return;
+    }
+
     if (!navigator.geolocation) {
       setSearchError('Geolocation is not supported in this browser.');
       return;
@@ -363,7 +394,7 @@ export default function SearchPage() {
     } finally {
       setIsSearchingNearby(false);
     }
-  }, []);
+  }, [canRunSearchAction]);
 
   const showLocalResults = filteredLocalMuseums.length > 0;
   const showWikidataResults =
