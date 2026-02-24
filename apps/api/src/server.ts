@@ -5,6 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import createHttpError from 'http-errors';
 import OpenAI from 'openai';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
@@ -78,7 +79,9 @@ import {
   requireAuth,
   requireAdmin,
 } from './middleware/auth';
+import { errorHandler } from './middleware/error-handler';
 import { httpLogger } from './middleware/http-logger';
+import { notFoundHandler } from './middleware/not-found';
 import {
   enforceUsageLimits,
   enforceSignupPolicy,
@@ -150,7 +153,7 @@ app.use(
         return;
       }
 
-      callback(new Error(`CORS origin not allowed: ${origin}`));
+      callback(createHttpError(403, `CORS origin not allowed: ${origin}`));
     },
     credentials: true,
   })
@@ -4351,6 +4354,9 @@ app.get('/admin/api-calls', requireAuth, requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch API calls' });
   }
 });
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 initLangfuse();
 
