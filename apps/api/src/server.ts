@@ -2774,6 +2774,16 @@ app.get('/artifacts/:artifactId/questions', async (req, res) => {
     },
   });
 
+  const questionIds = questions.map((q) => q.id);
+  const viewerUsername = req.actor?.uid ?? PROTOTYPE_USERNAME;
+  const userVoteRecords = await prisma.artifactQuestionVote.findMany({
+    where: { questionId: { in: questionIds }, username: viewerUsername },
+    select: { questionId: true, value: true },
+  });
+  const userVoteMap = new Map(
+    userVoteRecords.map((v) => [v.questionId, v.value])
+  );
+
   res.json(
     questions.map((question) => ({
       id: question.id,
@@ -2788,6 +2798,7 @@ app.get('/artifacts/:artifactId/questions', async (req, res) => {
       askCount: question.askCount,
       upvotes: question.upvotes,
       downvotes: question.downvotes,
+      currentUserVote: userVoteMap.get(question.id) ?? 0,
       similarToQuestionId: question.similarToQuestionId,
       answerText: question.answerText,
       answerLanguage: question.answerLanguage,
@@ -3050,6 +3061,21 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
       },
     });
 
+    // Auto-upvote from the question asker.
+    // BUG: The vote record is stored correctly, but the client doesn't reliably
+    // reflect it as active on first render — the upvote arrow may not highlight
+    // and clicking upvote may not toggle it off. The create response includes
+    // `upvotes: 1` but doesn't include `currentUserVote: 1`, so the frontend
+    // can't seed its userVotes state from this response. See TODO.md for fix.
+    const askerUsername = req.actor?.uid ?? PROTOTYPE_USERNAME;
+    await prisma.artifactQuestionVote.create({
+      data: { questionId: question.id, username: askerUsername, value: 1 },
+    });
+    await prisma.artifactQuestion.update({
+      where: { id: question.id },
+      data: { upvotes: 1 },
+    });
+
     let answerAudioUrl: string | null = null;
     try {
       answerAudioUrl = await generateAudioForArtifactQuestion(
@@ -3085,6 +3111,7 @@ app.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
       requiresConfirmation: false,
       question: {
         ...question,
+        upvotes: 1,
         answerAudioUrl: answerAudioUrl ?? question.answerAudioUrl,
       },
     });
@@ -3107,14 +3134,10 @@ app.post('/artifact-questions/:questionId/vote', async (req, res) => {
     return res.status(400).json({ error: 'vote must be "up" or "down"' });
   }
 
+  const username = req.actor?.uid ?? PROTOTYPE_USERNAME;
   const value = vote === 'up' ? 1 : -1;
   const existing = await prisma.artifactQuestionVote.findUnique({
-    where: {
-      questionId_username: {
-        questionId,
-        username: PROTOTYPE_USERNAME,
-      },
-    },
+    where: { questionId_username: { questionId, username } },
   });
 
   if (existing && existing.value === value) {
@@ -3126,11 +3149,7 @@ app.post('/artifact-questions/:questionId/vote', async (req, res) => {
     });
   } else {
     await prisma.artifactQuestionVote.create({
-      data: {
-        questionId,
-        username: PROTOTYPE_USERNAME,
-        value,
-      },
+      data: { questionId, username, value },
     });
   }
 
@@ -3140,12 +3159,7 @@ app.post('/artifact-questions/:questionId/vote', async (req, res) => {
   ]);
 
   const currentVote = await prisma.artifactQuestionVote.findUnique({
-    where: {
-      questionId_username: {
-        questionId,
-        username: PROTOTYPE_USERNAME,
-      },
-    },
+    where: { questionId_username: { questionId, username } },
   });
 
   await prisma.artifactQuestion.update({

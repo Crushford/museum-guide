@@ -82,6 +82,7 @@
 - [ ] Add stronger semantic dedupe (embeddings) for "similar question" grouping.
 - [ ] Add UX to show grouped similar questions under their canonical question.
 - [ ] Add per-user vote tracking once auth is implemented (replace `prototype-tester` hardcode).
+- [ ] Fix auto-upvote on question creation: the vote is stored correctly but the initial `currentUserVote` state is not reliably surfaced to the client, so the upvote arrow doesn't always show as active and the toggle-off doesn't always fire. Likely needs the create endpoint to return `currentUserVote: 1` and the client to seed `userVotes` from it (rather than the separate questions-list fetch which may not run again after creation).
 - [ ] Add community controls (report answer/question, hide from ranking, restore).
 - [ ] Move generated suggested follow-up questions from the introduction section into the "Ask a Question" section.
 
