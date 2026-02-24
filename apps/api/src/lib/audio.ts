@@ -2,6 +2,7 @@ import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { writeFile } from 'fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve } from 'path';
+import { env } from '../config/env';
 import { recordApiCall } from './telemetry/api-call-tracker';
 
 export type TtsProviderName = 'google-tts' | 'inworld';
@@ -73,7 +74,7 @@ export function parseTtsProvider(
 }
 
 export function getDefaultTtsProvider(): TtsProviderName {
-  return parseTtsProvider(process.env.SCAN_TTS_PROVIDER, DEFAULT_TTS_PROVIDER);
+  return parseTtsProvider(env.SCAN_TTS_PROVIDER, DEFAULT_TTS_PROVIDER);
 }
 
 async function generateAudioWithGoogle(
@@ -88,7 +89,7 @@ async function generateAudioWithGoogle(
   } = options;
   const startTime = Date.now();
 
-  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const credentialsPath = env.GOOGLE_APPLICATION_CREDENTIALS;
   const homeDir = process.env.HOME || process.env.USERPROFILE;
   const defaultCredentialsPath = homeDir
     ? `${homeDir}/.config/gcloud/application_default_credentials.json`
@@ -165,9 +166,9 @@ async function generateAudioWithGoogle(
 }
 
 function getInworldBasicCredential(): string | null {
-  const direct = process.env.INWORLD_TTS_BASIC_AUTH?.trim();
+  const direct = env.INWORLD_TTS_BASIC_AUTH?.trim();
   if (direct) return direct.replace(/^Basic\s+/i, '').trim();
-  const runtime = process.env.INWORLD_RUNTIME_BASE64_CREDENTIAL?.trim();
+  const runtime = env.INWORLD_RUNTIME_BASE64_CREDENTIAL?.trim();
   if (runtime) return runtime.replace(/^Basic\s+/i, '').trim();
   return null;
 }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { reportError } from '@/lib/report-error';
 
 type PromptTemplateBoxProps = {
   title: string;
@@ -32,6 +33,12 @@ export function PromptTemplateBox({
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
+      reportError(err, {
+        message: 'Copy prompt template failed',
+        level: 'warning',
+        tags: { feature: 'admin-content', action: 'copy-template' },
+        extra: { title },
+      });
     }
   };
 

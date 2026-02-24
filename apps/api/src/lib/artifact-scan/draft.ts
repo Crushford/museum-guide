@@ -7,6 +7,7 @@ import {
 import type { ArtifactDraft } from '@repo/types';
 import { recordApiCall } from '../telemetry/api-call-tracker';
 import { assertTextAllowedForLlm } from '../llm/moderation';
+import { env } from '../../config/env';
 
 const DRAFT_SCHEMA: ResponseSchema = {
   type: SchemaType.OBJECT,
@@ -128,10 +129,10 @@ async function extractWithOpenAI(
   rawText: string,
   museumName: string
 ): Promise<ArtifactDraft> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
 
-  const model = process.env.OPENAI_MODEL_ARTIFACT_SCAN || 'gpt-5-nano';
+  const model = env.OPENAI_MODEL_ARTIFACT_SCAN || 'gpt-5-nano';
   const client = new OpenAI({ apiKey });
   const start = Date.now();
   const prompt = buildDraftPrompt(rawText, museumName);
@@ -204,11 +205,10 @@ async function extractWithGemini(
   rawText: string,
   museumName: string
 ): Promise<ArtifactDraft> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
-  const modelName =
-    process.env.GEMINI_MODEL_ARTIFACT_SCAN || 'gemini-2.5-flash';
+  const modelName = env.GEMINI_MODEL_ARTIFACT_SCAN || 'gemini-2.5-flash';
   const client = new GoogleGenerativeAI(apiKey);
   const prompt = buildDraftPrompt(rawText, museumName);
   await assertTextAllowedForLlm(prompt, 'artifact-scan-draft-google');
@@ -244,7 +244,7 @@ export async function extractArtifactDraft(
   rawText: string,
   museumName: string
 ): Promise<ArtifactDraft> {
-  const provider = (process.env.SCAN_LLM_PROVIDER || 'openai').toLowerCase();
+  const provider = (env.SCAN_LLM_PROVIDER || 'openai').toLowerCase();
 
   if (provider === 'google' || provider === 'gemini') {
     return extractWithGemini(rawText, museumName);

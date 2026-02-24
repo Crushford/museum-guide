@@ -13,6 +13,7 @@ import {
   recordApiCallSync,
 } from '../telemetry/api-call-tracker';
 import { assertTextAllowedForLlm } from './moderation';
+import { env } from '../../config/env';
 
 function extractResponseText(res: any): string {
   if (typeof res?.output_text === 'string' && res.output_text.trim()) {
@@ -52,9 +53,8 @@ export class OpenAILlmProvider implements LlmProvider {
 
   constructor(apiKey: string, modelName?: string) {
     this.client = new OpenAI({ apiKey });
-    this.modelName =
-      modelName || process.env.OPENAI_MODEL_INTRODUCTION || 'gpt-5-nano';
-    this.maxOutputTokens = Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 1000);
+    this.modelName = modelName || env.OPENAI_MODEL_INTRODUCTION || 'gpt-5-nano';
+    this.maxOutputTokens = env.OPENAI_MAX_OUTPUT_TOKENS;
   }
 
   async generate(request: LlmGenerateRequest): Promise<

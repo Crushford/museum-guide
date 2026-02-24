@@ -21,6 +21,7 @@ import { api } from '@/lib/api';
 import { APP_NAME } from '@/lib/constants';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 import { ApiRequestError, emitApiError } from '@/lib/api-errors';
+import { reportError } from '@/lib/report-error';
 import { useAuth } from '@/components/providers/AuthProvider';
 import type {
   WikidataSearchResult,
@@ -32,6 +33,8 @@ import type {
 
 const NEARBY_RADIUS_STEPS_KM = [1, 5, 25] as const;
 const MIN_SEARCH_LENGTH = 2;
+const AUTH_STATUS_PENDING_MESSAGE =
+  'Checking sign-in status. Please try again in a moment.';
 
 interface LocalMuseum {
   id: number;
@@ -171,7 +174,7 @@ export default function SearchPage() {
 
   const canRunSearchAction = useCallback(() => {
     if (authLoading) {
-      setSearchError('Checking sign-in status. Please try again in a moment.');
+      setSearchError(AUTH_STATUS_PENDING_MESSAGE);
       return false;
     }
 
@@ -191,12 +194,23 @@ export default function SearchPage() {
         setAllLocalMuseums(response);
       } catch (error) {
         console.error('Failed to load local museums:', error);
+        reportError(error, {
+          message: 'Failed to load local museums',
+          tags: { feature: 'search', action: 'load-local-museums' },
+        });
       } finally {
         setIsLoadingLocal(false);
       }
     }
     loadLocalMuseums();
   }, []);
+
+  // Clear the temporary auth-loading message once auth state resolves.
+  useEffect(() => {
+    if (!authLoading && searchError === AUTH_STATUS_PENDING_MESSAGE) {
+      setSearchError(null);
+    }
+  }, [authLoading, searchError]);
 
   // Filter local museums based on search query (client-side)
   const filteredLocalMuseums = useMemo(() => {
@@ -250,6 +264,11 @@ export default function SearchPage() {
       })
       .catch((error) => {
         console.error('Wikidata search error:', error);
+        reportError(error, {
+          message: 'Wikidata search failed',
+          tags: { feature: 'search', action: 'wikidata-search' },
+          extra: { query: term },
+        });
         setSearchError(
           error instanceof Error ? error.message : 'Search failed'
         );
@@ -265,6 +284,11 @@ export default function SearchPage() {
       })
       .catch((error) => {
         console.error('Location search error:', error);
+        reportError(error, {
+          message: 'Location search failed',
+          tags: { feature: 'search', action: 'location-search' },
+          extra: { query: term },
+        });
       })
       .finally(() => setIsSearchingLocation(false));
 
@@ -297,6 +321,11 @@ export default function SearchPage() {
         router.push(`/${response.museum.slug}`, { scroll: true });
       } catch (error) {
         console.error('Select error:', error);
+        reportError(error, {
+          message: 'Museum select from Wikidata failed',
+          tags: { feature: 'search', action: 'select-museum' },
+          extra: { qid: result.qid },
+        });
         if (
           error instanceof ApiRequestError &&
           (error.status === 503 ||
@@ -385,6 +414,10 @@ export default function SearchPage() {
       }
     } catch (error) {
       console.error('Nearby search error:', error);
+      reportError(error, {
+        message: 'Nearby museum search failed',
+        tags: { feature: 'search', action: 'nearby-search' },
+      });
       const message =
         error instanceof Error
           ? error.message
@@ -410,8 +443,10 @@ export default function SearchPage() {
   const isSearchDisabled =
     isSearching ||
     isSelecting !== null ||
+    authLoading ||
     searchQuery.trim().length < MIN_SEARCH_LENGTH;
-  const isNearbyDisabled = isSearchingNearby || isSelecting !== null;
+  const isNearbyDisabled =
+    isSearchingNearby || isSelecting !== null || authLoading;
 
   return (
     <div className="bg-canvas">

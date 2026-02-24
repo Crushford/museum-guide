@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/shared/SectionCard';
 import { SaveBar } from '@/components/shared/SaveBar';
+import { reportError } from '@/lib/report-error';
 import { Room, RoomDraft } from '@/lib/types';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 
@@ -102,6 +103,11 @@ export function RoomFormClient({
         router.push(`/admin/rooms/${room.id}`);
       } catch (error) {
         console.error('Failed to create room:', error);
+        reportError(error, {
+          message: 'Create room failed',
+          tags: { feature: 'admin-rooms', action: 'create-room' },
+          extra: { museumId, parentType, parentRoomId: parentRoomId ?? null },
+        });
         const errorMsg =
           error instanceof Error
             ? error.message

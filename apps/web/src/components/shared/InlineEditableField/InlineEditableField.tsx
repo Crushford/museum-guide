@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { reportError } from '@/lib/report-error';
 
 type InlineEditableFieldProps = {
   label: string;
@@ -77,6 +78,11 @@ export function InlineEditableField({
       setHasUnsavedChanges(false);
     } catch (error) {
       console.error('Failed to save:', error);
+      reportError(error, {
+        message: 'Inline text field save failed',
+        tags: { feature: 'inline-edit', action: 'save-field' },
+        extra: { label, type },
+      });
       alert('Failed to save changes. Please try again.');
     } finally {
       setIsSaving(false);

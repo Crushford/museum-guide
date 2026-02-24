@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { reportError } from '@/lib/report-error';
 import Link from 'next/link';
 
 type SelectOption = {
@@ -64,6 +65,11 @@ export function InlineEditableSelect({
       setHasUnsavedChanges(false);
     } catch (error) {
       console.error('Failed to save:', error);
+      reportError(error, {
+        message: 'Inline select save failed',
+        tags: { feature: 'inline-edit', action: 'save-select' },
+        extra: { label },
+      });
       alert('Failed to save changes. Please try again.');
     } finally {
       setIsSaving(false);

@@ -18,6 +18,7 @@ import {
 import { auth, googleProvider } from '@/lib/firebase';
 import { API_URL } from '@/lib/api';
 import { emitApiError, extractErrorBody } from '@/lib/api-errors';
+import { reportError } from '@/lib/report-error';
 
 type AuthContextType = {
   user: User | null;
@@ -58,6 +59,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               await firebaseSignOut(auth);
               setUser(null);
               setIsAdmin(false);
+              return;
+            }
+
+            if (authStatusResponse.status === 401) {
+              // Local Firebase session exists, but the API rejected the token.
+              // Clear the stale session so the UI returns to a consistent signed-out state.
+              await firebaseSignOut(auth);
+              setUser(null);
+              setIsAdmin(false);
             }
           }
         } else {
@@ -65,6 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error('Failed to read Firebase auth claims:', error);
+        reportError(error, {
+          message: 'Failed to read Firebase auth claims',
+          tags: { feature: 'auth', action: 'read-claims' },
+        });
         setIsAdmin(false);
       } finally {
         setLoading(false);
@@ -101,6 +115,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return admin;
     } catch (error) {
       console.error('Failed to refresh Firebase auth claims:', error);
+      reportError(error, {
+        message: 'Failed to refresh Firebase auth claims',
+        tags: { feature: 'auth', action: 'refresh-claims' },
+      });
       setIsAdmin(false);
       return false;
     }

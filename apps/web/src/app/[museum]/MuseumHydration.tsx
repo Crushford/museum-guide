@@ -10,6 +10,7 @@ import { ErrorText } from '@/components/ui/error-text';
 import { API_URL } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useAuthedApi } from '@/lib/useAuthedApi';
+import { reportError } from '@/lib/report-error';
 import Link from 'next/link';
 
 interface HydratedMuseum {
@@ -93,6 +94,11 @@ export function MuseumDetailsHydration({
       setMuseum(response.museum);
     } catch (err) {
       console.error('Museum hydration error:', err);
+      reportError(err, {
+        message: 'Museum hydration failed',
+        tags: { feature: 'museum', action: 'museum-hydration' },
+        extra: { museumSlug },
+      });
       setError(
         err instanceof Error ? err.message : 'Failed to load museum details'
       );
@@ -274,6 +280,11 @@ export function ArtifactsHydration({
       setNewCount(response.newArtifacts || 0);
     } catch (err) {
       console.error('Artifact hydration error:', err);
+      reportError(err, {
+        message: 'Artifact hydration failed',
+        tags: { feature: 'museum', action: 'artifact-hydration' },
+        extra: { museumSlug },
+      });
       setError(err instanceof Error ? err.message : 'Failed to load artifacts');
       // Fall back to existing artifacts on error
       setArtifacts(existingArtifacts);

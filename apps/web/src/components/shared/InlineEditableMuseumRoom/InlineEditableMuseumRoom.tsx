@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { reportError } from '@/lib/report-error';
 import Link from 'next/link';
 
 type SelectOption = {
@@ -142,6 +143,16 @@ export function InlineEditableMuseumRoom({
       }, 2000);
     } catch (error) {
       console.error('Failed to save:', error);
+      reportError(error, {
+        message: 'Inline museum/room save failed',
+        tags: { feature: 'inline-edit', action: 'save-museum-room' },
+        extra: {
+          museumLabel,
+          roomLabel,
+          museumValue: museumValue ?? null,
+          roomValue: roomValue ?? null,
+        },
+      });
       setSaveStatus('error');
       setErrorMessage(
         error instanceof Error ? error.message : 'Failed to save changes'

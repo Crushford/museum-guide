@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { reportError } from '@/lib/report-error';
 import { UrlListEditor } from '../UrlListEditor';
 
 type InlineEditableUrlListProps = {
@@ -72,6 +73,11 @@ export function InlineEditableUrlList({
       setHasUnsavedChanges(false);
     } catch (error) {
       console.error('Failed to save:', error);
+      reportError(error, {
+        message: 'Inline URL list save failed',
+        tags: { feature: 'inline-edit', action: 'save-url-list' },
+        extra: { label },
+      });
       alert('Failed to save changes. Please try again.');
     } finally {
       setIsSaving(false);

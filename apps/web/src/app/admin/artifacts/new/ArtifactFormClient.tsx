@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { UrlListEditor } from '../../../../components/shared';
 import { ArtifactCreateInput, ArtifactImportData, Room } from '@/lib/types';
+import { reportError } from '@/lib/report-error';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type FormData = {
@@ -223,6 +224,18 @@ export function ArtifactFormClient({
             }
           } catch (error) {
             console.error('Error fetching rooms:', error);
+            reportError(error, {
+              message: 'Fetch existing rooms during artifact create failed',
+              level: 'warning',
+              tags: {
+                feature: 'admin-artifacts',
+                action: 'lookup-existing-room',
+              },
+              extra: {
+                museumId: museumIdForRoom,
+                parentName: artifactData.parentName ?? null,
+              },
+            });
           }
 
           if (!roomId) {
@@ -281,6 +294,11 @@ export function ArtifactFormClient({
         router.push(`/admin/artifacts/${artifact.id}`);
       } catch (error: unknown) {
         console.error('Failed to create artifact:', error);
+        reportError(error, {
+          message: 'Create artifact failed',
+          tags: { feature: 'admin-artifacts', action: 'create-artifact' },
+          extra: { museumId },
+        });
         const errorMsg =
           error instanceof Error
             ? error.message

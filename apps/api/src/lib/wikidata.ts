@@ -4,6 +4,7 @@
 
 import { TranslationServiceClient } from '@google-cloud/translate';
 import type { WikidataSearchResult } from '@repo/types';
+import { env } from '../config/env';
 import { recordApiCall } from './telemetry/api-call-tracker';
 
 export {
@@ -625,8 +626,7 @@ async function translateText(
     const client = new TranslationServiceClient();
 
     // Get the project ID from environment or use a default
-    const projectId =
-      process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
+    const projectId = env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT;
 
     if (!projectId) {
       console.warn('[Translation] GOOGLE_CLOUD_PROJECT not configured');

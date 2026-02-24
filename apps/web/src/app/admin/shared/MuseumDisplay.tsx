@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { reportError } from '@/lib/report-error';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 import { Museum, Room } from '@/lib/types';
 
@@ -70,6 +71,11 @@ export function MuseumDisplay({
       router.refresh();
     } catch (error) {
       console.error('Failed to update museum:', error);
+      reportError(error, {
+        message: 'Update artifact museum failed',
+        tags: { feature: 'admin-artifact', action: 'update-museum' },
+        extra: { artifactId, selectedMuseumId, currentRoomId },
+      });
       alert('Failed to update museum. Please try again.');
     }
   }, [

@@ -1,15 +1,13 @@
 import pino, { type LevelWithSilent } from 'pino';
+import { env } from '../config/env';
 
 const DEFAULT_LOG_LEVEL: LevelWithSilent = 'info';
 const TEST_LOG_LEVEL: LevelWithSilent = 'silent';
 
-export const isTestEnv =
-  process.env.NODE_ENV === 'test' ||
-  process.env.VITEST === 'true' ||
-  Boolean(process.env.VITEST);
+export const isTestEnv = env.NODE_ENV === 'test' || env.VITEST;
 
 function getLogLevel(): LevelWithSilent {
-  const raw = process.env.LOG_LEVEL?.trim().toLowerCase();
+  const raw = env.LOG_LEVEL;
   const fallback = isTestEnv ? TEST_LOG_LEVEL : DEFAULT_LOG_LEVEL;
 
   if (!raw) {
@@ -26,9 +24,7 @@ function getLogLevel(): LevelWithSilent {
     'silent',
   ]);
 
-  return allowed.has(raw as LevelWithSilent)
-    ? (raw as LevelWithSilent)
-    : fallback;
+  return allowed.has(raw) ? raw : fallback;
 }
 
 export const logger = pino({

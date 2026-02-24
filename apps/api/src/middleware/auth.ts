@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
+import { env } from '../config/env';
 import { adminAuth } from '../lib/firebase-admin';
 import { sendBlocked } from '../lib/usage-limits';
 import { recordApiCall } from '../lib/telemetry/api-call-tracker';
@@ -17,22 +18,8 @@ declare module 'express-serve-static-core' {
   }
 }
 
-const AUTH_VERIFY_WINDOW_MS = parsePositiveInt(
-  process.env.AUTH_VERIFY_RATE_LIMIT_WINDOW_MS,
-  60_000
-);
-const AUTH_VERIFY_RATE_LIMIT_MAX = parsePositiveInt(
-  process.env.AUTH_VERIFY_RATE_LIMIT_MAX,
-  180
-);
-
-function parsePositiveInt(raw: string | undefined, fallback: number): number {
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return Math.floor(parsed);
-}
+const AUTH_VERIFY_WINDOW_MS = env.AUTH_VERIFY_RATE_LIMIT_WINDOW_MS;
+const AUTH_VERIFY_RATE_LIMIT_MAX = env.AUTH_VERIFY_RATE_LIMIT_MAX;
 
 function getClientIp(req: Request): string {
   return req.ip ?? req.socket.remoteAddress ?? 'unknown';
