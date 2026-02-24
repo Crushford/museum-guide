@@ -13,7 +13,7 @@
   },
   "deploy": {
     "preDeployCommand": "yarn workspace @repo/db prisma migrate deploy",
-    "startCommand": "yarn workspace api start",
+    "startCommand": "PORT=${PORT:-8080} yarn workspace api start",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 120,
     "sleepApplication": true,
