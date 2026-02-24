@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ErrorText } from '@/components/ui/error-text';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { reportError } from '@/lib/report-error';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 import { Room } from '@/lib/types';
 
@@ -58,9 +59,21 @@ export function RoomDisplay({
       router.refresh();
     } catch (error) {
       console.error('Failed to update room:', error);
+      reportError(error, {
+        message: 'Update artifact room failed',
+        tags: { feature: 'admin-artifact', action: 'update-room' },
+        extra: { artifactId, selectedRoomId, currentMuseumId },
+      });
       alert('Failed to update room. Please try again.');
     }
-  }, [selectedRoomId, artifactId, router, onRoomChange, authedApi]);
+  }, [
+    selectedRoomId,
+    artifactId,
+    router,
+    onRoomChange,
+    authedApi,
+    currentMuseumId,
+  ]);
 
   const handleCancel = useCallback(() => {
     setSelectedRoomId(currentRoomId);

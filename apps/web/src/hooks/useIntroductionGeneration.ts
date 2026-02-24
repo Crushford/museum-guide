@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { API_URL } from '@/lib/api';
 import { emitApiError, extractErrorBody } from '@/lib/api-errors';
+import { reportError } from '@/lib/report-error';
 import { usePreferredLLMProvider } from '@/hooks/usePreferredLLMProvider';
 import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
 import { useAuthedApi } from '@/lib/useAuthedApi';
@@ -162,6 +163,22 @@ export function useIntroductionGeneration({
                       ttsProvider: preferredTtsProvider,
                     }
                   );
+                  reportError(new Error('Auto audio generation failed'), {
+                    message:
+                      'Auto audio generation failed after content was saved',
+                    level: 'warning',
+                    tags: { feature: 'generation', action: 'auto-audio' },
+                    extra: {
+                      artifactId,
+                      contentId: generated.id,
+                      provider: preferredProvider,
+                      ttsProvider: preferredTtsProvider,
+                      audioError:
+                        typeof complete.audioError === 'string'
+                          ? complete.audioError
+                          : undefined,
+                    },
+                  });
                   setError(audioErrorMessage);
                 }
               }
@@ -220,6 +237,15 @@ export function useIntroductionGeneration({
       );
     } catch (err) {
       console.error('Error generating introduction:', err);
+      reportError(err, {
+        message: 'Generate introduction failed',
+        tags: { feature: 'generation', action: 'generate-introduction' },
+        extra: {
+          artifactId,
+          provider: preferredProvider,
+          ttsProvider: preferredTtsProvider,
+        },
+      });
       setError(
         err instanceof Error ? err.message : 'Failed to generate introduction'
       );

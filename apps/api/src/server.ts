@@ -639,9 +639,9 @@ const scanCreateBodySchema = z.preprocess(
   z.object({
     imageBase64: z.unknown().optional(),
     rawText: z.unknown().optional(),
-    draft: z.record(z.string(), z.unknown()).optional(),
-    ocr: z.record(z.string(), z.unknown()).optional(),
-    enrichment: z.record(z.string(), z.unknown()).optional(),
+    draft: z.record(z.string(), z.unknown()).nullish(),
+    ocr: z.record(z.string(), z.unknown()).nullish(),
+    enrichment: z.record(z.string(), z.unknown()).nullish(),
   })
 );
 

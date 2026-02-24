@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { SectionCard } from '@/components/shared/SectionCard';
 import { SaveBar } from '@/components/shared/SaveBar';
+import { reportError } from '@/lib/report-error';
 import { MuseumInput } from '@/lib/types';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 
@@ -79,6 +80,10 @@ export function MuseumFormClient({ importedData }: MuseumFormClientProps = {}) {
         router.push(`/admin/museums/${museum.id}`);
       } catch (error) {
         console.error('Failed to create museum:', error);
+        reportError(error, {
+          message: 'Create museum failed',
+          tags: { feature: 'admin-museums', action: 'create-museum' },
+        });
         const errorMsg =
           error instanceof Error
             ? error.message

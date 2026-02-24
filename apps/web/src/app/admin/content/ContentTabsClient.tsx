@@ -25,6 +25,7 @@ import { PromptTemplateBox } from '@/components/shared';
 import { generateIntroductionTemplate } from '../_lib/templates';
 import { API_URL } from '@/lib/api';
 import { useAuthedApi } from '@/lib/useAuthedApi';
+import { reportError } from '@/lib/report-error';
 import { usePreferredTTSProvider } from '@/hooks/usePreferredTTSProvider';
 import {
   Dialog,
@@ -850,6 +851,11 @@ export function ContentTabsClient({
         onRefresh?.();
       } catch (error) {
         console.error('Error generating content:', error);
+        reportError(error, {
+          message: 'Generate content failed',
+          tags: { feature: 'admin-content', action: 'generate-content' },
+          extra: { artifactId },
+        });
         const errorMsg =
           error instanceof Error
             ? error.message
@@ -878,6 +884,11 @@ export function ContentTabsClient({
         onRefresh?.();
       } catch (error) {
         console.error('Error generating audio:', error);
+        reportError(error, {
+          message: 'Generate audio for artifact failed',
+          tags: { feature: 'admin-content', action: 'generate-audio' },
+          extra: { artifactId },
+        });
         const errorMsg =
           error instanceof Error
             ? error.message
@@ -906,6 +917,11 @@ export function ContentTabsClient({
         onRefresh?.();
       } catch (error) {
         console.error('Error generating audio for content:', error);
+        reportError(error, {
+          message: 'Generate audio for content item failed',
+          tags: { feature: 'admin-content', action: 'generate-audio-content' },
+          extra: { contentId },
+        });
         const errorMsg =
           error instanceof Error
             ? error.message

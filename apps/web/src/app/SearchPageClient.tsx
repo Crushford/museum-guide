@@ -21,6 +21,7 @@ import { api } from '@/lib/api';
 import { APP_NAME } from '@/lib/constants';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 import { ApiRequestError, emitApiError } from '@/lib/api-errors';
+import { reportError } from '@/lib/report-error';
 import { useAuth } from '@/components/providers/AuthProvider';
 import type {
   WikidataSearchResult,
@@ -193,6 +194,10 @@ export default function SearchPage() {
         setAllLocalMuseums(response);
       } catch (error) {
         console.error('Failed to load local museums:', error);
+        reportError(error, {
+          message: 'Failed to load local museums',
+          tags: { feature: 'search', action: 'load-local-museums' },
+        });
       } finally {
         setIsLoadingLocal(false);
       }
@@ -259,6 +264,11 @@ export default function SearchPage() {
       })
       .catch((error) => {
         console.error('Wikidata search error:', error);
+        reportError(error, {
+          message: 'Wikidata search failed',
+          tags: { feature: 'search', action: 'wikidata-search' },
+          extra: { query: term },
+        });
         setSearchError(
           error instanceof Error ? error.message : 'Search failed'
         );
@@ -274,6 +284,11 @@ export default function SearchPage() {
       })
       .catch((error) => {
         console.error('Location search error:', error);
+        reportError(error, {
+          message: 'Location search failed',
+          tags: { feature: 'search', action: 'location-search' },
+          extra: { query: term },
+        });
       })
       .finally(() => setIsSearchingLocation(false));
 
@@ -306,6 +321,11 @@ export default function SearchPage() {
         router.push(`/${response.museum.slug}`, { scroll: true });
       } catch (error) {
         console.error('Select error:', error);
+        reportError(error, {
+          message: 'Museum select from Wikidata failed',
+          tags: { feature: 'search', action: 'select-museum' },
+          extra: { qid: result.qid },
+        });
         if (
           error instanceof ApiRequestError &&
           (error.status === 503 ||
@@ -394,6 +414,10 @@ export default function SearchPage() {
       }
     } catch (error) {
       console.error('Nearby search error:', error);
+      reportError(error, {
+        message: 'Nearby museum search failed',
+        tags: { feature: 'search', action: 'nearby-search' },
+      });
       const message =
         error instanceof Error
           ? error.message

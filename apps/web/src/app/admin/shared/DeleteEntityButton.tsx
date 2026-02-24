@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ErrorText } from '@/components/ui/error-text';
+import { reportError } from '@/lib/report-error';
 import { useAuthedApi } from '@/lib/useAuthedApi';
 
 type EntityType = 'museum' | 'room' | 'artifact';
@@ -66,6 +67,11 @@ export function DeleteEntityButton({
         router.refresh();
       } catch (err) {
         console.error(`Failed to delete ${entityType}:`, err);
+        reportError(err, {
+          message: `Delete ${entityType} failed`,
+          tags: { feature: 'admin-entities', action: 'delete-entity' },
+          extra: { entityType, entityId, entityName },
+        });
         setError(
           err instanceof Error
             ? err.message
