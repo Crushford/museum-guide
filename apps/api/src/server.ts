@@ -76,6 +76,7 @@ import {
   requireAuth,
   requireAdmin,
 } from './middleware/auth';
+import { httpLogger } from './middleware/http-logger';
 import {
   enforceUsageLimits,
   enforceSignupPolicy,
@@ -83,6 +84,7 @@ import {
   enforcePlaqueScanLimit,
 } from './lib/usage-limits';
 import { GLOBAL_DAILY_LIMITS } from './lib/usage-limit-constants';
+import { logger } from './lib/logger';
 
 // Load environment variables - check multiple locations
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
@@ -97,6 +99,8 @@ const TRUST_PROXY_HOPS = Number(process.env.TRUST_PROXY_HOPS ?? 0);
 if (Number.isFinite(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
   app.set('trust proxy', TRUST_PROXY_HOPS);
 }
+
+app.use(httpLogger);
 
 function shouldLogDbQuery(query: string): boolean {
   const normalized = query.toLowerCase();
@@ -4279,7 +4283,9 @@ app.get('/admin/api-calls', requireAuth, requireAdmin, async (req, res) => {
 initLangfuse();
 
 if (require.main === module) {
-  app.listen(PORT, () => {});
+  app.listen(PORT, () => {
+    logger.info({ port: Number(PORT) }, 'API server listening');
+  });
 }
 
 export { app };
