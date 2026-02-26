@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
-import { resolve } from 'path';
 import createHttpError from 'http-errors';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -38,8 +37,6 @@ import {
 } from './schemas';
 
 export const router = Router();
-
-const audioDir = resolve(__dirname, '../../../public/audio');
 
 type ContentProviderName = 'google' | 'openai';
 
@@ -425,7 +422,6 @@ router.post(
         },
         generate: () =>
           generateAudioForContent(content.id, result.text, {
-            outputDir: audioDir,
             provider: ttsProvider,
           }),
         persist: async (audioUrl) => {
@@ -635,7 +631,6 @@ router.get(
           },
           generate: () =>
             generateAudioForContent(content.id, fullText, {
-              outputDir: audioDir,
               provider: ttsProvider,
             }),
           persist: async (audioUrl) => {
@@ -736,7 +731,6 @@ router.post(
         req.body
       );
       const audioUrl = await generateAudioForContent(content.id, content.text, {
-        outputDir: audioDir,
         provider: parseTtsProvider(ttsProviderInput, getDefaultTtsProvider()),
       });
 
@@ -790,7 +784,6 @@ router.post(
         req.body
       );
       const audioUrl = await generateAudioForContent(content.id, content.text, {
-        outputDir: audioDir,
         provider: parseTtsProvider(ttsProviderInput, getDefaultTtsProvider()),
       });
 

@@ -28,7 +28,6 @@ export async function fetchArtifactWithRelations(artifactId: number) {
 export async function generateIntroduction(
   artifactId: number,
   providerName: 'google' | 'openai',
-  audioDir: string,
   ttsProvider: TtsProviderName
 ): Promise<{
   content: {
@@ -146,7 +145,6 @@ export async function generateIntroduction(
   // 8. Generate audio
   try {
     const audioUrl = await generateAudioForContent(content.id, result.text, {
-      outputDir: audioDir,
       provider: ttsProvider,
     });
     content = await prisma.content.update({

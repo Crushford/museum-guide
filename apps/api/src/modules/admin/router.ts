@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
-import { resolve } from 'path';
 import createHttpError from 'http-errors';
 import type { RoomResponse, ArtifactResponse } from '@repo/types';
 import { requireAuth, requireAdmin } from '../../middleware/auth';
@@ -24,8 +23,6 @@ import {
 import { getMonthlySpendEur } from '../../lib/llm/cost-tracker';
 
 export const router = Router();
-
-const audioDir = resolve(__dirname, '../../../public/audio');
 
 const adminApiCallsQuerySchema = z
   .preprocess(
@@ -287,7 +284,6 @@ router.post(
       const result = await generateIntroduction(
         artifactId,
         providerName,
-        audioDir,
         ttsProvider
       );
       res.json(result);

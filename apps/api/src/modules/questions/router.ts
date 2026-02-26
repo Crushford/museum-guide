@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
 import { createHash } from 'crypto';
-import { resolve } from 'path';
 import createHttpError from 'http-errors';
 import { enforceUsageLimits } from '../../lib/usage-limits';
 import {
@@ -39,8 +38,6 @@ import {
 } from './schemas';
 
 export const router = Router();
-
-const audioDir = resolve(__dirname, '../../../public/audio');
 
 const PROTOTYPE_USERNAME = 'prototype-tester';
 const QUESTION_PROMPT_VERSION = '1.0';
@@ -496,7 +493,6 @@ router.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
       },
       generate: () =>
         generateAudioForArtifactQuestion(question.id, answerText, {
-          outputDir: audioDir,
           provider: ttsProvider,
         }),
       persist: async (audioUrl) => {

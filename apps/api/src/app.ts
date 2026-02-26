@@ -1,7 +1,4 @@
 import { env, parseCsvEnv } from './config/env';
-import { resolve } from 'path';
-import { mkdir } from 'fs/promises';
-import { existsSync } from 'node:fs';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -28,6 +25,11 @@ import { router as scanRouter } from './modules/scan/router';
 import { router as questionsRouter } from './modules/questions/router';
 import { router as contentRouter } from './modules/content/router';
 import { router as adminRouter } from './modules/admin/router';
+import {
+  getAudioDir,
+  getUploadDir,
+  verifyStorageWritable,
+} from './lib/storage/storage-path';
 
 const ENABLE_DB_QUERY_BILLING_LOGS = env.DB_QUERY_BILLING_LOGS;
 const TRUST_PROXY_HOPS = env.TRUST_PROXY_HOPS;
@@ -118,6 +120,18 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
+app.get('/health/storage', (_req, res) => {
+  try {
+    verifyStorageWritable();
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : 'Storage check failed',
+    });
+  }
+});
+
 app.use((req, res, next) => {
   const startedAt = Date.now();
 
@@ -146,18 +160,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static audio files
-const audioDir = resolve(__dirname, '../public/audio');
-if (!existsSync(audioDir)) {
-  mkdir(audioDir, { recursive: true }).catch(() => {});
-}
-app.use('/audio', express.static(audioDir));
-
-const uploadsDir = resolve(__dirname, '../public/uploads');
-if (!existsSync(uploadsDir)) {
-  mkdir(uploadsDir, { recursive: true }).catch(() => {});
-}
-app.use('/uploads', express.static(uploadsDir));
+// Serve uploads from persistent volume. Keep /audio as a legacy alias.
+app.use('/uploads', express.static(getUploadDir()));
+app.use('/audio', express.static(getAudioDir()));
 
 function shouldLogDbQuery(query: string): boolean {
   const normalized = query.toLowerCase();

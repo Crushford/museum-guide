@@ -13,6 +13,8 @@
 
 import { vi, beforeEach } from 'vitest';
 
+process.env.UPLOAD_DIR ??= '/tmp/museum-guide-test-uploads';
+
 // ---------------------------------------------------------------------------
 // Hoisted variables — must exist before vi.mock() factory functions run.
 // Private to this file; test files interact via exported helpers below.
