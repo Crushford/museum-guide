@@ -69,6 +69,7 @@ function authHeaders(token: string): Record<string, string> {
 
 async function parseApiResponse<T>(response: Response): Promise<T> {
   if (response.ok) {
+    if (response.status === 204) return undefined as T;
     return response.json();
   }
 
