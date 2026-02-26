@@ -1,9 +1,8 @@
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
-import { writeFile } from 'fs/promises';
 import { existsSync } from 'node:fs';
-import { resolve } from 'path';
 import { env } from '../config/env';
 import { recordApiCall } from './telemetry/api-call-tracker';
+import { storeAudio } from './storage/storage-service';
 
 export type TtsProviderName = 'google-tts' | 'inworld';
 
@@ -16,34 +15,27 @@ export type AudioGenerationOptions = {
   text: string;
   voiceName?: string;
   languageCode?: string;
-  outputDir?: string;
   fileName?: string;
   provider?: TtsProviderName;
 };
 
 export type AudioGenerationResult = {
   audioUrl: string;
-  filePath: string;
   fileSize: number;
   duration: number;
 };
 
-function saveAudioFile(params: {
+async function saveAudioFile(params: {
   audioBuffer: Buffer;
-  outputDir?: string;
   fileName?: string;
   startTime: number;
-}): AudioGenerationResult {
-  const finalOutputDir =
-    params.outputDir || resolve(__dirname, '../../public/audio');
+}): Promise<AudioGenerationResult> {
   const finalFileName = params.fileName || `audio-${Date.now()}.mp3`;
-  const filePath = resolve(finalOutputDir, finalFileName);
+  const audioUrl = await storeAudio(params.audioBuffer, finalFileName);
   const duration = Date.now() - params.startTime;
-  const audioUrl = `/audio/${finalFileName}`;
 
   return {
     audioUrl,
-    filePath,
     fileSize: params.audioBuffer.length,
     duration,
   };
@@ -84,7 +76,6 @@ async function generateAudioWithGoogle(
     text,
     voiceName = 'en-AU-Standard-B',
     languageCode = 'en-AU',
-    outputDir,
     fileName,
   } = options;
   const startTime = Date.now();
@@ -160,9 +151,7 @@ async function generateAudioWithGoogle(
   }
 
   const audioBuffer = Buffer.from(response.audioContent);
-  const saved = saveAudioFile({ audioBuffer, outputDir, fileName, startTime });
-  await writeFile(saved.filePath, audioBuffer);
-  return saved;
+  return saveAudioFile({ audioBuffer, fileName, startTime });
 }
 
 function getInworldBasicCredential(): string | null {
@@ -176,7 +165,7 @@ function getInworldBasicCredential(): string | null {
 async function generateAudioWithInworld(
   options: AudioGenerationOptions
 ): Promise<AudioGenerationResult> {
-  const { text, outputDir, fileName } = options;
+  const { text, fileName } = options;
   const startTime = Date.now();
   const credential = getInworldBasicCredential();
   if (!credential) {
@@ -291,8 +280,7 @@ async function generateAudioWithInworld(
   }
 
   const audioBuffer = Buffer.from(payload.audioContent, 'base64');
-  const saved = saveAudioFile({ audioBuffer, outputDir, fileName, startTime });
-  await writeFile(saved.filePath, audioBuffer);
+  const saved = await saveAudioFile({ audioBuffer, fileName, startTime });
 
   recordApiCall({
     service: 'Inworld TTS',

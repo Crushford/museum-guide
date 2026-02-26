@@ -1,11 +1,9 @@
-import { mkdir, writeFile } from 'fs/promises';
-import { resolve } from 'path';
 import { randomUUID } from 'crypto';
 import { decodeBase64Image } from './ocr';
+import { storeImage } from '../storage/storage-service';
 
 export interface StoredImage {
   imageUrl: string;
-  storagePath: string;
 }
 
 export interface PlaqueImageStorage {
@@ -17,8 +15,6 @@ export interface PlaqueImageStorage {
 }
 
 class LocalDiskPlaqueImageStorage implements PlaqueImageStorage {
-  private uploadsDir = resolve(__dirname, '../../public/uploads/plaque-scans');
-
   async saveImage(params: {
     imageBase64: string;
     museumId: number;
@@ -33,13 +29,10 @@ class LocalDiskPlaqueImageStorage implements PlaqueImageStorage {
       `${Date.now()}-${randomUUID().slice(0, 8)}.${extension}`,
     ].join('-');
 
-    await mkdir(this.uploadsDir, { recursive: true });
-    const storagePath = resolve(this.uploadsDir, fileName);
-    await writeFile(storagePath, buffer);
+    const imageUrl = await storeImage(buffer, fileName);
 
     return {
-      imageUrl: `/uploads/plaque-scans/${fileName}`,
-      storagePath,
+      imageUrl,
     };
   }
 }
