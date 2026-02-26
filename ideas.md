@@ -173,6 +173,15 @@ Items here are not committed roadmap features.
 
 ---
 
+## Infrastructure
+
+- Migrate storage from Railway Volume to Cloudflare R2 object storage
+- Add storage abstraction layer interface
+- Add image compression pipeline
+- Add cleanup job for unused files
+
+---
+
 ## Idea Submission Rules
 
 - Ideas must describe the problem they solve.
