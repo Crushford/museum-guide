@@ -1,5 +1,8 @@
 import { env, parseCsvEnv } from './config/env';
-import { API_JSON_BODY_LIMIT } from './config/constants';
+import {
+  DEFAULT_API_JSON_BODY_LIMIT_BYTES,
+  SCAN_API_JSON_BODY_LIMIT_BYTES,
+} from './config/constants';
 import { resolve } from 'path';
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'node:fs';
@@ -43,6 +46,10 @@ const allowedCorsOrigins = new Set([
 ]);
 
 const app = express();
+const defaultJsonParser = express.json({
+  limit: DEFAULT_API_JSON_BODY_LIMIT_BYTES,
+});
+const scanJsonParser = express.json({ limit: SCAN_API_JSON_BODY_LIMIT_BYTES });
 
 if (Number.isFinite(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
   app.set('trust proxy', TRUST_PROXY_HOPS);
@@ -111,9 +118,20 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: API_JSON_BODY_LIMIT }));
 app.use(authVerificationRateLimit);
 app.use(attachActorIfPresent);
+app.use((req, res, next) => {
+  const isLargeScanPayloadRoute =
+    req.method === 'POST' &&
+    /^\/museums\/[^/]+\/scan\/(ocr|create)$/.test(req.path);
+
+  if (isLargeScanPayloadRoute) {
+    scanJsonParser(req, res, next);
+    return;
+  }
+
+  defaultJsonParser(req, res, next);
+});
 
 app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true });
