@@ -50,6 +50,8 @@ const stageLabels: Record<StageKey, string> = {
   persist: 'Creating artefact...',
 };
 
+const PLAQUE_SCAN_MAX_IMAGE_BYTES = 60 * 1024 * 1024;
+
 function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -78,7 +80,6 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
   const ocrRef = useRef<OcrPayload | null>(null);
   const imageBase64Ref = useRef<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [stageStates, setStageStates] = useState<Record<StageKey, StageState>>({
     ocr: 'idle',
@@ -90,9 +91,7 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
   const [currentMessage, setCurrentMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rawText, setRawText] = useState<string>('');
-  const [ocr, setOcr] = useState<OcrPayload | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [duplicateGate, setDuplicateGate] = useState<{
     step: 'duplicates_raw' | 'duplicates_draft';
     candidates: DuplicateCandidate[];
@@ -278,6 +277,12 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
       return;
     }
 
+    if (file.size > PLAQUE_SCAN_MAX_IMAGE_BYTES) {
+      const maxMb = PLAQUE_SCAN_MAX_IMAGE_BYTES / (1024 * 1024);
+      setError(`Image exceeds ${maxMb}MB limit. Choose a smaller photo.`);
+      return;
+    }
+
     try {
       setError(null);
       setDuplicateGate(null);
@@ -287,13 +292,10 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
       resetStages();
       setDraft(null);
       setRawText('');
-      setOcr(null);
-      setImageBase64(null);
       ocrRef.current = null;
       imageBase64Ref.current = null;
 
       const encodedImage = await readFileAsBase64(file);
-      setImageBase64(encodedImage);
       imageBase64Ref.current = encodedImage;
 
       setStageRunning('ocr');
@@ -317,7 +319,6 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
       );
 
       setRawText(ocrResponse.rawText);
-      setOcr(ocrResponse.ocr);
       ocrRef.current = ocrResponse.ocr;
       setStageDone('ocr');
 
@@ -396,7 +397,10 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
     >
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Camera capture is preferred. Upload is available as a fallback.
+          Use your camera to capture the plaque, then tap confirm to continue.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Max image size: {PLAQUE_SCAN_MAX_IMAGE_BYTES / (1024 * 1024)}MB.
         </p>
 
         <input
@@ -407,23 +411,24 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
           capture="environment"
           onChange={(event) => {
             const selected = event.target.files?.[0] ?? null;
-            setFile(selected);
             setError(null);
             setDuplicateGate(null);
             setMuseumConfidenceNeedsConfirm(false);
             setCurrentMessage(null);
             resetStages();
-            setOcr(null);
-            setImageBase64(null);
             ocrRef.current = null;
             imageBase64Ref.current = null;
 
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
-            if (selected) {
-              setPreviewUrl(URL.createObjectURL(selected));
-            } else {
-              setPreviewUrl(null);
+            if (selected && selected.size > PLAQUE_SCAN_MAX_IMAGE_BYTES) {
+              const maxMb = PLAQUE_SCAN_MAX_IMAGE_BYTES / (1024 * 1024);
+              setFile(null);
+              setError(
+                `Image exceeds ${maxMb}MB limit. Choose a smaller photo.`
+              );
+              return;
             }
+
+            setFile(selected);
           }}
           disabled={isRunning}
         />
@@ -435,23 +440,22 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
             onClick={() => fileInputRef.current?.click()}
             disabled={isRunning}
           >
-            Choose file
+            Open camera to scan
           </Button>
-          <Button type="button" onClick={startScan} disabled={isRunning}>
-            Scan plaque
+          <Button
+            type="button"
+            variant="success"
+            onClick={startScan}
+            disabled={isRunning || !file}
+          >
+            Confirm
           </Button>
         </div>
 
         {file && (
-          <p className="text-sm text-muted-foreground">Selected: {file.name}</p>
-        )}
-
-        {previewUrl && (
-          <img
-            src={previewUrl}
-            alt="Selected plaque"
-            className="max-h-64 rounded-md border object-contain"
-          />
+          <p className="text-sm text-muted-foreground">
+            Photo selected. Tap Confirm to scan.
+          </p>
         )}
 
         {error && <ErrorText>{error}</ErrorText>}

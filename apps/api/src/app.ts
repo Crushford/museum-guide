@@ -1,4 +1,5 @@
 import { env, parseCsvEnv } from './config/env';
+import { API_JSON_BODY_LIMIT } from './config/constants';
 import { resolve } from 'path';
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'node:fs';
@@ -110,7 +111,7 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '20mb' }));
+app.use(express.json({ limit: API_JSON_BODY_LIMIT }));
 app.use(authVerificationRateLimit);
 app.use(attachActorIfPresent);
 
