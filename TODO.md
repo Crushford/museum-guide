@@ -132,3 +132,7 @@
 ## Rooms
 
 We have the functionality to label each artefact with the room that it is in, this would be great to helper user navigation but we don't have a plan for how to ste it up yet
+
+## user levels
+
+just need to check to see if we can simplify checking what level of authority a user has, its seems a little messy now, maybe we can use a store or context for this?
