@@ -49,10 +49,13 @@ docker-compose.override.yml
 *.tmp
 *.temp
 
+# Firebase CLI artifacts
+.firebase/
+firebase-debug.log
+
 # Generated audio files
 apps/api/public/audio/
 
 # Uploaded plaque scan images
 apps/api/src/public/uploads/
-
 

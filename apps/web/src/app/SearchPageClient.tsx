@@ -311,9 +311,9 @@ export default function SearchPage() {
         const response = await authedApi.post<MuseumSelectResponse>(
           `/api/museums/select/${result.qid}`,
           {
-            requireAdmin: true,
-            adminErrorMessage:
-              'Sign in with an admin account to add museums from Wikidata.',
+            requireCreator: true,
+            creatorErrorMessage:
+              'Sign in with a premium or admin account to add museums from Wikidata.',
           }
         );
 

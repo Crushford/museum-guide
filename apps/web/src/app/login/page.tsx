@@ -13,7 +13,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace('/account');
+      router.replace('/signup');
     }
   }, [loading, router, user]);
 
@@ -25,7 +25,8 @@ export default function LoginPage() {
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            You need to be signed in to create museums and artifacts.
+            Free users can browse existing pages. Premium and admin users can
+            create museums and artifacts.
           </p>
           <div className="flex gap-2">
             <Button onClick={() => void signIn()} disabled={loading}>

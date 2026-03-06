@@ -5,7 +5,11 @@ import { resolve } from 'path';
 import createHttpError from 'http-errors';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { requireAuth, requireAdmin } from '../../middleware/auth';
+import {
+  requireAuth,
+  requireAdmin,
+  requireCreator,
+} from '../../middleware/auth';
 import { enforceUsageLimits } from '../../lib/usage-limits';
 import {
   parseRequiredNumber,
@@ -95,7 +99,7 @@ async function fetchArtifactContext(artifactId: number) {
   return { artifact, room, museum, parentRoom, template };
 }
 
-router.post('/content', requireAuth, requireAdmin, async (req, res) => {
+router.post('/content', requireAuth, requireCreator, async (req, res) => {
   const {
     text,
     type,
@@ -362,7 +366,7 @@ router.get(
 router.post(
   '/generate-content/artefact/:artefactId',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     try {
       const actor = await enforceAdminActionGuards({
@@ -466,7 +470,7 @@ This usually means the Prisma client needs to be regenerated. Run: yarn prisma g
 router.get(
   '/generate-content/artefact/:artefactId/stream',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     const actor = await enforceAdminActionGuards({
       req,
@@ -706,7 +710,7 @@ router.get('/wikipedia/summary', async (req, res) => {
 router.post(
   '/generate-audio/artefact/:artefactId',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     try {
       const artefactId = parseRequiredNumber(
@@ -763,7 +767,7 @@ router.post(
 router.post(
   '/generate-audio/content/:contentId',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     try {
       const contentId = parseRequiredNumber(

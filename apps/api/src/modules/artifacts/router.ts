@@ -3,10 +3,11 @@ import { z } from 'zod';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
 import createHttpError from 'http-errors';
-import { requireAuth, requireAdmin } from '../../middleware/auth';
+import { requireAuth, requireCreator } from '../../middleware/auth';
 import {
   enforceUsageLimits,
   enforceSignupPolicy,
+  withPremiumAllowanceTransaction,
 } from '../../lib/usage-limits';
 import {
   parseRequiredNumber,
@@ -192,7 +193,7 @@ function normalizeUrl(url: string): string {
 router.post(
   '/artifacts/check-duplicates',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     try {
       const { name, knowledgeText, furtherReading } = parseWithSchema(
@@ -365,34 +366,39 @@ router.post(
 );
 
 // DELETE /artifacts/:id - Delete an artifact
-router.delete('/artifacts/:id', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const id = parseRequiredNumber(req.params.id, 'Invalid artifact ID');
+router.delete(
+  '/artifacts/:id',
+  requireAuth,
+  requireCreator,
+  async (req, res) => {
+    try {
+      const id = parseRequiredNumber(req.params.id, 'Invalid artifact ID');
 
-    // Check if artifact exists
-    const artifact = await prisma.artifact.findUnique({
-      where: { id },
-    });
+      // Check if artifact exists
+      const artifact = await prisma.artifact.findUnique({
+        where: { id },
+      });
 
-    if (!artifact) {
-      return res.status(404).json({ error: 'Artifact not found' });
+      if (!artifact) {
+        return res.status(404).json({ error: 'Artifact not found' });
+      }
+
+      // Delete the artifact
+      await prisma.artifact.delete({
+        where: { id },
+      });
+
+      res.status(204).send(); // No Content
+    } catch (error) {
+      if (createHttpError.isHttpError(error)) {
+        throw error;
+      }
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to delete artifact';
+      res.status(500).json({ error: errorMessage });
     }
-
-    // Delete the artifact
-    await prisma.artifact.delete({
-      where: { id },
-    });
-
-    res.status(204).send(); // No Content
-  } catch (error) {
-    if (createHttpError.isHttpError(error)) {
-      throw error;
-    }
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to delete artifact';
-    res.status(500).json({ error: errorMessage });
   }
-});
+);
 
 // GET /museums/:museumId/artifacts - Get all artifacts from all rooms in a museum (including child rooms) with slug
 router.get('/museums/:museumId/artifacts', async (req, res) => {
@@ -502,7 +508,7 @@ router.get('/museums/:museumId/artifacts-recursive', async (req, res) => {
   }
 });
 
-router.post('/artifacts', requireAuth, requireAdmin, async (req, res) => {
+router.post('/artifacts', requireAuth, requireCreator, async (req, res) => {
   if (!req.actor) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -572,28 +578,38 @@ router.post('/artifacts', requireAuth, requireAdmin, async (req, res) => {
     }
   }
 
-  const artifact = await prisma.artifact.create({
-    data: {
-      displayTitle: buildArtifactDisplayTitle({
-        localTitle: localTitle || fallbackName,
-        localTitleLanguage: localTitleLanguage || null,
-        englishTitle: englishTitle || fallbackName,
+  const txResult = await withPremiumAllowanceTransaction({
+    res,
+    actor: req.actor,
+    increments: { artifactCreates: 1 },
+    run: async (tx) =>
+      tx.artifact.create({
+        data: {
+          displayTitle: buildArtifactDisplayTitle({
+            localTitle: localTitle || fallbackName,
+            localTitleLanguage: localTitleLanguage || null,
+            englishTitle: englishTitle || fallbackName,
+          }),
+          slug: await buildUniqueArtifactSlug({
+            museumId,
+            museumSlugOrName: museum.slug || museum.name,
+            artifactName: localTitle || fallbackName,
+          }),
+          roomId: roomId || null,
+          museumId,
+          localTitle: localTitle || fallbackName,
+          localTitleLanguage: localTitleLanguage || null,
+          englishTitle: englishTitle || null,
+          rawPlaqueText: rawPlaqueText || knowledgeText || null,
+          knowledgeTextEn: knowledgeTextEn || null,
+          furtherReading: furtherReading || [],
+        } as Prisma.ArtifactUncheckedCreateInput,
       }),
-      slug: await buildUniqueArtifactSlug({
-        museumId,
-        museumSlugOrName: museum.slug || museum.name,
-        artifactName: localTitle || fallbackName,
-      }),
-      roomId: roomId || null,
-      museumId,
-      localTitle: localTitle || fallbackName,
-      localTitleLanguage: localTitleLanguage || null,
-      englishTitle: englishTitle || null,
-      rawPlaqueText: rawPlaqueText || knowledgeText || null,
-      knowledgeTextEn: knowledgeTextEn || null,
-      furtherReading: furtherReading || [],
-    } as Prisma.ArtifactUncheckedCreateInput,
   });
+  if (!txResult.ok) {
+    return;
+  }
+  const artifact = txResult.value;
 
   res.json(artifact);
 });

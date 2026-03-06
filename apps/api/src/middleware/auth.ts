@@ -4,12 +4,20 @@ import { env } from '../config/env';
 import { adminAuth } from '../lib/firebase-admin';
 import { sendBlocked } from '../lib/usage-limits';
 import { recordApiCall } from '../lib/telemetry/api-call-tracker';
+import { prisma } from '@repo/db';
+import {
+  canCreateContent,
+  normalizeDbRole,
+  type UserRole,
+} from '../lib/user-roles';
 
 export type Actor = {
   uid: string;
   email?: string;
   displayName?: string;
   isAdmin: boolean;
+  role: UserRole;
+  canCreate: boolean;
 };
 
 declare module 'express-serve-static-core' {
@@ -75,6 +83,17 @@ export async function requireAuth(
   const startedAt = Date.now();
   try {
     const decoded = await adminAuth.verifyIdToken(token);
+    let role = normalizeDbRole(null, decoded.admin === true);
+    try {
+      const appUser = await prisma.appUser.findUnique({
+        where: { uid: decoded.uid },
+        select: { role: true },
+      });
+      role = normalizeDbRole(appUser?.role, decoded.admin === true);
+    } catch {
+      // Keep auth functional while DB migrations roll out.
+      role = normalizeDbRole(null, decoded.admin === true);
+    }
     recordApiCall({
       service: 'FirebaseAuth',
       endpoint: 'verifyIdToken',
@@ -87,6 +106,8 @@ export async function requireAuth(
       email: decoded.email,
       displayName: decoded.name,
       isAdmin: decoded.admin === true,
+      role,
+      canCreate: canCreateContent(role),
     };
     next();
   } catch (error) {
@@ -116,6 +137,16 @@ export async function attachActorIfPresent(
   const startedAt = Date.now();
   try {
     const decoded = await adminAuth.verifyIdToken(authHeader.slice(7));
+    let role = normalizeDbRole(null, decoded.admin === true);
+    try {
+      const appUser = await prisma.appUser.findUnique({
+        where: { uid: decoded.uid },
+        select: { role: true },
+      });
+      role = normalizeDbRole(appUser?.role, decoded.admin === true);
+    } catch {
+      role = normalizeDbRole(null, decoded.admin === true);
+    }
     recordApiCall({
       service: 'FirebaseAuth',
       endpoint: 'verifyIdToken',
@@ -128,6 +159,8 @@ export async function attachActorIfPresent(
       email: decoded.email,
       displayName: decoded.name,
       isAdmin: decoded.admin === true,
+      role,
+      canCreate: canCreateContent(role),
     };
   } catch (error) {
     recordApiCall({
@@ -151,6 +184,24 @@ export async function requireAdmin(
 ) {
   if (!req.actor?.isAdmin) {
     res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  next();
+}
+
+export async function requireCreator(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  if (!req.actor?.canCreate) {
+    res.status(403).json({
+      error: {
+        code: 'CREATOR_ACCESS_REQUIRED',
+        message:
+          'Premium or admin access is required to create museums or artifacts.',
+      },
+    });
     return;
   }
   next();

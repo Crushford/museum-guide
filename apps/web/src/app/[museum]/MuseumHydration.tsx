@@ -89,7 +89,7 @@ export function MuseumDetailsHydration({
     try {
       const response = await authedApi.post<MuseumHydrationResponse>(
         `/api/museums/${museumSlug}/hydrate`,
-        { requireAdmin: true }
+        { requireCreator: true }
       );
       setMuseum(response.museum);
     } catch (err) {
@@ -274,7 +274,7 @@ export function ArtifactsHydration({
     try {
       const response = await authedApi.post<ArtifactHydrationResponse>(
         `/api/museums/${museumSlug}/hydrate-artifacts`,
-        { requireAdmin: true }
+        { requireCreator: true }
       );
       setArtifacts(response.artifacts);
       setNewCount(response.newArtifacts || 0);

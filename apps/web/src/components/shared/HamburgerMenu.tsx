@@ -97,7 +97,7 @@ export function HamburgerMenu() {
             className="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-fg-subtle transition-colors hover:bg-surface hover:text-fg"
           >
             <Activity className="h-4 w-4" />
-            Activity
+            Activity / User Settings
           </Link>
 
           {/* Log out */}

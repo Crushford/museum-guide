@@ -112,7 +112,7 @@ function UsageBar({
 }
 
 export function DevHeader() {
-  const { user, isAdmin, getIdToken } = useAuth();
+  const { user, isAdmin, role, getIdToken } = useAuth();
   const [spend, setSpend] = useState<SpendRow[]>([]);
   const [dailyUsage, setDailyUsage] = useState<DailyUsage>({
     premium: { used: 0, limit: 250_000 },
@@ -141,7 +141,7 @@ export function DevHeader() {
     let cancelled = false;
 
     const refresh = async () => {
-      if (!user || !isAdmin) {
+      if (!user || !isAdmin || role !== 'admin') {
         if (!cancelled) {
           setSpend([]);
           setDailyUsage({
@@ -188,7 +188,7 @@ export function DevHeader() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [user, isAdmin, getIdToken]);
+  }, [user, isAdmin, role, getIdToken]);
 
   const totalEur = spend.reduce((sum, r) => sum + r.totalEur, 0);
 

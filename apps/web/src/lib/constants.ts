@@ -6,3 +6,5 @@
  */
 
 export const APP_NAME = 'Museum Guide';
+export const CONTACT_EMAIL = 'museumguideio@gmail.com';
+export const JAMES_LINKEDIN_URL = 'https://www.linkedin.com/in/rushfordj/';

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
 import createHttpError from 'http-errors';
-import { requireAuth, requireAdmin } from '../../middleware/auth';
+import { requireAuth, requireCreator } from '../../middleware/auth';
 import {
   parseRequiredNumber,
   parseOptionalString,
@@ -85,7 +85,7 @@ const updateRoomBodySchema = z.preprocess(
 );
 
 // DELETE /rooms/:id - Delete a room
-router.delete('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
+router.delete('/rooms/:id', requireAuth, requireCreator, async (req, res) => {
   try {
     const id = parseRequiredNumber(req.params.id, 'Invalid room ID');
 
@@ -114,7 +114,7 @@ router.delete('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-router.post('/rooms', requireAuth, requireAdmin, async (req, res) => {
+router.post('/rooms', requireAuth, requireCreator, async (req, res) => {
   const { name, museumId, parentRoomId, knowledgeText, furtherReading } =
     parseWithSchema(createRoomBodySchema, req.body);
 
@@ -286,7 +286,7 @@ router.get('/rooms/:id/children', async (req, res) => {
 });
 
 // PATCH /rooms/:id - Update a room
-router.patch('/rooms/:id', requireAuth, requireAdmin, async (req, res) => {
+router.patch('/rooms/:id', requireAuth, requireCreator, async (req, res) => {
   try {
     const id = parseRequiredNumber(req.params.id, 'Invalid room ID');
 

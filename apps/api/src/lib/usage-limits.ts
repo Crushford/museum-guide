@@ -6,6 +6,8 @@ import {
   GLOBAL_DAILY_LIMITS,
   USER_DAILY_LIMITS,
 } from './usage-limit-constants';
+import { dbRoleFromUserRole } from './user-roles';
+import { PREMIUM_ALLOWANCE_LIMITS } from './user-roles';
 const db = prisma as any;
 let didWarnMissingUsageSchema = false;
 const DEBUG_USAGE_LIMITS = env.DEBUG_USAGE_LIMITS;
@@ -15,7 +17,8 @@ export type BlockedCode =
   | 'LIMIT_USER_DAILY'
   | 'SIGNUP_WAITLIST'
   | 'AUTH_REQUIRED'
-  | 'RATE_LIMIT_AUTH';
+  | 'RATE_LIMIT_AUTH'
+  | 'PREMIUM_ALLOWANCE_LIMIT';
 
 type LimitKey =
   | 'llmCalls'
@@ -187,6 +190,245 @@ export function sendBlocked(
       ...(options?.usage ? { usage: options.usage } : {}),
     },
   });
+}
+
+export type PremiumAllowanceSummary = {
+  museumsUsed: number;
+  museumsLimit: number;
+  artifactsUsed: number;
+  artifactsLimit: number;
+  questionsUsed: number;
+  questionsLimit: number;
+};
+
+export async function getPremiumAllowanceForUser(
+  uid: string
+): Promise<PremiumAllowanceSummary> {
+  let row: {
+    premiumMuseumCreatesUsed: number;
+    premiumArtifactCreatesUsed: number;
+    premiumQuestionsAskedUsed: number;
+  } | null = null;
+  try {
+    row = await db.appUser.findUnique({
+      where: { uid },
+      select: {
+        premiumMuseumCreatesUsed: true,
+        premiumArtifactCreatesUsed: true,
+        premiumQuestionsAskedUsed: true,
+      },
+    });
+  } catch (error) {
+    if (isMissingUsageSchemaError(error)) {
+      warnMissingUsageSchema('getPremiumAllowanceForUser', error);
+    } else {
+      throw error;
+    }
+  }
+
+  return {
+    museumsUsed: row?.premiumMuseumCreatesUsed ?? 0,
+    museumsLimit: PREMIUM_ALLOWANCE_LIMITS.museums,
+    artifactsUsed: row?.premiumArtifactCreatesUsed ?? 0,
+    artifactsLimit: PREMIUM_ALLOWANCE_LIMITS.artifacts,
+    questionsUsed: row?.premiumQuestionsAskedUsed ?? 0,
+    questionsLimit: PREMIUM_ALLOWANCE_LIMITS.questions,
+  };
+}
+
+export async function enforcePremiumAllowance(options: {
+  res: Response;
+  actor: Actor;
+  increments?: {
+    museumCreates?: number;
+    artifactCreates?: number;
+    questionsAsked?: number;
+  };
+}): Promise<boolean> {
+  const increments = options.increments ?? {};
+  const museumCreates = increments.museumCreates ?? 0;
+  const artifactCreates = increments.artifactCreates ?? 0;
+  const questionsAsked = increments.questionsAsked ?? 0;
+  if (museumCreates <= 0 && artifactCreates <= 0 && questionsAsked <= 0) {
+    return true;
+  }
+
+  if (options.actor.role !== 'premium') {
+    return true;
+  }
+
+  let allowance: PremiumAllowanceSummary;
+  try {
+    allowance = await getPremiumAllowanceForUser(options.actor.uid);
+  } catch (error) {
+    if (isMissingUsageSchemaError(error)) {
+      warnMissingUsageSchema('enforcePremiumAllowance', error);
+      return true;
+    }
+    throw error;
+  }
+  const museumsNext = allowance.museumsUsed + museumCreates;
+  const artifactsNext = allowance.artifactsUsed + artifactCreates;
+  const questionsNext = allowance.questionsUsed + questionsAsked;
+
+  if (
+    museumsNext > allowance.museumsLimit ||
+    artifactsNext > allowance.artifactsLimit ||
+    questionsNext > allowance.questionsLimit
+  ) {
+    sendBlocked(
+      options.res,
+      403,
+      'PREMIUM_ALLOWANCE_LIMIT',
+      'You have reached your premium allowance. Redeem a new promo code to continue.'
+    );
+    return false;
+  }
+
+  return true;
+}
+
+export async function consumePremiumAllowance(options: {
+  actor: Actor;
+  increments?: {
+    museumCreates?: number;
+    artifactCreates?: number;
+    questionsAsked?: number;
+  };
+}) {
+  const increments = options.increments ?? {};
+  const museumCreates = increments.museumCreates ?? 0;
+  const artifactCreates = increments.artifactCreates ?? 0;
+  const questionsAsked = increments.questionsAsked ?? 0;
+  if (museumCreates <= 0 && artifactCreates <= 0 && questionsAsked <= 0) {
+    return;
+  }
+
+  if (options.actor.role !== 'premium') {
+    return;
+  }
+
+  try {
+    await db.appUser.upsert({
+      where: { uid: options.actor.uid },
+      update: {
+        premiumMuseumCreatesUsed:
+          museumCreates > 0 ? { increment: museumCreates } : undefined,
+        premiumArtifactCreatesUsed:
+          artifactCreates > 0 ? { increment: artifactCreates } : undefined,
+        premiumQuestionsAskedUsed:
+          questionsAsked > 0 ? { increment: questionsAsked } : undefined,
+      },
+      create: {
+        uid: options.actor.uid,
+        email: options.actor.email ?? null,
+        displayName: options.actor.displayName ?? null,
+        role: dbRoleFromUserRole(options.actor.role),
+        premiumMuseumCreatesUsed: museumCreates,
+        premiumArtifactCreatesUsed: artifactCreates,
+        premiumQuestionsAskedUsed: questionsAsked,
+      },
+    });
+  } catch (error) {
+    if (isMissingUsageSchemaError(error)) {
+      warnMissingUsageSchema('consumePremiumAllowance', error);
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function withPremiumAllowanceTransaction<T>(options: {
+  res: Response;
+  actor: Actor;
+  increments?: {
+    museumCreates?: number;
+    artifactCreates?: number;
+    questionsAsked?: number;
+  };
+  run: (tx: any) => Promise<T>;
+}): Promise<{ ok: true; value: T } | { ok: false }> {
+  const increments = options.increments ?? {};
+  const museumCreates = increments.museumCreates ?? 0;
+  const artifactCreates = increments.artifactCreates ?? 0;
+  const questionsAsked = increments.questionsAsked ?? 0;
+
+  if (
+    options.actor.role !== 'premium' ||
+    (museumCreates <= 0 && artifactCreates <= 0 && questionsAsked <= 0)
+  ) {
+    const value = await options.run(db);
+    return { ok: true, value };
+  }
+
+  try {
+    const result = await db.$transaction(async (tx: any) => {
+      const row = await tx.appUser.findUnique({
+        where: { uid: options.actor.uid },
+        select: {
+          premiumMuseumCreatesUsed: true,
+          premiumArtifactCreatesUsed: true,
+          premiumQuestionsAskedUsed: true,
+        },
+      });
+
+      const museumsUsed = row?.premiumMuseumCreatesUsed ?? 0;
+      const artifactsUsed = row?.premiumArtifactCreatesUsed ?? 0;
+      const questionsUsed = row?.premiumQuestionsAskedUsed ?? 0;
+
+      if (
+        museumsUsed + museumCreates > PREMIUM_ALLOWANCE_LIMITS.museums ||
+        artifactsUsed + artifactCreates > PREMIUM_ALLOWANCE_LIMITS.artifacts ||
+        questionsUsed + questionsAsked > PREMIUM_ALLOWANCE_LIMITS.questions
+      ) {
+        return { blocked: true as const };
+      }
+
+      const value = await options.run(tx);
+
+      await tx.appUser.upsert({
+        where: { uid: options.actor.uid },
+        update: {
+          premiumMuseumCreatesUsed:
+            museumCreates > 0 ? { increment: museumCreates } : undefined,
+          premiumArtifactCreatesUsed:
+            artifactCreates > 0 ? { increment: artifactCreates } : undefined,
+          premiumQuestionsAskedUsed:
+            questionsAsked > 0 ? { increment: questionsAsked } : undefined,
+        },
+        create: {
+          uid: options.actor.uid,
+          email: options.actor.email ?? null,
+          displayName: options.actor.displayName ?? null,
+          role: dbRoleFromUserRole(options.actor.role),
+          premiumMuseumCreatesUsed: museumCreates,
+          premiumArtifactCreatesUsed: artifactCreates,
+          premiumQuestionsAskedUsed: questionsAsked,
+        },
+      });
+
+      return { blocked: false as const, value };
+    });
+
+    if (result.blocked) {
+      sendBlocked(
+        options.res,
+        403,
+        'PREMIUM_ALLOWANCE_LIMIT',
+        'You have reached your premium allowance. Redeem a new promo code to continue.'
+      );
+      return { ok: false };
+    }
+
+    return { ok: true, value: result.value };
+  } catch (error) {
+    if (isMissingUsageSchemaError(error)) {
+      warnMissingUsageSchema('withPremiumAllowanceTransaction', error);
+      const value = await options.run(db);
+      return { ok: true, value };
+    }
+    throw error;
+  }
 }
 
 function globalLimitExceeded(
@@ -445,11 +687,15 @@ async function upsertUser(actor: Actor) {
     update: {
       email: actor.email ?? null,
       displayName: actor.displayName ?? null,
+      ...(actor.role === 'admin'
+        ? { role: dbRoleFromUserRole(actor.role) }
+        : {}),
     },
     create: {
       uid: actor.uid,
       email: actor.email ?? null,
       displayName: actor.displayName ?? null,
+      role: dbRoleFromUserRole(actor.role),
     },
   });
 }
@@ -535,6 +781,9 @@ export async function enforceSignupPolicy(options: {
           data: {
             email: options.actor.email ?? null,
             displayName: options.actor.displayName ?? null,
+            ...(options.actor.role === 'admin'
+              ? { role: dbRoleFromUserRole(options.actor.role) }
+              : {}),
           },
         });
         return { allowed: true };
@@ -546,6 +795,7 @@ export async function enforceSignupPolicy(options: {
             uid: options.actor.uid,
             email: options.actor.email ?? null,
             displayName: options.actor.displayName ?? null,
+            role: dbRoleFromUserRole(options.actor.role),
           },
         });
         return { allowed: true };
@@ -563,6 +813,7 @@ export async function enforceSignupPolicy(options: {
           uid: options.actor.uid,
           email: options.actor.email ?? null,
           displayName: options.actor.displayName ?? null,
+          role: dbRoleFromUserRole(options.actor.role),
         },
       });
       return { allowed: true };
