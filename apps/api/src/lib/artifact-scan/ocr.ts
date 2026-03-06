@@ -3,9 +3,9 @@ import type { OcrProviderName, OcrResult } from '@repo/types';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { env } from '../../config/env';
+import { PLAQUE_SCAN_MAX_IMAGE_BYTES } from '../../config/constants';
 import { recordApiCall } from '../telemetry/api-call-tracker';
 
-export const PLAQUE_SCAN_MAX_IMAGE_BYTES = 60 * 1024 * 1024;
 const VISION_OCR_COST_USD = 0.02457252;
 const DEFAULT_OCR_PROVIDER: OcrProviderName = 'ocr-space';
 
