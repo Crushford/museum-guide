@@ -1,10 +1,10 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Volume2 } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { BodyText } from '@/components/ui/body-text';
 import { Spinner } from '@/components/ui/spinner';
-import { SectionCard } from '@/components/shared';
+import { HowlerAudioPlayer, SectionCard } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { ErrorText } from '@/components/ui/error-text';
@@ -409,28 +409,19 @@ export function ArtifactQuestionsPanel({
 
                     {question.answerAudioUrl && (
                       <div className="flex items-center gap-2 p-2 rounded-md bg-raised/50">
-                        <Volume2 className="h-4 w-4 text-primary shrink-0" />
-                        <audio
-                          controls
+                        <HowlerAudioPlayer
                           src={`${API_URL}${question.answerAudioUrl}`}
-                          className="w-full h-10"
-                          onEnded={(event) =>
-                            trackListen(
+                          onPlaybackComplete={(durationSeconds) => {
+                            void trackListen(
                               question.id,
-                              event.currentTarget.duration || 0,
+                              durationSeconds,
                               true
-                            )
-                          }
-                          onPause={(event) =>
-                            trackListen(
-                              question.id,
-                              event.currentTarget.currentTime || 0,
-                              false
-                            )
-                          }
-                        >
-                          Your browser does not support the audio element.
-                        </audio>
+                            );
+                          }}
+                          onPauseProgress={(seconds) => {
+                            void trackListen(question.id, seconds, false);
+                          }}
+                        />
                       </div>
                     )}
                   </div>
@@ -474,13 +465,9 @@ export function ArtifactQuestionsPanel({
                   </p>
                 </div>
                 {modalAnsweredQuestion.answerAudioUrl && (
-                  <audio
-                    controls
+                  <HowlerAudioPlayer
                     src={`${API_URL}${modalAnsweredQuestion.answerAudioUrl}`}
-                    className="w-full h-10"
-                  >
-                    Your browser does not support the audio element.
-                  </audio>
+                  />
                 )}
                 <div className="flex gap-2">
                   <Button

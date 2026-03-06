@@ -143,6 +143,15 @@ Do **not** use `text-foreground` for explicit styling — the body inherits the 
 - **Focus rings**: `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`
 - **Hover on rows**: `hover:bg-surface/50`
 
+### Audio Playback
+
+- Do **not** use raw HTML `<audio>` elements in `apps/web`.
+- Use the shared Howler-based player: `HowlerAudioPlayer` from `apps/web/src/components/shared/HowlerAudioPlayer.tsx`.
+- Use the shared hook `useHowlerAudio` (`apps/web/src/hooks/useHowlerAudio.ts`) only when custom audio UI/state is required.
+- Always pass absolute API-backed URLs (typically `${API_URL}${audioUrl}`) into the player.
+- For analytics on answer playback, use `onPauseProgress` and `onPlaybackComplete` props on `HowlerAudioPlayer`.
+- For generated audio that may be invalid/empty, react to player status via `onStatusChange` and show regenerate actions in the parent UI.
+
 ### Mobile-First UI Patterns (Important)
 
 Public browsing flows (`Search` -> `Museum` -> `Room` -> `Artifact`) are used primarily on mobile. Treat horizontal overflow as a UX bug, not a cosmetic issue.

@@ -5068,6 +5068,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/howler@npm:^2":
+  version: 2.2.12
+  resolution: "@types/howler@npm:2.2.12"
+  checksum: 10c0/fb30e8c137ec03aa6a1e739be11b9d5b973f5f19d9f8a92eb11cff466170c9b5a314d73b8b34bb9a435e309ae880ba4847dee1029ec37d08c3f64b2219add462
+  languageName: node
+  linkType: hard
+
 "@types/http-errors@npm:*, @types/http-errors@npm:^2.0.5":
   version: 2.0.5
   resolution: "@types/http-errors@npm:2.0.5"
@@ -9095,6 +9102,13 @@ __metadata:
   version: 4.10.6
   resolution: "hono@npm:4.10.6"
   checksum: 10c0/a4df5a44378df640464a468cfa6364cc90fbf0a0d89c1bc8fa704c8450855b17baf7a5837655b1c00d6cf8dcecffc2ee702bf3f2c66dda243fe845b75b4b7f4b
+  languageName: node
+  linkType: hard
+
+"howler@npm:^2.2.4":
+  version: 2.2.4
+  resolution: "howler@npm:2.2.4"
+  checksum: 10c0/74a295f56fd9b2abce122b27ed12c33fa195fb8a76832803e92d8e462a1eca803b55f44c14db052211d0cfab85c7c5249664c68d95bbbc16c775fac73866c6ef
   languageName: node
   linkType: hard
 
@@ -14127,6 +14141,7 @@ __metadata:
     "@storybook/nextjs-vite": "npm:^10.1.10"
     "@tailwindcss/postcss": "npm:^4"
     "@tanstack/react-table": "npm:^8.21.3"
+    "@types/howler": "npm:^2"
     "@types/node": "npm:^22"
     "@types/react": "npm:^19"
     "@types/react-dom": "npm:^19"
@@ -14138,6 +14153,7 @@ __metadata:
     eslint-config-next: "npm:16.0.7"
     eslint-plugin-storybook: "npm:^10.1.10"
     firebase: "npm:^12.9.0"
+    howler: "npm:^2.2.4"
     json-edit-react: "npm:^1.29.0"
     lucide-react: "npm:^0.562.0"
     next: "npm:^16.1.6"

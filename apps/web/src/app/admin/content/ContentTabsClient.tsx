@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
-import { PromptTemplateBox } from '@/components/shared';
+import { HowlerAudioPlayer, PromptTemplateBox } from '@/components/shared';
 import { generateIntroductionTemplate } from '../_lib/templates';
 import { API_URL } from '@/lib/api';
 import { useAuthedApi } from '@/lib/useAuthedApi';
@@ -206,13 +206,11 @@ function ContentGroupCell({
                 {onGenerateAudio && (
                   <div className="flex items-center gap-2">
                     {hasAudio && (
-                      <audio
-                        controls
+                      <HowlerAudioPlayer
                         src={`${API_URL}${item.audioUrl}`}
-                        className="h-8"
-                      >
-                        Your browser does not support the audio element.
-                      </audio>
+                        buttonSize="sm"
+                        showDuration={false}
+                      />
                     )}
                     <Button
                       variant="secondary"

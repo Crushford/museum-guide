@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SectionCard } from '../../../../components/shared';
+import { HowlerAudioPlayer, SectionCard } from '../../../../components/shared';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -136,11 +136,7 @@ export function ArtifactContentInspector({
               <p className="text-sm whitespace-pre-wrap">{item.text}</p>
 
               {item.audioUrl && (
-                <audio
-                  controls
-                  src={`${API_URL}${item.audioUrl}`}
-                  className="w-full"
-                />
+                <HowlerAudioPlayer src={`${API_URL}${item.audioUrl}`} />
               )}
 
               {item.type === 'introduction' && (

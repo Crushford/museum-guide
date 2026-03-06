@@ -37,7 +37,7 @@ interface UseIntroductionGenerationResult {
   statusMessage: string;
   error: string | null;
   generate: () => void;
-  retryAudio: () => void;
+  retryAudio: () => Promise<boolean>;
 }
 
 export function useIntroductionGeneration({
@@ -233,7 +233,7 @@ export function useIntroductionGeneration({
             throw new Error('Generation stream ended before completion.');
           }
         },
-        { requireAdmin: true }
+        { requireCreator: true }
       );
     } catch (err) {
       console.error('Error generating introduction:', err);
@@ -259,8 +259,8 @@ export function useIntroductionGeneration({
     onContentGenerated,
   ]);
 
-  const handleRetryAudio = useCallback(async () => {
-    if (!content) return;
+  const handleRetryAudio = useCallback(async (): Promise<boolean> => {
+    if (!content) return false;
 
     setIsRetryingAudio(true);
     setError(null);
@@ -271,7 +271,7 @@ export function useIntroductionGeneration({
           method: 'POST',
           body: { ttsProvider: preferredTtsProvider },
         },
-        { requireAdmin: true }
+        { requireCreator: true }
       );
 
       setContent(updated);
@@ -279,11 +279,14 @@ export function useIntroductionGeneration({
         setError(
           'Audio retry completed but no audio URL was returned. Check API logs.'
         );
+        return false;
       }
+      return true;
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to regenerate audio'
       );
+      return false;
     } finally {
       setIsRetryingAudio(false);
     }
