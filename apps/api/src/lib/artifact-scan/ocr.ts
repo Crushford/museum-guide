@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { env } from '../../config/env';
 import { recordApiCall } from '../telemetry/api-call-tracker';
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+export const PLAQUE_SCAN_MAX_IMAGE_BYTES = 60 * 1024 * 1024;
 const VISION_OCR_COST_USD = 0.02457252;
 const DEFAULT_OCR_PROVIDER: OcrProviderName = 'ocr-space';
 
@@ -25,8 +25,10 @@ export function decodeBase64Image(imageBase64: string): DecodedImage {
   if (!buffer.length) {
     throw new Error('Image payload was empty');
   }
-  if (buffer.length > MAX_IMAGE_BYTES) {
-    throw new Error(`Image exceeds ${MAX_IMAGE_BYTES / (1024 * 1024)}MB limit`);
+  if (buffer.length > PLAQUE_SCAN_MAX_IMAGE_BYTES) {
+    throw new Error(
+      `Image exceeds ${PLAQUE_SCAN_MAX_IMAGE_BYTES / (1024 * 1024)}MB limit`
+    );
   }
 
   return { buffer, mimeType };
