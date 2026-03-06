@@ -78,6 +78,8 @@ export default function RootLayout({
                 <p className="text-sm text-fg-subtle">Museum Guide</p>
                 <nav className="flex items-center gap-6 text-sm">
                   <NavLink href="/about">About Us</NavLink>
+                  <NavLink href="/privacy">Privacy Policy</NavLink>
+                  <NavLink href="/terms">Terms of Service</NavLink>
                   <NavLink href="/admin">Admin</NavLink>
                 </nav>
               </div>
