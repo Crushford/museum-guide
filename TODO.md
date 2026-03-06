@@ -109,6 +109,7 @@
 - [ ] Implement museum confidence confirmation flow in plaque scanner (currently TODO in `PlaqueScanner.tsx`).
 - [ ] Implement incorrect-match review flow (currently TODO in `IncorrectMatchNotice.tsx`).
 - [ ] Add operator tooling to resolve duplicate-match misroutes and retrain duplicate heuristics.
+- [ ] Validate production upload ceilings and set final limits: decide the real max plaque image size for high-res phone photos, then tune API JSON body limit (`apps/api/src/config/constants.ts`) to only cover base64 overhead above that cap.
 
 ## Localization
 
