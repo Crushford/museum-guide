@@ -18,6 +18,8 @@ type AccountUsageResponse = {
     email: string | null;
     displayName: string | null;
     isAdmin: boolean;
+    role: 'free' | 'premium' | 'admin';
+    canCreate: boolean;
   };
   usage: {
     dateKey: string;
@@ -143,6 +145,15 @@ export default function AccountPage() {
                   {data?.user.uid || user.uid}
                 </p>
               </div>
+              {data && (
+                <div>
+                  <p className="text-fg-subtle">Role</p>
+                  <p className="capitalize">
+                    {data.user.role}
+                    {data.user.canCreate ? ' (can create)' : ' (view only)'}
+                  </p>
+                </div>
+              )}
 
               {error && <Alert>{error}</Alert>}
 

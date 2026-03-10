@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import type { StructuredApiErrorBody, UsageSnapshot } from '@/lib/api-errors';
 import { apiErrorEventName } from '@/lib/api-errors';
+import { CONTACT_EMAIL, JAMES_LINKEDIN_URL } from '@/lib/constants';
 
 const FEEDBACK_URL =
   process.env.NEXT_PUBLIC_FEEDBACK_URL ||
@@ -21,7 +22,7 @@ const FEEDBACK_URL =
   'https://forms.gle/';
 const WAITLIST_URL =
   process.env.NEXT_PUBLIC_WAITLIST_URL || 'https://forms.gle/U1PqnrG22YzV2sXu8';
-const LINKEDIN_URL = 'https://www.linkedin.com/in/rushfordj/';
+const LINKEDIN_URL = JAMES_LINKEDIN_URL;
 
 export function ApiErrorDialogs() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export function ApiErrorDialogs() {
   const [showGlobalLimit, setShowGlobalLimit] = useState(false);
   const [showAuthRequired, setShowAuthRequired] = useState(false);
   const [showAuthRateLimit, setShowAuthRateLimit] = useState(false);
+  const [showAuthSignInFailed, setShowAuthSignInFailed] = useState(false);
   const [userLimitUsage, setUserLimitUsage] = useState<UsageSnapshot | null>(
     null
   );
@@ -59,8 +61,18 @@ export function ApiErrorDialogs() {
         return;
       }
 
+      if (payload.code === 'AUTH_SIGNIN_FAILED') {
+        setShowAuthSignInFailed(true);
+        return;
+      }
+
       if (payload.code === 'SIGNUP_WAITLIST') {
         router.push('/waitlist');
+        return;
+      }
+
+      if (payload.code === 'PREMIUM_ALLOWANCE_LIMIT') {
+        router.push('/activity');
       }
     };
 
@@ -218,6 +230,41 @@ export function ApiErrorDialogs() {
             <Button
               variant="secondary"
               onClick={() => setShowAuthRateLimit(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showAuthSignInFailed}
+        onOpenChange={setShowAuthSignInFailed}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sign in failed</DialogTitle>
+            <DialogDescription>
+              Sorry, something went wrong while signing you in.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            We logged this error and will look at it ASAP.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            If you have questions, contact James at{' '}
+            <a
+              href={`mailto:${CONTACT_EMAIL}`}
+              className="underline underline-offset-2"
+            >
+              {CONTACT_EMAIL}
+            </a>
+            .
+          </p>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setShowAuthSignInFailed(false)}
             >
               Close
             </Button>

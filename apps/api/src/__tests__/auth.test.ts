@@ -35,6 +35,8 @@ describe('GET /auth/status', () => {
       uid: adminToken.uid,
       email: adminToken.email,
       isAdmin: true,
+      role: 'admin',
+      canCreate: true,
       usage,
     });
   });
@@ -87,6 +89,8 @@ describe('GET /account/usage', () => {
         uid: adminToken.uid,
         email: adminToken.email,
         isAdmin: true,
+        role: 'admin',
+        canCreate: true,
       },
       usage,
     });

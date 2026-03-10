@@ -71,7 +71,21 @@ vi.mock('firebase-admin/app', () => ({
 }));
 
 vi.mock('firebase-admin/auth', () => ({
-  getAuth: vi.fn().mockReturnValue({ verifyIdToken: _mockVerifyIdToken }),
+  getAuth: vi.fn().mockReturnValue({
+    verifyIdToken: _mockVerifyIdToken,
+    listUsers: vi.fn().mockResolvedValue({ users: [] }),
+    getUser: vi.fn().mockResolvedValue({
+      uid: 'admin-uid',
+      email: 'admin@test.com',
+      displayName: 'Test Admin',
+      customClaims: { admin: true },
+      metadata: {
+        creationTime: new Date().toISOString(),
+        lastRefreshTime: new Date().toISOString(),
+      },
+    }),
+    setCustomUserClaims: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 vi.mock('@repo/db', () => ({
@@ -131,6 +145,26 @@ vi.mock('@repo/db', () => ({
       create: vi.fn(),
       count: vi.fn(),
     },
+    appUser: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      create: vi.fn(),
+      count: vi.fn(),
+    },
+    promoCode: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+    },
+    promoCodeRedemption: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      count: vi.fn(),
+    },
+    $transaction: vi.fn(async (cb: any) => cb((global as any).__mockPrismaTx)),
     $on: vi.fn(),
   },
 }));
@@ -144,6 +178,10 @@ vi.mock('../../lib/usage-limits', () => ({
   enforceUsageLimits: vi.fn(),
   enforceSignupPolicy: vi.fn(),
   getUserUsageForToday: vi.fn(),
+  getPremiumAllowanceForUser: vi.fn(),
+  enforcePremiumAllowance: vi.fn(),
+  consumePremiumAllowance: vi.fn(),
+  withPremiumAllowanceTransaction: vi.fn(),
   enforcePlaqueScanLimit: vi.fn(),
   sendBlocked: vi.fn(),
 }));
@@ -259,6 +297,10 @@ import {
   enforceUsageLimits,
   enforceSignupPolicy,
   getUserUsageForToday,
+  getPremiumAllowanceForUser,
+  enforcePremiumAllowance,
+  consumePremiumAllowance,
+  withPremiumAllowanceTransaction,
   enforcePlaqueScanLimit,
   sendBlocked,
 } from '../../lib/usage-limits';
@@ -317,6 +359,7 @@ import {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  (global as any).__mockPrismaTx = prisma;
 
   // Auth
   _mockVerifyIdToken.mockResolvedValue(ADMIN_TOKEN);
@@ -331,6 +374,14 @@ beforeEach(() => {
   // Usage / signup gates
   vi.mocked(enforceUsageLimits).mockResolvedValue(true);
   vi.mocked(enforceSignupPolicy).mockResolvedValue(true);
+  vi.mocked(enforcePremiumAllowance).mockResolvedValue(true);
+  vi.mocked(consumePremiumAllowance).mockResolvedValue(undefined);
+  vi.mocked(withPremiumAllowanceTransaction).mockImplementation(
+    async ({ run }: any) => ({
+      ok: true,
+      value: await run(prisma),
+    })
+  );
   vi.mocked(enforcePlaqueScanLimit).mockResolvedValue(true);
   vi.mocked(getUserUsageForToday).mockResolvedValue({
     llmCalls: 0,
@@ -338,6 +389,14 @@ beforeEach(() => {
     museumCreates: 0,
     artifactCreates: 0,
   } as any);
+  vi.mocked(getPremiumAllowanceForUser).mockResolvedValue({
+    museumsUsed: 0,
+    museumsLimit: 20,
+    artifactsUsed: 0,
+    artifactsLimit: 50,
+    questionsUsed: 0,
+    questionsLimit: 50,
+  });
 
   // Moderation
   vi.mocked(moderateTextForLlm).mockResolvedValue({
@@ -455,4 +514,21 @@ beforeEach(() => {
   vi.mocked(prisma.artifactQuestionVote.count).mockResolvedValue(0);
   vi.mocked(prisma.apiCall.findMany).mockResolvedValue([]);
   vi.mocked(prisma.apiCall.count).mockResolvedValue(0);
+  vi.mocked(prisma.appUser.findUnique).mockResolvedValue(null);
+  vi.mocked(prisma.appUser.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.appUser.count).mockResolvedValue(0);
+  vi.mocked(prisma.promoCode.findUnique).mockResolvedValue(null);
+  vi.mocked(prisma.promoCode.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.promoCode.create).mockResolvedValue({
+    id: 1,
+    code: 'beta-tester-james',
+    isActive: true,
+    maxRedemptions: 15,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as any);
+  vi.mocked(prisma.promoCodeRedemption.findUnique).mockResolvedValue(null);
+  vi.mocked(prisma.promoCodeRedemption.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.promoCodeRedemption.count).mockResolvedValue(0);
+  vi.mocked(prisma.promoCodeRedemption.create).mockResolvedValue({} as any);
 });

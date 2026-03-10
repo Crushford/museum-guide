@@ -4,7 +4,10 @@ import type { Prisma } from '@repo/db';
 import { createHash } from 'crypto';
 import { resolve } from 'path';
 import createHttpError from 'http-errors';
-import { enforceUsageLimits } from '../../lib/usage-limits';
+import {
+  enforceUsageLimits,
+  withPremiumAllowanceTransaction,
+} from '../../lib/usage-limits';
 import {
   parseRequiredNumber,
   parseWithSchema,
@@ -444,48 +447,112 @@ router.post('/artifacts/:artifactId/questions/ask', async (req, res) => {
       throw new Error('LLM provider returned an empty answer text.');
     }
 
-    const question = await prisma.artifactQuestion.create({
-      data: {
-        artifactId: context.artifact.id,
-        museumId: context.artifact.museumId,
-        roomId: context.artifact.roomId ?? null,
-        questionText: publishQuestion,
-        normalizedQuestion,
-        questionHash,
-        questionLanguage: null,
-        askedByUsername: req.actor?.uid ?? PROTOTYPE_USERNAME,
-        status: publishAnonymously ? 'ANONYMIZED' : 'ACTIVE',
-        similarToQuestionId:
-          mostSimilar && mostSimilar.similarity >= SIMILARITY_THRESHOLD
-            ? mostSimilar.id
-            : null,
-        answerText,
-        answerLanguage: null,
-        isAdultContent: result.isAdultContent === true,
-        sensitiveTopics: sanitizeSensitiveTopics(result.sensitiveTopics),
-        subjectTags: sanitizeSubjectTags(result.subjectTags),
-        moderationBlocked: false,
-        llmProvider: result.provider,
-        model: result.model,
-        prompt,
-        promptVersion: QUESTION_PROMPT_VERSION,
-      },
-    });
+    const txResult =
+      req.actor && req.actor.role === 'premium'
+        ? await withPremiumAllowanceTransaction({
+            res,
+            actor: req.actor,
+            increments: { questionsAsked: 1 },
+            run: async (tx) => {
+              const created = await tx.artifactQuestion.create({
+                data: {
+                  artifactId: context.artifact.id,
+                  museumId: context.artifact.museumId,
+                  roomId: context.artifact.roomId ?? null,
+                  questionText: publishQuestion,
+                  normalizedQuestion,
+                  questionHash,
+                  questionLanguage: null,
+                  askedByUsername: req.actor?.uid ?? PROTOTYPE_USERNAME,
+                  status: publishAnonymously ? 'ANONYMIZED' : 'ACTIVE',
+                  similarToQuestionId:
+                    mostSimilar &&
+                    mostSimilar.similarity >= SIMILARITY_THRESHOLD
+                      ? mostSimilar.id
+                      : null,
+                  answerText,
+                  answerLanguage: null,
+                  isAdultContent: result.isAdultContent === true,
+                  sensitiveTopics: sanitizeSensitiveTopics(
+                    result.sensitiveTopics
+                  ),
+                  subjectTags: sanitizeSubjectTags(result.subjectTags),
+                  moderationBlocked: false,
+                  llmProvider: result.provider,
+                  model: result.model,
+                  prompt,
+                  promptVersion: QUESTION_PROMPT_VERSION,
+                },
+              });
 
-    // Auto-upvote from the question asker.
-    // BUG: The vote record is stored correctly, but the client doesn't reliably
-    // reflect it as active on first render — the upvote arrow may not highlight
-    // and clicking upvote may not toggle it off. The create response includes
-    // `upvotes: 1` but doesn't include `currentUserVote: 1`, so the frontend
-    // can't seed its userVotes state from this response. See TODO.md for fix.
-    const askerUsername = req.actor?.uid ?? PROTOTYPE_USERNAME;
-    await prisma.artifactQuestionVote.create({
-      data: { questionId: question.id, username: askerUsername, value: 1 },
-    });
-    await prisma.artifactQuestion.update({
-      where: { id: question.id },
-      data: { upvotes: 1 },
-    });
+              const askerUsername = req.actor?.uid ?? PROTOTYPE_USERNAME;
+              await tx.artifactQuestionVote.create({
+                data: {
+                  questionId: created.id,
+                  username: askerUsername,
+                  value: 1,
+                },
+              });
+              await tx.artifactQuestion.update({
+                where: { id: created.id },
+                data: { upvotes: 1 },
+              });
+
+              return created;
+            },
+          })
+        : {
+            ok: true as const,
+            value: await (async () => {
+              const created = await prisma.artifactQuestion.create({
+                data: {
+                  artifactId: context.artifact.id,
+                  museumId: context.artifact.museumId,
+                  roomId: context.artifact.roomId ?? null,
+                  questionText: publishQuestion,
+                  normalizedQuestion,
+                  questionHash,
+                  questionLanguage: null,
+                  askedByUsername: req.actor?.uid ?? PROTOTYPE_USERNAME,
+                  status: publishAnonymously ? 'ANONYMIZED' : 'ACTIVE',
+                  similarToQuestionId:
+                    mostSimilar &&
+                    mostSimilar.similarity >= SIMILARITY_THRESHOLD
+                      ? mostSimilar.id
+                      : null,
+                  answerText,
+                  answerLanguage: null,
+                  isAdultContent: result.isAdultContent === true,
+                  sensitiveTopics: sanitizeSensitiveTopics(
+                    result.sensitiveTopics
+                  ),
+                  subjectTags: sanitizeSubjectTags(result.subjectTags),
+                  moderationBlocked: false,
+                  llmProvider: result.provider,
+                  model: result.model,
+                  prompt,
+                  promptVersion: QUESTION_PROMPT_VERSION,
+                },
+              });
+              const askerUsername = req.actor?.uid ?? PROTOTYPE_USERNAME;
+              await prisma.artifactQuestionVote.create({
+                data: {
+                  questionId: created.id,
+                  username: askerUsername,
+                  value: 1,
+                },
+              });
+              await prisma.artifactQuestion.update({
+                where: { id: created.id },
+                data: { upvotes: 1 },
+              });
+              return created;
+            })(),
+          };
+    if (!txResult.ok) {
+      return;
+    }
+    const question = txResult.value;
 
     const { audioUrl: answerAudioUrl } = await withOptionalAudioGeneration({
       logLabel: '[questions.ask] Audio generation failed',

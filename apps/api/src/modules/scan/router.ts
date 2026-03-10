@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import createHttpError from 'http-errors';
-import { requireAuth, requireAdmin } from '../../middleware/auth';
+import { requireAuth, requireCreator } from '../../middleware/auth';
 import { prisma } from '@repo/db';
+import {
+  consumePremiumAllowance,
+  enforcePremiumAllowance,
+} from '../../lib/usage-limits';
 import {
   extractTextFromImage,
   parseOcrProvider,
@@ -28,7 +32,7 @@ export const router = Router();
 router.post(
   '/museums/:museumId/scan/ocr',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     try {
       const actor = await enforceAdminActionGuards({
@@ -38,6 +42,15 @@ router.post(
         plaqueScanLimit: true,
       });
       if (!actor) {
+        return;
+      }
+
+      const premiumAllowed = await enforcePremiumAllowance({
+        res,
+        actor,
+        increments: { artifactCreates: 1 },
+      });
+      if (!premiumAllowed) {
         return;
       }
 
@@ -89,7 +102,7 @@ router.post(
 router.post(
   '/museums/:museumId/scan/duplicates-raw',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     try {
       const museumId = parseRequiredNumber(
@@ -118,7 +131,7 @@ router.post(
 router.post(
   '/museums/:museumId/scan/draft',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     try {
       const museumId = parseRequiredNumber(
@@ -157,7 +170,7 @@ router.post(
 router.post(
   '/museums/:museumId/scan/duplicates-draft',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     try {
       const museumId = parseRequiredNumber(
@@ -205,7 +218,7 @@ router.post(
 router.post(
   '/museums/:museumId/scan/create',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     try {
       const actor = await enforceAdminActionGuards({
@@ -303,6 +316,11 @@ router.post(
               ? enrichment.wikimediaImageUrl
               : null,
         },
+      });
+
+      await consumePremiumAllowance({
+        actor,
+        increments: { artifactCreates: 1 },
       });
 
       res.json(created);

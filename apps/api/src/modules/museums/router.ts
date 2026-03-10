@@ -4,10 +4,11 @@ import { prisma } from '@repo/db';
 import type { Prisma } from '@repo/db';
 import createHttpError from 'http-errors';
 import type { MuseumResponse, WikidataSearchResult } from '@repo/types';
-import { requireAuth, requireAdmin } from '../../middleware/auth';
+import { requireAuth, requireCreator } from '../../middleware/auth';
 import {
   enforceUsageLimits,
   enforceSignupPolicy,
+  withPremiumAllowanceTransaction,
 } from '../../lib/usage-limits';
 import {
   parseRequiredNumber,
@@ -386,222 +387,236 @@ apiRouter.get('/search/nearby', async (req, res) => {
 });
 
 // POST /api/museums/select/:qid - Select and enrich a museum by QID
-apiRouter.post('/select/:qid', requireAuth, requireAdmin, async (req, res) => {
-  if (!req.actor) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
+apiRouter.post(
+  '/select/:qid',
+  requireAuth,
+  requireCreator,
+  async (req, res) => {
+    if (!req.actor) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
 
-  const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
-  if (!signupAllowed) {
-    return;
-  }
+    const signupAllowed = await enforceSignupPolicy({ actor: req.actor, res });
+    if (!signupAllowed) {
+      return;
+    }
 
-  const allowed = await enforceUsageLimits({
-    res,
-    actor: req.actor,
-    globalIncrements: { dbOps: 1, wikiCalls: 1 },
-    userIncrements: { wikiCalls: 1 },
-  });
-  if (!allowed) {
-    return;
-  }
-
-  const { qid } = req.params;
-
-  // Validate QID format
-  if (!/^Q\d+$/.test(qid)) {
-    return res.status(400).json({
-      error: `Invalid QID format: ${qid}. Expected format: Q followed by numbers (e.g., Q33506)`,
+    const allowed = await enforceUsageLimits({
+      res,
+      actor: req.actor,
+      globalIncrements: { dbOps: 1, wikiCalls: 1 },
+      userIncrements: { wikiCalls: 1 },
     });
-  }
+    if (!allowed) {
+      return;
+    }
 
-  try {
-    const missingWikipediaError =
-      'This Wikidata result has no linked Wikipedia article, so it is likely not a real museum record. Please select a different result.';
-    const getMuseumUpdateData = (
-      existingMuseum: {
-        wikipediaUrl: string | null;
-        image: string | null;
-        coordinates: unknown;
-        locationTags: string[];
-      },
-      details: {
-        wikipediaUrl?: string;
-        image?: string;
-        coordinates?: { lat: number; lng: number };
-        locationLabels: string[];
+    const { qid } = req.params;
+
+    // Validate QID format
+    if (!/^Q\d+$/.test(qid)) {
+      return res.status(400).json({
+        error: `Invalid QID format: ${qid}. Expected format: Q followed by numbers (e.g., Q33506)`,
+      });
+    }
+
+    try {
+      const missingWikipediaError =
+        'This Wikidata result has no linked Wikipedia article, so it is likely not a real museum record. Please select a different result.';
+      const getMuseumUpdateData = (
+        existingMuseum: {
+          wikipediaUrl: string | null;
+          image: string | null;
+          coordinates: unknown;
+          locationTags: string[];
+        },
+        details: {
+          wikipediaUrl?: string;
+          image?: string;
+          coordinates?: { lat: number; lng: number };
+          locationLabels: string[];
+        }
+      ) => ({
+        wikipediaUrl: details.wikipediaUrl || existingMuseum.wikipediaUrl,
+        image: details.image || existingMuseum.image,
+        coordinates: details.coordinates
+          ? details.coordinates
+          : ((existingMuseum.coordinates as {
+              lat: number;
+              lng: number;
+            } | null) ?? undefined),
+        locationTags:
+          existingMuseum.locationTags.length > 0
+            ? existingMuseum.locationTags
+            : details.locationLabels,
+      });
+
+      // Check if museum already exists in DB
+      const existingMuseum = await prisma.museum.findUnique({
+        where: { wikidataId: qid },
+      });
+
+      if (existingMuseum) {
+        const needsEnrichment =
+          !existingMuseum.wikipediaUrl ||
+          !existingMuseum.image ||
+          !existingMuseum.coordinates ||
+          existingMuseum.locationTags.length === 0;
+
+        const details = needsEnrichment ? await fetchWikidataEntity(qid) : null;
+
+        // Existing records must have a Wikipedia URL to be considered valid museum selections
+        if (!existingMuseum.wikipediaUrl && !details?.wikipediaUrl) {
+          return res.status(422).json({
+            error: missingWikipediaError,
+          });
+        }
+
+        if (details) {
+          await prisma.museum.update({
+            where: { wikidataId: qid },
+            data: getMuseumUpdateData(existingMuseum, details),
+          });
+        }
+
+        return res.json({
+          created: false,
+          museum: {
+            id: existingMuseum.id,
+            qid,
+            slug: existingMuseum.slug,
+            name: existingMuseum.name,
+          },
+        });
       }
-    ) => ({
-      wikipediaUrl: details.wikipediaUrl || existingMuseum.wikipediaUrl,
-      image: details.image || existingMuseum.image,
-      coordinates: details.coordinates
-        ? details.coordinates
-        : ((existingMuseum.coordinates as {
-            lat: number;
-            lng: number;
-          } | null) ?? undefined),
-      locationTags:
-        existingMuseum.locationTags.length > 0
-          ? existingMuseum.locationTags
-          : details.locationLabels,
-    });
 
-    // Check if museum already exists in DB
-    const existingMuseum = await prisma.museum.findUnique({
-      where: { wikidataId: qid },
-    });
+      // Museum doesn't exist - fetch details from Wikidata and create
+      const details = await fetchWikidataEntity(qid);
 
-    if (existingMuseum) {
-      const needsEnrichment =
-        !existingMuseum.wikipediaUrl ||
-        !existingMuseum.image ||
-        !existingMuseum.coordinates ||
-        existingMuseum.locationTags.length === 0;
+      if (!details) {
+        return res.status(404).json({
+          error: `Museum not found on Wikidata: ${qid}`,
+        });
+      }
 
-      const details = needsEnrichment ? await fetchWikidataEntity(qid) : null;
-
-      // Existing records must have a Wikipedia URL to be considered valid museum selections
-      if (!existingMuseum.wikipediaUrl && !details?.wikipediaUrl) {
+      if (!details.wikipediaUrl) {
         return res.status(422).json({
           error: missingWikipediaError,
         });
       }
 
-      if (details) {
-        await prisma.museum.update({
-          where: { wikidataId: qid },
-          data: getMuseumUpdateData(existingMuseum, details),
-        });
+      const museumName =
+        typeof details.label === 'string' && details.label.trim().length > 0
+          ? details.label.trim()
+          : qid;
+      const rawSlug = generateSlug(museumName);
+      const museumSlug =
+        rawSlug.length > 0 ? rawSlug : `museum-${qid.toLowerCase()}`;
+
+      // Create the museum
+      const createAllowed = await enforceUsageLimits({
+        res,
+        actor: req.actor,
+        globalIncrements: { museumCreates: 1 },
+        userIncrements: { museumCreates: 1 },
+      });
+      if (!createAllowed) {
+        return;
       }
 
-      return res.json({
-        created: false,
+      const txResult = await withPremiumAllowanceTransaction({
+        res,
+        actor: req.actor,
+        increments: { museumCreates: 1 },
+        run: async (tx) =>
+          tx.museum.create({
+            data: {
+              name: museumName,
+              slug: museumSlug,
+              wikidataId: qid,
+              wikipediaUrl: details.wikipediaUrl,
+              image: details.image || null,
+              coordinates: details.coordinates ?? undefined,
+              locationTags: details.locationLabels || [],
+              knowledgeText: null,
+              furtherReading: [],
+              updatedAt: new Date(),
+            },
+          }),
+      });
+      if (!txResult.ok) {
+        return;
+      }
+      const museum = txResult.value;
+
+      (res.locals as { usageDelta?: Record<string, number> }).usageDelta = {
+        museumCreates: 1,
+        wikiCalls: 1,
+      };
+      res.json({
+        created: true,
         museum: {
-          id: existingMuseum.id,
+          id: museum.id,
           qid,
-          slug: existingMuseum.slug,
-          name: existingMuseum.name,
+          slug: museum.slug,
+          name: museum.name,
         },
       });
-    }
+    } catch (error: unknown) {
+      // Handle slug collision
+      const prismaError = error as {
+        code?: string;
+        meta?: { modelName?: string };
+      };
+      if (
+        prismaError.code === 'P2002' &&
+        prismaError.meta?.modelName === 'Museum'
+      ) {
+        // If creation failed due to uniqueness, try resolving a now-existing row
+        // without making another Wikidata request (which may be rate-limited).
+        const existingByQid = await prisma.museum.findUnique({
+          where: { wikidataId: qid },
+        });
 
-    // Museum doesn't exist - fetch details from Wikidata and create
-    const details = await fetchWikidataEntity(qid);
+        if (existingByQid) {
+          return res.json({
+            created: false,
+            museum: {
+              id: existingByQid.id,
+              qid: existingByQid.wikidataId || qid,
+              slug: existingByQid.slug,
+              name: existingByQid.name,
+            },
+          });
+        }
 
-    if (!details) {
-      return res.status(404).json({
-        error: `Museum not found on Wikidata: ${qid}`,
-      });
-    }
-
-    if (!details.wikipediaUrl) {
-      return res.status(422).json({
-        error: missingWikipediaError,
-      });
-    }
-
-    const museumName =
-      typeof details.label === 'string' && details.label.trim().length > 0
-        ? details.label.trim()
-        : qid;
-    const rawSlug = generateSlug(museumName);
-    const museumSlug =
-      rawSlug.length > 0 ? rawSlug : `museum-${qid.toLowerCase()}`;
-
-    // Create the museum
-    const createAllowed = await enforceUsageLimits({
-      res,
-      actor: req.actor,
-      globalIncrements: { museumCreates: 1 },
-      userIncrements: { museumCreates: 1 },
-    });
-    if (!createAllowed) {
-      return;
-    }
-
-    const museum = await prisma.museum.create({
-      data: {
-        name: museumName,
-        slug: museumSlug,
-        wikidataId: qid,
-        wikipediaUrl: details.wikipediaUrl,
-        image: details.image || null,
-        coordinates: details.coordinates ?? undefined,
-        locationTags: details.locationLabels || [],
-        knowledgeText: null,
-        furtherReading: [],
-        updatedAt: new Date(),
-      },
-    });
-
-    (res.locals as { usageDelta?: Record<string, number> }).usageDelta = {
-      museumCreates: 1,
-      wikiCalls: 1,
-    };
-
-    res.json({
-      created: true,
-      museum: {
-        id: museum.id,
-        qid,
-        slug: museum.slug,
-        name: museum.name,
-      },
-    });
-  } catch (error: unknown) {
-    // Handle slug collision
-    const prismaError = error as {
-      code?: string;
-      meta?: { modelName?: string };
-    };
-    if (
-      prismaError.code === 'P2002' &&
-      prismaError.meta?.modelName === 'Museum'
-    ) {
-      // If creation failed due to uniqueness, try resolving a now-existing row
-      // without making another Wikidata request (which may be rate-limited).
-      const existingByQid = await prisma.museum.findUnique({
-        where: { wikidataId: qid },
-      });
-
-      if (existingByQid) {
-        return res.json({
-          created: false,
-          museum: {
-            id: existingByQid.id,
-            qid: existingByQid.wikidataId || qid,
-            slug: existingByQid.slug,
-            name: existingByQid.name,
-          },
+        return res.status(409).json({
+          error: 'A museum with a similar name already exists',
         });
       }
 
-      return res.status(409).json({
-        error: 'A museum with a similar name already exists',
-      });
-    }
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to select museum';
+      if (
+        errorMessage.includes('Wikidata entity fetch failed: 429') ||
+        errorMessage.includes('Wikidata search failed: 429')
+      ) {
+        return res.status(503).json({
+          error:
+            'Wikidata is rate-limiting requests right now. Please wait a moment and try again.',
+        });
+      }
 
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to select museum';
-    if (
-      errorMessage.includes('Wikidata entity fetch failed: 429') ||
-      errorMessage.includes('Wikidata search failed: 429')
-    ) {
-      return res.status(503).json({
-        error:
-          'Wikidata is rate-limiting requests right now. Please wait a moment and try again.',
-      });
+      res.status(500).json({ error: errorMessage });
     }
-
-    res.status(500).json({ error: errorMessage });
   }
-});
+);
 
 // POST /api/museums/:slug/hydrate - Hydrate museum details from Wikidata/Wikipedia
 apiRouter.post(
   '/:slug/hydrate',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     const { slug } = req.params;
     const force = req.query.force === '1';
@@ -716,7 +731,7 @@ apiRouter.post(
 apiRouter.post(
   '/:slug/hydrate-artifacts',
   requireAuth,
-  requireAdmin,
+  requireCreator,
   async (req, res) => {
     const { slug } = req.params;
     const force = req.query.force === '1';
@@ -975,7 +990,7 @@ router.get('/by-slug/:slug', async (req, res) => {
   }
 });
 
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+router.post('/', requireAuth, requireCreator, async (req, res) => {
   if (!req.actor) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -1000,24 +1015,33 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     req.body,
     'Name is required'
   );
-  const museum = await prisma.museum.create({
-    data: {
-      name,
-      slug: generateSlug(name),
-      knowledgeText: knowledgeText || null,
-      furtherReading: furtherReading || [],
-    } as Prisma.MuseumCreateInput,
+  const txResult = await withPremiumAllowanceTransaction({
+    res,
+    actor: req.actor,
+    increments: { museumCreates: 1 },
+    run: async (tx) =>
+      tx.museum.create({
+        data: {
+          name,
+          slug: generateSlug(name),
+          knowledgeText: knowledgeText || null,
+          furtherReading: furtherReading || [],
+        } as Prisma.MuseumCreateInput,
+      }),
   });
+  if (!txResult.ok) {
+    return;
+  }
+  const museum = txResult.value;
 
   (res.locals as { usageDelta?: Record<string, number> }).usageDelta = {
     museumCreates: 1,
   };
-
   res.json(museum);
 });
 
 // DELETE /museums/:id - Delete a museum
-router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+router.delete('/:id', requireAuth, requireCreator, async (req, res) => {
   try {
     const id = parseRequiredNumber(req.params.id, 'Invalid museum ID');
 

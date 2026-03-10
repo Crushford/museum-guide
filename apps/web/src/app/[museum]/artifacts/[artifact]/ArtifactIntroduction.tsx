@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useMemo, useState } from 'react';
 import { Volume2 } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
@@ -7,9 +8,10 @@ import { ErrorText } from '@/components/ui/error-text';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { BodyText } from '@/components/ui/body-text';
 import { InfoBox } from '@/components/ui/info-box';
-import { SectionCard } from '@/components/shared';
+import { HowlerAudioPlayer, SectionCard } from '@/components/shared';
 import { API_URL } from '@/lib/api';
 import { useIntroductionGeneration } from '@/hooks/useIntroductionGeneration';
+import type { HowlerAudioStatus } from '@/hooks/useHowlerAudio';
 import type { ContentItem } from '@/lib/types';
 
 interface ArtifactIntroductionProps {
@@ -23,6 +25,9 @@ export function ArtifactIntroduction({
   initialContent,
   onContentGenerated,
 }: ArtifactIntroductionProps) {
+  const [audioStatus, setAudioStatus] = useState<HowlerAudioStatus>('idle');
+  const [audioReloadToken, setAudioReloadToken] = useState(0);
+
   const {
     content,
     isGenerating,
@@ -37,6 +42,24 @@ export function ArtifactIntroduction({
     initialContent,
     onContentGenerated,
   });
+
+  const audioSrc = useMemo(() => {
+    if (!content?.audioUrl) return null;
+    const base = `${API_URL}${content.audioUrl}`;
+    const separator = content.audioUrl.includes('?') ? '&' : '?';
+    return `${base}${separator}v=${audioReloadToken}`;
+  }, [audioReloadToken, content?.audioUrl]);
+
+  const handleRegenerateAudio = useCallback(async () => {
+    const succeeded = await retryAudio();
+    if (succeeded) {
+      setAudioStatus('loading');
+      setAudioReloadToken((current) => current + 1);
+    }
+  }, [retryAudio]);
+
+  const shouldShowRegenerateAudio =
+    !content?.audioUrl || audioStatus === 'invalid';
 
   // Show streaming UI when generating (before we have final content)
   if (isGenerating && !content) {
@@ -87,19 +110,18 @@ export function ArtifactIntroduction({
         {error && <ErrorText>{error}</ErrorText>}
 
         {/* Audio Player */}
-        {content.audioUrl && (
+        {content.audioUrl && !shouldShowRegenerateAudio && (
           <InfoBox>
             <Volume2 className="h-5 w-5 text-primary shrink-0" />
-            <audio
-              controls
-              src={`${API_URL}${content.audioUrl}`}
-              className="w-full h-10"
-            >
-              Your browser does not support the audio element.
-            </audio>
+            <HowlerAudioPlayer
+              src={audioSrc}
+              onStatusChange={setAudioStatus}
+              playLabel="Play audio"
+              pauseLabel="Pause audio"
+            />
           </InfoBox>
         )}
-        {!content.audioUrl && (
+        {shouldShowRegenerateAudio && (
           <InfoBox>
             <p className="text-sm text-muted-foreground">
               Audio is unavailable for this introduction.
@@ -107,10 +129,11 @@ export function ArtifactIntroduction({
             <Button
               size="sm"
               variant="secondary"
-              onClick={retryAudio}
+              onClick={handleRegenerateAudio}
               disabled={isRetryingAudio}
             >
-              {isRetryingAudio ? 'Retrying audio...' : 'Retry audio'}
+              {isRetryingAudio && <Spinner size="xs" />}
+              {isRetryingAudio ? 'Regenerating audio...' : 'Regenerate audio'}
             </Button>
           </InfoBox>
         )}

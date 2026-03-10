@@ -10,9 +10,20 @@ import { useAuthedApi } from '@/lib/useAuthedApi';
 import { Spinner } from '@/components/ui/spinner';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { ApiRequestError } from '@/lib/api-errors';
+import { CONTACT_EMAIL, JAMES_LINKEDIN_URL } from '@/lib/constants';
 
 type UsageResponse = {
+  user: {
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    isAdmin: boolean;
+    role: 'free' | 'premium' | 'admin';
+    canCreate: boolean;
+  };
   usage: {
     dateKey: string;
     resetAt: string;
@@ -28,6 +39,14 @@ type UsageResponse = {
       museumCreates: number | null;
       artifactCreates: number | null;
     };
+  };
+  premiumAllowance: {
+    museumsUsed: number;
+    museumsLimit: number;
+    artifactsUsed: number;
+    artifactsLimit: number;
+    questionsUsed: number;
+    questionsLimit: number;
   };
 };
 
@@ -57,6 +76,15 @@ export default function ActivityPage() {
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<UsageResponse | null>(null);
   const [questions, setQuestions] = useState<UserQuestion[] | null>(null);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoMessage, setPromoMessage] = useState<string | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+
+  const WAITLIST_URL =
+    process.env.NEXT_PUBLIC_WAITLIST_URL ||
+    'https://forms.gle/U1PqnrG22YzV2sXu8';
+  const LINKEDIN_URL = JAMES_LINKEDIN_URL;
 
   const loadData = useCallback(async () => {
     setUsageLoading(true);
@@ -84,6 +112,53 @@ export default function ActivityPage() {
       setQuestionsLoading(false);
     }
   }, [authedApi, router]);
+
+  const redeemPromo = useCallback(async () => {
+    const code = promoCode.trim();
+    if (!code) {
+      setPromoError('Enter a promo code.');
+      return;
+    }
+
+    setPromoLoading(true);
+    setPromoError(null);
+    setPromoMessage(null);
+    try {
+      await authedApi.mutate('/account/redeem-promo', {
+        method: 'POST',
+        body: { code },
+      });
+      setPromoMessage('Promo code accepted. Allowances were reset.');
+      await loadData();
+    } catch (redeemError) {
+      if (
+        redeemError instanceof ApiRequestError &&
+        redeemError.body?.code === 'SIGNUP_WAITLIST'
+      ) {
+        window.location.assign(WAITLIST_URL);
+        return;
+      }
+      if (
+        redeemError instanceof ApiRequestError &&
+        redeemError.body?.code === 'INVALID_PROMO_CODE'
+      ) {
+        setPromoError('Invalid promo code.');
+      } else if (
+        redeemError instanceof ApiRequestError &&
+        redeemError.body?.code === 'PROMO_CODE_USER_LIMIT'
+      ) {
+        setPromoError('You can use the same promo code at most 2 times.');
+      } else {
+        setPromoError(
+          redeemError instanceof Error
+            ? redeemError.message
+            : 'Could not redeem promo code.'
+        );
+      }
+    } finally {
+      setPromoLoading(false);
+    }
+  }, [authedApi, loadData, promoCode, WAITLIST_URL]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -168,6 +243,82 @@ export default function ActivityPage() {
             </p>
           )}
         </SectionCard>
+
+        {usage && (
+          <SectionCard
+            title={
+              usage.user.role === 'admin'
+                ? 'Admin allowance'
+                : 'Premium allowance'
+            }
+            subtitle={
+              usage.user.role === 'admin'
+                ? 'Admins have unlimited access. No promo code is required.'
+                : 'These limits reset when a new promo code is redeemed.'
+            }
+          >
+            <div className="space-y-2 text-sm text-fg-subtle">
+              <p>
+                Museums: {usage.premiumAllowance.museumsUsed} /{' '}
+                {usage.user.role === 'admin'
+                  ? '∞'
+                  : usage.premiumAllowance.museumsLimit}
+              </p>
+              <p>
+                Artifacts: {usage.premiumAllowance.artifactsUsed} /{' '}
+                {usage.user.role === 'admin'
+                  ? '∞'
+                  : usage.premiumAllowance.artifactsLimit}
+              </p>
+              <p>
+                Questions: {usage.premiumAllowance.questionsUsed} /{' '}
+                {usage.user.role === 'admin'
+                  ? '∞'
+                  : usage.premiumAllowance.questionsLimit}
+              </p>
+            </div>
+
+            {usage.user.role !== 'admin' && (
+              <div className="mt-4 space-y-3">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter new promo code"
+                    value={promoCode}
+                    onChange={(event) => setPromoCode(event.target.value)}
+                    disabled={promoLoading}
+                  />
+                  <Button
+                    onClick={() => void redeemPromo()}
+                    disabled={promoLoading}
+                  >
+                    Redeem
+                  </Button>
+                </div>
+                {promoError && <Alert>{promoError}</Alert>}
+                {promoMessage && <Alert>{promoMessage}</Alert>}
+                <p className="text-sm text-fg-subtle">
+                  Need a new code or want to share feedback? Email{' '}
+                  <a
+                    href={`mailto:${CONTACT_EMAIL}`}
+                    className="underline underline-offset-2"
+                  >
+                    {CONTACT_EMAIL}
+                  </a>{' '}
+                  or message on{' '}
+                  <a
+                    href={LINKEDIN_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    LinkedIn
+                  </a>
+                  . I&apos;m super keen to hear what you think after heavy use.
+                </p>
+              </div>
+            )}
+          </SectionCard>
+        )}
 
         {/* Questions */}
         <SectionCard title="Your questions">

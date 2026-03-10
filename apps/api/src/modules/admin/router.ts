@@ -22,6 +22,14 @@ import {
   SpendLimitError,
 } from '../../lib/llm/generate-content';
 import { getMonthlySpendEur } from '../../lib/llm/cost-tracker';
+import {
+  canCreateContent,
+  dbRoleFromUserRole,
+  normalizeDbRole,
+  USER_ROLES,
+  type UserRole,
+} from '../../lib/user-roles';
+import { adminAuth } from '../../lib/firebase-admin';
 
 export const router = Router();
 
@@ -59,6 +67,48 @@ const generateIntroductionBodySchema = z
     })
   )
   .transform((value) => value);
+
+const updateUserRoleBodySchema = z
+  .preprocess(
+    (value) => (value && typeof value === 'object' ? value : {}),
+    z.object({
+      role: z.enum(USER_ROLES),
+    })
+  )
+  .transform((value) => value);
+
+const createPromoCodeBodySchema = z
+  .preprocess(
+    (value) => (value && typeof value === 'object' ? value : {}),
+    z.object({
+      code: z.string().trim().min(1),
+      maxRedemptions: z.coerce.number().int().min(1).max(10000),
+      isActive: z.boolean().optional(),
+    })
+  )
+  .transform((value) => ({
+    code: value.code.trim().toLowerCase(),
+    maxRedemptions: value.maxRedemptions,
+    isActive: value.isActive ?? true,
+  }));
+
+function isMissingColumnOrTableError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const err = error as { code?: string; message?: string };
+  if (err.code === 'P2021' || err.code === 'P2022') {
+    return true;
+  }
+
+  const message = (err.message ?? '').toLowerCase();
+  return (
+    message.includes('does not exist') ||
+    message.includes('column') ||
+    message.includes('table')
+  );
+}
 
 // GET /admin/rooms - List all rooms with museum info
 router.get('/rooms', requireAuth, requireAdmin, async (req, res) => {
@@ -475,5 +525,335 @@ router.get('/api-calls', requireAuth, requireAdmin, async (req, res) => {
       throw error;
     }
     res.status(500).json({ error: 'Failed to fetch API calls' });
+  }
+});
+
+router.get('/users', requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const authUsers = await adminAuth.listUsers(1000);
+    let users: Array<{
+      uid: string;
+      email: string | null;
+      displayName: string | null;
+      role: string | null;
+      createdAt: Date | null;
+      updatedAt: Date | null;
+      upgradedAt: Date | null;
+      upgradeCode: string | null;
+    }> = [];
+
+    try {
+      users = await prisma.appUser.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      if (!isMissingColumnOrTableError(error)) {
+        throw error;
+      }
+      const fallbackRows = await prisma.$queryRaw<
+        Array<{
+          uid: string;
+          email: string | null;
+          displayName: string | null;
+          createdAt: Date | null;
+          updatedAt: Date | null;
+        }>
+      >`SELECT uid, email, "displayName", "createdAt", "updatedAt" FROM "AppUser" ORDER BY "createdAt" DESC`;
+      users = fallbackRows.map((row) => ({
+        ...row,
+        role: null,
+        upgradedAt: null,
+        upgradeCode: null,
+      }));
+    }
+
+    let redemptionRows: Array<{
+      userUid: string;
+      code: string;
+      redeemedAt: Date;
+    }> = [];
+    try {
+      const records = await prisma.promoCodeRedemption.findMany({
+        select: {
+          userUid: true,
+          redeemedAt: true,
+          promoCode: {
+            select: {
+              code: true,
+            },
+          },
+        },
+        orderBy: {
+          redeemedAt: 'desc',
+        },
+      });
+      redemptionRows = records.map((record) => ({
+        userUid: record.userUid,
+        code: record.promoCode.code,
+        redeemedAt: record.redeemedAt,
+      }));
+    } catch (error) {
+      if (!isMissingColumnOrTableError(error)) {
+        throw error;
+      }
+    }
+
+    const promoUsageByUser = new Map<
+      string,
+      Array<{ code: string; uses: number; lastRedeemedAt: Date }>
+    >();
+    for (const redemption of redemptionRows) {
+      const entries = promoUsageByUser.get(redemption.userUid) ?? [];
+      const existing = entries.find((entry) => entry.code === redemption.code);
+      if (existing) {
+        existing.uses += 1;
+        if (redemption.redeemedAt > existing.lastRedeemedAt) {
+          existing.lastRedeemedAt = redemption.redeemedAt;
+        }
+      } else {
+        entries.push({
+          code: redemption.code,
+          uses: 1,
+          lastRedeemedAt: redemption.redeemedAt,
+        });
+      }
+      promoUsageByUser.set(redemption.userUid, entries);
+    }
+
+    const authUserMap = new Map(
+      authUsers.users.map((user) => [user.uid, user])
+    );
+    const seen = new Set<string>();
+
+    const rows: Array<{
+      uid: string;
+      email: string | null;
+      displayName: string | null;
+      role: UserRole;
+      canCreate: boolean;
+      createdAt: Date | null;
+      updatedAt: Date | null;
+      upgradedAt: Date | null;
+      upgradeCode: string | null;
+      promoUsage: Array<{ code: string; uses: number; lastRedeemedAt: Date }>;
+    }> = users.map((row) => {
+      seen.add(row.uid);
+      const authUser = authUserMap.get(row.uid);
+      const effectiveRole = normalizeDbRole(
+        row.role,
+        authUser?.customClaims?.admin === true
+      );
+      return {
+        uid: row.uid,
+        email: row.email ?? authUser?.email ?? null,
+        displayName: row.displayName ?? authUser?.displayName ?? null,
+        role: effectiveRole,
+        canCreate: canCreateContent(effectiveRole),
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        upgradedAt: row.upgradedAt,
+        upgradeCode: row.upgradeCode,
+        promoUsage: promoUsageByUser.get(row.uid) ?? [],
+      };
+    });
+
+    for (const authUser of authUsers.users) {
+      if (seen.has(authUser.uid)) {
+        continue;
+      }
+      const effectiveRole = normalizeDbRole(
+        null,
+        authUser.customClaims?.admin === true
+      );
+      rows.push({
+        uid: authUser.uid,
+        email: authUser.email ?? null,
+        displayName: authUser.displayName ?? null,
+        role: effectiveRole,
+        canCreate: canCreateContent(effectiveRole),
+        createdAt: authUser.metadata.creationTime
+          ? new Date(authUser.metadata.creationTime)
+          : null,
+        updatedAt: authUser.metadata.lastRefreshTime
+          ? new Date(authUser.metadata.lastRefreshTime)
+          : null,
+        upgradedAt: null,
+        upgradeCode: null,
+        promoUsage: promoUsageByUser.get(authUser.uid) ?? [],
+      });
+    }
+
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to load users',
+    });
+  }
+});
+
+router.get('/promo-codes', requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    let codes: Array<{
+      id: number;
+      code: string;
+      isActive: boolean;
+      maxRedemptions: number;
+      createdAt: Date;
+      updatedAt: Date;
+      _count: { redemptions: number };
+      redemptions: Array<{
+        userUid: string;
+        redeemedAt: Date;
+        user: { email: string | null; displayName: string | null } | null;
+      }>;
+    }> = [];
+
+    try {
+      codes = await prisma.promoCode.findMany({
+        include: {
+          _count: {
+            select: { redemptions: true },
+          },
+          redemptions: {
+            orderBy: { redeemedAt: 'desc' },
+            take: 30,
+            select: {
+              userUid: true,
+              redeemedAt: true,
+              user: {
+                select: {
+                  email: true,
+                  displayName: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      if (!isMissingColumnOrTableError(error)) {
+        throw error;
+      }
+      return res.json([]);
+    }
+
+    res.json(
+      codes.map((code) => ({
+        id: code.id,
+        code: code.code,
+        isActive: code.isActive,
+        maxRedemptions: code.maxRedemptions,
+        usedRedemptions: code._count.redemptions,
+        remainingRedemptions: Math.max(
+          0,
+          code.maxRedemptions - code._count.redemptions
+        ),
+        redemptions: code.redemptions.map((redemption) => ({
+          userUid: redemption.userUid,
+          email: redemption.user?.email ?? null,
+          displayName: redemption.user?.displayName ?? null,
+          redeemedAt: redemption.redeemedAt,
+        })),
+        createdAt: code.createdAt,
+        updatedAt: code.updatedAt,
+      }))
+    );
+  } catch (error) {
+    res.status(500).json({
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch promo code usage',
+    });
+  }
+});
+
+router.patch(
+  '/users/:uid/role',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const uid = req.params.uid?.trim();
+      if (!uid) {
+        return res.status(400).json({ error: 'uid is required' });
+      }
+
+      const parsed = parseWithSchema(updateUserRoleBodySchema, req.body);
+      const nextRole: UserRole = parsed.role;
+      const authUser = await adminAuth.getUser(uid);
+      const currentClaims = authUser.customClaims ?? {};
+      const shouldBeAdmin = nextRole === 'admin';
+      const nextClaims = shouldBeAdmin
+        ? { ...currentClaims, admin: true }
+        : { ...currentClaims, admin: false };
+      await adminAuth.setCustomUserClaims(uid, nextClaims);
+
+      const saved = await prisma.appUser.upsert({
+        where: { uid },
+        update: {
+          email: authUser.email ?? null,
+          displayName: authUser.displayName ?? null,
+          role: dbRoleFromUserRole(nextRole),
+        },
+        create: {
+          uid,
+          email: authUser.email ?? null,
+          displayName: authUser.displayName ?? null,
+          role: dbRoleFromUserRole(nextRole),
+        },
+      });
+
+      res.json({
+        uid: saved.uid,
+        email: saved.email,
+        displayName: saved.displayName,
+        role: nextRole,
+        canCreate: canCreateContent(nextRole),
+      });
+    } catch (error) {
+      res.status(500).json({
+        error:
+          error instanceof Error ? error.message : 'Failed to update user role',
+      });
+    }
+  }
+);
+
+router.post('/promo-codes', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const parsed = parseWithSchema(createPromoCodeBodySchema, req.body);
+    const created = await prisma.promoCode.create({
+      data: {
+        code: parsed.code,
+        maxRedemptions: parsed.maxRedemptions,
+        isActive: parsed.isActive,
+      },
+    });
+    res.status(201).json({
+      id: created.id,
+      code: created.code,
+      isActive: created.isActive,
+      maxRedemptions: created.maxRedemptions,
+      usedRedemptions: 0,
+      remainingRedemptions: created.maxRedemptions,
+      redemptions: [],
+      createdAt: created.createdAt,
+      updatedAt: created.updatedAt,
+    });
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2002'
+    ) {
+      return res.status(409).json({ error: 'Promo code already exists.' });
+    }
+    res.status(500).json({
+      error:
+        error instanceof Error ? error.message : 'Failed to create promo code',
+    });
   }
 });

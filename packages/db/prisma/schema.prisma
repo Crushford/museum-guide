@@ -156,14 +156,50 @@ model ApiCall {
 }
 
 model AppUser {
-  id          Int      @id @default(autoincrement())
-  uid         String   @unique
-  email       String?
-  displayName String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                        Int      @id @default(autoincrement())
+  uid                       String   @unique
+  email                     String?
+  displayName               String?
+  role                      UserRole @default(FREE)
+  upgradedAt                DateTime?
+  upgradeCode               String?
+  premiumMuseumCreatesUsed  Int      @default(0)
+  premiumArtifactCreatesUsed Int     @default(0)
+  premiumQuestionsAskedUsed Int      @default(0)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  redemptions PromoCodeRedemption[]
 
   @@index([email])
+}
+
+enum UserRole {
+  FREE
+  PREMIUM
+  ADMIN
+}
+
+model PromoCode {
+  id             Int                   @id @default(autoincrement())
+  code           String                @unique
+  maxRedemptions Int
+  isActive       Boolean               @default(true)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  redemptions    PromoCodeRedemption[]
+}
+
+model PromoCodeRedemption {
+  id          Int      @id @default(autoincrement())
+  promoCodeId Int
+  userUid     String
+  redeemedAt  DateTime @default(now())
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  user        AppUser   @relation(fields: [userUid], references: [uid], onDelete: Cascade)
+
+  @@index([promoCodeId, userUid])
+  @@index([promoCodeId])
+  @@index([userUid])
 }
 
 model DailyGlobalUsage {

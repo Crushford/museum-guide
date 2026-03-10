@@ -1,0 +1,6 @@
+{
+  "hosting": {
+    "public": "hosting-placeholder",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  }
+}

@@ -203,9 +203,9 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
         }>;
       },
       {
-        requireAdmin: true,
-        adminErrorMessage:
-          'Sign in with an admin account to scan plaques and create artifacts.',
+        requireCreator: true,
+        creatorErrorMessage:
+          'Sign in with a premium or admin account to scan plaques and create artifacts.',
       }
     );
     setStageDone('persist');
@@ -219,9 +219,9 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
       `/museums/${museumId}/scan/duplicates-draft`,
       { method: 'POST', body: { draft: draftData } },
       {
-        requireAdmin: true,
-        adminErrorMessage:
-          'Sign in with an admin account to scan plaques and create artifacts.',
+        requireCreator: true,
+        creatorErrorMessage:
+          'Sign in with a premium or admin account to scan plaques and create artifacts.',
       }
     );
     setStageDone('duplicates_draft');
@@ -252,9 +252,9 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
       `/museums/${museumId}/scan/draft`,
       { method: 'POST', body: { rawText: text } },
       {
-        requireAdmin: true,
-        adminErrorMessage:
-          'Sign in with an admin account to scan plaques and create artifacts.',
+        requireCreator: true,
+        creatorErrorMessage:
+          'Sign in with a premium or admin account to scan plaques and create artifacts.',
       }
     );
     setDraft(draftResponse.draft);
@@ -312,9 +312,9 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
           },
         },
         {
-          requireAdmin: true,
-          adminErrorMessage:
-            'Sign in with an admin account to scan plaques and create artifacts.',
+          requireCreator: true,
+          creatorErrorMessage:
+            'Sign in with a premium or admin account to scan plaques and create artifacts.',
         }
       );
 
@@ -327,9 +327,9 @@ export function PlaqueScanner({ museumId, museumSlug }: PlaqueScannerProps) {
         `/museums/${museumId}/scan/duplicates-raw`,
         { method: 'POST', body: { rawText: ocrResponse.rawText } },
         {
-          requireAdmin: true,
-          adminErrorMessage:
-            'Sign in with an admin account to scan plaques and create artifacts.',
+          requireCreator: true,
+          creatorErrorMessage:
+            'Sign in with a premium or admin account to scan plaques and create artifacts.',
         }
       );
       setStageDone('duplicates_raw');

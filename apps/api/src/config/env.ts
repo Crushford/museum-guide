@@ -50,6 +50,30 @@ function parseCsvString(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function normalizeFirebasePrivateKey(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  let normalized = value.trim();
+
+  // Support accidentally pasted JSON field fragments like:
+  // private_key": "-----BEGIN PRIVATE KEY-----\n...".
+  const jsonFieldMatch = normalized.match(
+    /^"?private_key"?\s*:\s*"([\s\S]*)"$/
+  );
+  if (jsonFieldMatch) {
+    normalized = jsonFieldMatch[1] ?? '';
+  }
+
+  if (
+    (normalized.startsWith('"') && normalized.endsWith('"')) ||
+    (normalized.startsWith("'") && normalized.endsWith("'"))
+  ) {
+    normalized = normalized.slice(1, -1);
+  }
+
+  normalized = normalized.replace(/\\n/g, '\n').trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 const nullableNonNegativeNumber = z.preprocess((value) => {
   if (value === undefined || value === null || value === '') return null;
   const parsed = Number(value);
@@ -115,11 +139,10 @@ const envSchema = z.object({
 
   FIREBASE_PROJECT_ID: normalizedString,
   FIREBASE_CLIENT_EMAIL: normalizedString,
-  FIREBASE_PRIVATE_KEY: z.preprocess((value) => {
-    if (typeof value !== 'string') return value;
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed.replace(/\\n/g, '\n') : undefined;
-  }, z.string().optional()),
+  FIREBASE_PRIVATE_KEY: z.preprocess(
+    (value) => normalizeFirebasePrivateKey(value),
+    z.string().optional()
+  ),
   GOOGLE_CLOUD_PROJECT: normalizedString,
   GCLOUD_PROJECT: normalizedString,
 

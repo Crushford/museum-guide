@@ -27,6 +27,17 @@ export default function AboutPage() {
               .
             </p>
             <p>
+              If you want a promo code to test deeply, or you&apos;ve used the
+              app a lot and have feedback, I&apos;d love to chat. Email me at{' '}
+              <a
+                className="underline underline-offset-2"
+                href="mailto:museumguideio@gmail.com"
+              >
+                museumguideio@gmail.com
+              </a>{' '}
+              or message me on LinkedIn.
+            </p>
+            <p>
               I&apos;m currently looking for a job. If you&apos;re hiring,
               let&apos;s talk.
             </p>

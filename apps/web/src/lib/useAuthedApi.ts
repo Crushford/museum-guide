@@ -8,10 +8,19 @@ import { ApiRequestError, emitApiError } from '@/lib/api-errors';
 type AuthedRequestOptions = {
   requireAdmin?: boolean;
   adminErrorMessage?: string;
+  requireCreator?: boolean;
+  creatorErrorMessage?: string;
 };
 
 export function useAuthedApi() {
-  const { user, isAdmin, getIdToken, refreshAdminClaims } = useAuth();
+  const {
+    user,
+    isAdmin,
+    canCreate,
+    getIdToken,
+    refreshAdminClaims,
+    refreshRole,
+  } = useAuth();
 
   const run = useCallback(
     async <T>(
@@ -19,6 +28,7 @@ export function useAuthedApi() {
       options?: AuthedRequestOptions
     ): Promise<T> => {
       const requireAdmin = options?.requireAdmin === true;
+      const requireCreator = options?.requireCreator === true;
 
       if (!user) {
         const body = {
@@ -43,10 +53,20 @@ export function useAuthedApi() {
         }
       }
 
+      if (requireCreator && !canCreate) {
+        const refreshedRole = await refreshRole();
+        if (refreshedRole !== 'premium' && refreshedRole !== 'admin') {
+          throw new Error(
+            options?.creatorErrorMessage ??
+              'Premium or admin access is required for this action.'
+          );
+        }
+      }
+
       const token = await getIdToken(requireAdmin);
       return handler(token);
     },
-    [getIdToken, isAdmin, refreshAdminClaims, user]
+    [canCreate, getIdToken, isAdmin, refreshAdminClaims, refreshRole, user]
   );
 
   const get = useCallback(

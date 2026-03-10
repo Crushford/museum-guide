@@ -3,7 +3,11 @@ export type ApiErrorCode =
   | 'LIMIT_USER_DAILY'
   | 'SIGNUP_WAITLIST'
   | 'AUTH_REQUIRED'
-  | 'RATE_LIMIT_AUTH';
+  | 'RATE_LIMIT_AUTH'
+  | 'AUTH_SIGNIN_FAILED'
+  | 'INVALID_PROMO_CODE'
+  | 'CREATOR_ACCESS_REQUIRED'
+  | 'PREMIUM_ALLOWANCE_LIMIT';
 
 export type UsageSnapshot = {
   user: {
